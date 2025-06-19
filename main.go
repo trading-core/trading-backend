@@ -17,10 +17,11 @@ func main() {
 	walletBalance, err := client.GetWalletBalance(ctx, bybit.GetWalletBalanceInput{
 		AccountType:        bybit.AccountTypeUnified,
 		TimestampUnixMilli: serverTime.UnixMilli,
-		Coin:               "BTC",
+		Currency:           bybit.CurrencyBitcoin,
 	})
 	fatal.OnError(err)
 	fmt.Println(walletBalance)
+	fmt.Println(string(fatal.UnlessMarshal(walletBalance)))
 }
 
 func NewBybitClient() bybit.Client {
@@ -29,7 +30,7 @@ func NewBybitClient() bybit.Client {
 		Client:      http.DefaultClient,
 		Scheme:      bybitURL.Scheme,
 		Host:        bybitURL.Host,
-		ByBitKey:    config.EnvStringOrFatal("BYBIT_API_KEY"),
-		ByBitSecret: config.EnvStringOrFatal("BYBIT_API_SECRET"),
+		BybitKey:    config.EnvStringOrFatal("BYBIT_API_KEY"),
+		BybitSecret: config.EnvStringOrFatal("BYBIT_API_SECRET"),
 	}
 }

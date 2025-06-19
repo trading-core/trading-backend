@@ -18,8 +18,8 @@ type ClientHTTP struct {
 	*http.Client
 	Scheme      string
 	Host        string
-	ByBitKey    string
-	ByBitSecret string
+	BybitKey    string
+	BybitSecret string
 }
 
 func (client *ClientHTTP) GetServerTime(ctx context.Context) (output *ServerTime, err error) {
@@ -48,7 +48,7 @@ func (client *ClientHTTP) GetWalletBalance(ctx context.Context, input GetWalletB
 		Path:   "/v5/account/wallet-balance",
 	}
 	values := make(url.Values)
-	values.Set("coin", input.Coin)
+	values.Set("coin", string(input.Currency))
 	values.Set("accountType", string(input.AccountType))
 	target.RawQuery = values.Encode()
 	request, err := http.NewRequest(http.MethodGet, target.String(), nil)
@@ -58,7 +58,7 @@ func (client *ClientHTTP) GetWalletBalance(ctx context.Context, input GetWalletB
 	signature := client.generateSignature(timestamp, receiveWindow, target.RawQuery)
 	request.Header.Set("X-BAPI-SIGN-TYPE", strconv.Itoa(2))
 	request.Header.Set("X-BAPI-SIGN", signature)
-	request.Header.Set("X-BAPI-API-KEY", client.ByBitKey)
+	request.Header.Set("X-BAPI-API-KEY", client.BybitKey)
 	request.Header.Set("X-BAPI-TIMESTAMP", timestamp)
 	request.Header.Set("X-BAPI-RECV-WINDOW", receiveWindow)
 	request.Header.Set("Content-Type", "application/json")
@@ -74,8 +74,8 @@ func (client *ClientHTTP) GetWalletBalance(ctx context.Context, input GetWalletB
 }
 
 func (client *ClientHTTP) generateSignature(timestamp string, receiveWindow string, input string) string {
-	payload := timestamp + client.ByBitKey + receiveWindow + input
-	mac := hmac.New(sha256.New, []byte(client.ByBitSecret))
+	payload := timestamp + client.BybitKey + receiveWindow + input
+	mac := hmac.New(sha256.New, []byte(client.BybitSecret))
 	mac.Write([]byte(payload))
 	return hex.EncodeToString(mac.Sum(nil))
 }

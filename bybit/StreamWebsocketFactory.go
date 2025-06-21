@@ -10,12 +10,14 @@ import (
 )
 
 type StreamWebsocketFactory struct {
-	Scheme string
-	Host   string
+	Scheme      string
+	Host        string
+	BybitKey    string
+	BybitSecret string
 }
 
-func (factory *StreamWebsocketFactory) Connect(streamType StreamType) (stream Stream, err error) {
-	endpoint, ok := getStreamEndpointByType[streamType]
+func (factory *StreamWebsocketFactory) Connect(connectionType ConnectionType) (stream Stream, err error) {
+	endpoint, ok := getConnectionEndpointByType[connectionType]
 	if !ok {
 		err = merry.Errorf("stream connection type (%s) not found").WithHTTPCode(http.StatusBadRequest)
 		return
@@ -29,12 +31,15 @@ func (factory *StreamWebsocketFactory) Connect(streamType StreamType) (stream St
 	fatal.OnError(err)
 	fatal.Unless(response.StatusCode == http.StatusSwitchingProtocols)
 	stream = &StreamWebsocket{
-		connection: connection,
+		connectionType: connectionType,
+		connection:     connection,
+		bybitKey:       factory.BybitKey,
+		bybitSecret:    factory.BybitSecret,
 	}
 	return
 }
 
-var getStreamEndpointByType = map[StreamType]string{
+var getConnectionEndpointByType = map[ConnectionType]string{
 	LinearPublic:  "/v5/public/linear",
 	SpotPublic:    "/v5/public/spot",
 	Private:       "/v5/private",

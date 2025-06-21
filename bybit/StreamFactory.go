@@ -1,13 +1,13 @@
 package bybit
 
 type StreamFactory interface {
-	Connect(streamType StreamType) (Stream, error)
+	Connect(connectionType ConnectionType) (Stream, error)
 }
 
-type StreamType int
+type ConnectionType int
 
 const (
-	LinearPublic StreamType = iota
+	LinearPublic ConnectionType = iota
 	SpotPublic
 	Private
 	InversePublic

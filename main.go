@@ -16,7 +16,15 @@ func main() {
 	stream, err := streamFactory.Connect(bybit.LinearPublic)
 	fatal.OnError(err)
 
-	fmt.Println(stream.Subscribe(ctx))
+	var arguments []bybit.SubscribeInputArgument
+	arguments = append(arguments, bybit.SubscribeInputArgument{
+		Topic:  "publicTrade",
+		Symbol: "BTCUSDT",
+	})
+	stream.Subscribe(ctx, bybit.SubscribeInput{
+		RequestID: nil,
+		Arguments: arguments,
+	})
 
 	serverTime, err := client.GetServerTime(ctx)
 	fatal.OnError(err)
@@ -44,7 +52,9 @@ func NewBybitClient() bybit.Client {
 func NewBybitStreamFactory() bybit.StreamFactory {
 	bybitStreamURL := config.EnvBaseURLOrFatal("BYBIT_STREAM")
 	return &bybit.StreamWebsocketFactory{
-		Scheme: bybitStreamURL.Scheme,
-		Host:   bybitStreamURL.Host,
+		Scheme:      bybitStreamURL.Scheme,
+		Host:        bybitStreamURL.Host,
+		BybitKey:    config.EnvStringOrFatal("BYBIT_API_KEY"),
+		BybitSecret: config.EnvStringOrFatal("BYBIT_API_SECRET"),
 	}
 }

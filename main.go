@@ -12,6 +12,12 @@ import (
 func main() {
 	ctx := context.Background()
 	client := NewBybitClient()
+	streamFactory := NewBybitStreamFactory()
+	stream, err := streamFactory.Connect(bybit.LinearPublic)
+	fatal.OnError(err)
+
+	fmt.Println(stream.Subscribe(ctx))
+
 	serverTime, err := client.GetServerTime(ctx)
 	fatal.OnError(err)
 	walletBalance, err := client.GetWalletBalance(ctx, bybit.GetWalletBalanceInput{
@@ -25,12 +31,20 @@ func main() {
 }
 
 func NewBybitClient() bybit.Client {
-	bybitURL := config.EnvBaseURLOrFatal("BYBIT")
+	bybitAPIURL := config.EnvBaseURLOrFatal("BYBIT_API")
 	return &bybit.ClientHTTP{
 		Client:      http.DefaultClient,
-		Scheme:      bybitURL.Scheme,
-		Host:        bybitURL.Host,
+		Scheme:      bybitAPIURL.Scheme,
+		Host:        bybitAPIURL.Host,
 		BybitKey:    config.EnvStringOrFatal("BYBIT_API_KEY"),
 		BybitSecret: config.EnvStringOrFatal("BYBIT_API_SECRET"),
+	}
+}
+
+func NewBybitStreamFactory() bybit.StreamFactory {
+	bybitStreamURL := config.EnvBaseURLOrFatal("BYBIT_STREAM")
+	return &bybit.StreamWebsocketFactory{
+		Scheme: bybitStreamURL.Scheme,
+		Host:   bybitStreamURL.Host,
 	}
 }

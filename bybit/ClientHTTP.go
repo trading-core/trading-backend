@@ -9,7 +9,8 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
-	"tradingbot/internal/fatal"
+
+	"github.com/kduong/tradingbot/internal/fatal"
 
 	"github.com/ansel1/merry"
 )

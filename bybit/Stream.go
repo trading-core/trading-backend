@@ -2,27 +2,23 @@ package bybit
 
 import (
 	"context"
-	"fmt"
 )
 
 type Stream interface {
-	Subscribe(ctx context.Context, input SubscribeInput) error
+	PerformOperation(ctx context.Context, input PerformOperationInput) error
 }
 
-type SubscribeInput struct {
-	RequestID *string
-	Arguments []SubscribeInputArgument
+type PerformOperationInput struct {
+	RequestID string        `json:"req_id,omitempty"`
+	Operation OperationType `json:"op"`
+	Arguments []string      `json:"args"`
 }
 
-type SubscribeInputArgument struct {
-	Topic    string  // e.g., "publicTrade", "kline", "orderbook.1"
-	Interval *string // Optional, for kline or depth
-	Symbol   string  // e.g., "BTCUSDT"
-}
+type OperationType string
 
-func (input SubscribeInputArgument) String() string {
-	if input.Interval != nil {
-		return fmt.Sprintf("%s.%s.%s", input.Topic, *input.Interval, input.Symbol)
-	}
-	return fmt.Sprintf("%s.%s", input.Topic, input.Symbol)
-}
+const (
+	OperationTypeSubscribe      OperationType = "subscribe"
+	OperationTypeUnsubscribe    OperationType = "unsubscribe"
+	OperationTypeAuthentication OperationType = "auth"
+	OperationTypePing           OperationType = "ping"
+)

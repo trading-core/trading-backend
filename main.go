@@ -4,26 +4,24 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"tradingbot/bybit"
-	"tradingbot/internal/config"
-	"tradingbot/internal/fatal"
+
+	"github.com/kduong/tradingbot/bybit"
+	"github.com/kduong/tradingbot/internal/config"
+	"github.com/kduong/tradingbot/internal/fatal"
+	uuid "github.com/satori/go.uuid"
 )
 
 func main() {
 	ctx := context.Background()
 	client := NewBybitClient()
 	streamFactory := NewBybitStreamFactory()
-	stream, err := streamFactory.Connect(bybit.LinearPublic)
+	stream, err := streamFactory.Connect(bybit.SpotPublic)
 	fatal.OnError(err)
 
-	var arguments []bybit.SubscribeInputArgument
-	arguments = append(arguments, bybit.SubscribeInputArgument{
-		Topic:  "publicTrade",
-		Symbol: "BTCUSDT",
-	})
-	stream.Subscribe(ctx, bybit.SubscribeInput{
-		RequestID: nil,
-		Arguments: arguments,
+	stream.PerformOperation(ctx, bybit.PerformOperationInput{
+		RequestID: uuid.NewV4().String(),
+		Operation: bybit.OperationTypeSubscribe,
+		Arguments: []string{"publicTrade.BTCUSDT"},
 	})
 
 	serverTime, err := client.GetServerTime(ctx)

@@ -15,24 +15,8 @@ type StreamWebsocket struct {
 	bybitSecret    string
 }
 
-type OperationType string
-
-const (
-	OperationTypeSubscribe      OperationType = "subscribe"
-	OperationTypeUnsubscribe    OperationType = "unsubscribe"
-	OperationTypeAuthentication OperationType = "auth"
-	OperationTypePing           OperationType = "ping"
-)
-
-type WebsocketRequest struct {
-	RequestID *string       `json:"req_id,omitempty"`
-	Operation OperationType `json:"op"`
-	Arguments []string      `json:"args"`
-}
-
-func (stream *StreamWebsocket) Subscribe(ctx context.Context, input SubscribeInput) (err error) {
-	request := stream.buildWebsocketRequest(input)
-	err = stream.connection.WriteJSON(request)
+func (stream *StreamWebsocket) PerformOperation(ctx context.Context, input PerformOperationInput) (err error) {
+	err = stream.connection.WriteJSON(input)
 	if err != nil {
 		return
 	}
@@ -59,17 +43,4 @@ func (stream *StreamWebsocket) Subscribe(ctx context.Context, input SubscribeInp
 			}
 		}
 	}
-}
-
-func (stream *StreamWebsocket) buildWebsocketRequest(input SubscribeInput) WebsocketRequest {
-	var arguments []string
-	for _, argument := range input.Arguments {
-		arguments = append(arguments, argument.String())
-	}
-	request := WebsocketRequest{
-		RequestID: input.RequestID,
-		Operation: OperationTypeSubscribe,
-		Arguments: arguments,
-	}
-	return request
 }

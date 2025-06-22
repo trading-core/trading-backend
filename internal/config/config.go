@@ -5,7 +5,8 @@ import (
 	"os"
 	"strconv"
 	"time"
-	"tradingbot/internal/logger"
+
+	"github.com/kduong/tradingbot/internal/logger"
 )
 
 // EnvStringOrFatal -- fetch a string from the environment, or Fatal if it doesn't exist.

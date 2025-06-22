@@ -3,7 +3,8 @@ package bybit
 import (
 	"net/http"
 	"net/url"
-	"tradingbot/internal/fatal"
+
+	"github.com/kduong/tradingbot/internal/fatal"
 
 	"github.com/ansel1/merry"
 	"github.com/gorilla/websocket"

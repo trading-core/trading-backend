@@ -3,7 +3,8 @@ package fatal
 import (
 	"encoding/json"
 	"io"
-	"tradingbot/internal/logger"
+
+	"github.com/kduong/tradingbot/internal/logger"
 )
 
 // A set of methods that encapsulate actions that will simply fatal on error.

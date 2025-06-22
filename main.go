@@ -15,7 +15,7 @@ func main() {
 	ctx := context.Background()
 	client := NewBybitClient()
 	streamFactory := NewBybitStreamFactory()
-	stream, err := streamFactory.Connect(bybit.SpotPublic)
+	stream, err := streamFactory.Connect(bybit.LinearPublic)
 	fatal.OnError(err)
 
 	stream.PerformOperation(ctx, bybit.PerformOperationInput{

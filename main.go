@@ -14,9 +14,11 @@ import (
 func main() {
 	ctx := context.Background()
 	client := NewBybitClient()
+	test := new(test)
 	streamFactory := NewBybitStreamFactory()
 	stream, err := streamFactory.Connect(bybit.LinearPublic)
 	fatal.OnError(err)
+	go stream.ReadMessages(ctx, test.ApplyMessage)
 
 	stream.PerformOperation(ctx, bybit.PerformOperationInput{
 		RequestID: uuid.NewV4().String(),
@@ -34,6 +36,7 @@ func main() {
 	fatal.OnError(err)
 	fmt.Println(walletBalance)
 	fmt.Println(string(fatal.UnlessMarshal(walletBalance)))
+	select {}
 }
 
 func NewBybitClient() bybit.Client {
@@ -55,4 +58,12 @@ func NewBybitStreamFactory() bybit.StreamFactory {
 		BybitKey:    config.EnvStringOrFatal("BYBIT_API_KEY"),
 		BybitSecret: config.EnvStringOrFatal("BYBIT_API_SECRET"),
 	}
+}
+
+type test struct {
+}
+
+func (test *test) ApplyMessage(ctx context.Context, message []byte) {
+	fmt.Println("applied message ", string(message))
+	fmt.Println()
 }

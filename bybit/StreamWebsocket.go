@@ -2,10 +2,9 @@ package bybit
 
 import (
 	"context"
-	"fmt"
-	"log"
 
 	"github.com/gorilla/websocket"
+	"github.com/kduong/tradingbot/internal/logger"
 )
 
 type StreamWebsocket struct {
@@ -15,32 +14,30 @@ type StreamWebsocket struct {
 	bybitSecret    string
 }
 
-func (stream *StreamWebsocket) PerformOperation(ctx context.Context, input PerformOperationInput) (err error) {
-	err = stream.connection.WriteJSON(input)
-	if err != nil {
-		return
-	}
+func (stream *StreamWebsocket) ReadMessages(ctx context.Context, apply ApplyMessageFunc) (err error) {
+	var messageType int
+	var message []byte
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		default:
-			var messageType int
-			var message []byte
 			messageType, message, err = stream.connection.ReadMessage()
 			if err != nil {
-				log.Printf("read error: %v", err)
 				return
 			}
-
 			switch messageType {
 			case websocket.TextMessage:
-				fmt.Println("Received text:", string(message))
-			case websocket.BinaryMessage:
-				fmt.Println("Received binary:", message)
-			default:
-				fmt.Println("Received unknown type")
+				apply(ctx, message)
+			case websocket.PingMessage:
+				stream.connection.WriteMessage(websocket.PongMessage, nil)
+			case websocket.PongMessage:
+				logger.Notice("Received pong")
 			}
 		}
 	}
+}
+
+func (stream *StreamWebsocket) PerformOperation(ctx context.Context, input PerformOperationInput) (err error) {
+	return stream.connection.WriteJSON(input)
 }

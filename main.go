@@ -2,40 +2,48 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 
 	"github.com/kduong/tradingbot/bybit"
 	"github.com/kduong/tradingbot/internal/config"
 	"github.com/kduong/tradingbot/internal/fatal"
+	"github.com/kduong/tradingbot/streamsync"
 	uuid "github.com/satori/go.uuid"
 )
 
 func main() {
 	ctx := context.Background()
-	client := NewBybitClient()
-	test := new(test)
 	streamFactory := NewBybitStreamFactory()
-	stream, err := streamFactory.Connect(bybit.LinearPublic)
+	linearPublicStream, err := streamFactory.Connect(bybit.LinearPublic)
 	fatal.OnError(err)
-	go stream.ReadMessages(ctx, test.ApplyMessage)
-
-	stream.PerformOperation(ctx, bybit.PerformOperationInput{
+	streamSyncActor := &streamsync.Actor{
+		Client: NewBybitClient(),
+	}
+	err = linearPublicStream.PerformOperation(ctx, bybit.PerformOperationInput{
 		RequestID: uuid.NewV4().String(),
 		Operation: bybit.OperationTypeSubscribe,
-		Arguments: []string{"publicTrade.BTCUSDT"},
+		Arguments: []string{
+			"publicTrade.BTCUSDT",
+			"publicTrade.ETHUSDT",
+			"publicTrade.SOLUSDT",
+		},
 	})
+	fatal.OnError(err)
+	go func() {
+		err = linearPublicStream.ReadMessages(ctx, streamSyncActor.ApplyMessage)
+		fatal.OnError(err)
+	}()
 
-	serverTime, err := client.GetServerTime(ctx)
-	fatal.OnError(err)
-	walletBalance, err := client.GetWalletBalance(ctx, bybit.GetWalletBalanceInput{
-		AccountType:        bybit.AccountTypeUnified,
-		TimestampUnixMilli: serverTime.UnixMilli,
-		Currency:           bybit.CurrencyBitcoin,
-	})
-	fatal.OnError(err)
-	fmt.Println(walletBalance)
-	fmt.Println(string(fatal.UnlessMarshal(walletBalance)))
+	// serverTime, err := client.GetServerTime(ctx)
+	// fatal.OnError(err)
+	// walletBalance, err := client.GetWalletBalance(ctx, bybit.GetWalletBalanceInput{
+	// 	AccountType:        bybit.AccountTypeUnified,
+	// 	TimestampUnixMilli: serverTime.UnixMilli,
+	// 	Currency:           bybit.CurrencyBitcoin,
+	// })
+	// fatal.OnError(err)
+	// fmt.Println(walletBalance)
+	// fmt.Println(string(fatal.UnlessMarshal(walletBalance)))
 	select {}
 }
 
@@ -58,12 +66,4 @@ func NewBybitStreamFactory() bybit.StreamFactory {
 		BybitKey:    config.EnvStringOrFatal("BYBIT_API_KEY"),
 		BybitSecret: config.EnvStringOrFatal("BYBIT_API_SECRET"),
 	}
-}
-
-type test struct {
-}
-
-func (test *test) ApplyMessage(ctx context.Context, message []byte) {
-	fmt.Println("applied message ", string(message))
-	fmt.Println()
 }

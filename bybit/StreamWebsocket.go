@@ -14,7 +14,7 @@ type StreamWebsocket struct {
 	bybitSecret    string
 }
 
-func (stream *StreamWebsocket) ReadMessages(ctx context.Context, apply ApplyMessageFunc) (err error) {
+func (stream *StreamWebsocket) ReadMessages(ctx context.Context, apply ApplyFunc) (err error) {
 	var messageType int
 	var message []byte
 	for {

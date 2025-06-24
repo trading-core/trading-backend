@@ -6,7 +6,7 @@ import (
 
 type Stream interface {
 	PerformOperation(ctx context.Context, input PerformOperationInput) error
-	ReadMessages(ctx context.Context, apply ApplyMessageFunc) error
+	ReadMessages(ctx context.Context, apply ApplyFunc) error
 }
 
 type PerformOperationInput struct {
@@ -24,4 +24,4 @@ const (
 	OperationTypePing           OperationType = "ping"
 )
 
-type ApplyMessageFunc func(ctx context.Context, message []byte)
+type ApplyFunc func(ctx context.Context, event []byte)

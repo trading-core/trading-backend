@@ -1,0 +1,5 @@
+package tradingbot
+
+func main() {
+
+}

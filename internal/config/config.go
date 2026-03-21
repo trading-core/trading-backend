@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/kduong/tradingbot/internal/logger"
+	"github.com/kduong/trading-backend/internal/logger"
 )
 
 // EnvStringOrFatal -- fetch a string from the environment, or Fatal if it doesn't exist.

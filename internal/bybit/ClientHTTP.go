@@ -10,7 +10,7 @@ import (
 	"net/url"
 	"strconv"
 
-	"github.com/kduong/tradingbot/internal/fatal"
+	"github.com/kduong/trading-backend/internal/fatal"
 
 	"github.com/ansel1/merry"
 )

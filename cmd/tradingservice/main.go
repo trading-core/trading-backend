@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/kduong/tradingbot/internal/bybit"
-	"github.com/kduong/tradingbot/internal/config"
-	"github.com/kduong/tradingbot/internal/fatal"
+	"github.com/kduong/trading-backend/internal/bybit"
+	"github.com/kduong/trading-backend/internal/config"
+	"github.com/kduong/trading-backend/internal/fatal"
 )
 
 func main() {

@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/gorilla/websocket"
-	"github.com/kduong/tradingbot/internal/logger"
+	"github.com/kduong/trading-backend/internal/logger"
 )
 
 type StreamWebsocket struct {

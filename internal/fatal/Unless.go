@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"io"
 
-	"github.com/kduong/tradingbot/internal/logger"
+	"github.com/kduong/trading-backend/internal/logger"
 )
 
 // A set of methods that encapsulate actions that will simply fatal on error.

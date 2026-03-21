@@ -3,7 +3,7 @@ package contextx
 import (
 	"context"
 
-	"github.com/kduong/tradingbot/internal/fatal"
+	"github.com/kduong/trading-backend/internal/fatal"
 )
 
 type contextKey string

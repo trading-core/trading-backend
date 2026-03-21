@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/kduong/tradingbot/internal/bybit"
+	"github.com/kduong/trading-backend/internal/bybit"
 )
 
 type Actor struct {

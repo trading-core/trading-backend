@@ -3,7 +3,7 @@ package fatal
 import (
 	"fmt"
 
-	"github.com/kduong/tradingbot/internal/logger"
+	"github.com/kduong/trading-backend/internal/logger"
 )
 
 // OnError fatal on non-nil error

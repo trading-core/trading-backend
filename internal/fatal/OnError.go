@@ -1,6 +1,7 @@
 package fatal
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/kduong/trading-backend/internal/logger"
@@ -27,4 +28,20 @@ func OnErrorf(err error, context string, args ...interface{}) {
 		context = fmt.Sprintf(context, args...)
 	}
 	logger.Fatalf("%s: %s", context, err.Error())
+}
+
+// OnErrorUnlessDone panics or logs fatal if err is non-nil
+// unless the context has already been canceled.
+func OnErrorUnlessDone(ctx context.Context, err error) {
+	if err == nil {
+		return
+	}
+	select {
+	case <-ctx.Done():
+		// Context canceled, ignore the error
+		return
+	default:
+		// Context active, treat error as fatal
+		logger.Fatal(err)
+	}
 }

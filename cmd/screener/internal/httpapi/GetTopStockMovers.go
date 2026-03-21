@@ -1,9 +1,12 @@
 package httpapi
 
 import (
-	"errors"
+	"encoding/json"
 	"net/http"
+	"strconv"
 
+	"github.com/kduong/trading-backend/cmd/screener/internal/alpaca"
+	"github.com/kduong/trading-backend/internal/fatal"
 	"github.com/kduong/trading-backend/internal/httputil"
 )
 
@@ -14,5 +17,22 @@ func (handler *Handler) GetTopStockMovers(responseWriter http.ResponseWriter, re
 			httputil.SendErrorResponse(responseWriter, err)
 		}
 	}()
-	err = errors.New("test")
+	ctx := request.Context()
+	query := request.URL.Query()
+	limit := 10
+	if v := query.Get("limit"); len(v) > 0 {
+		limit, err = strconv.Atoi(v)
+		if err != nil {
+			return
+		}
+	}
+	output, err := handler.alpacaClient.GetTopStockMovers(ctx, alpaca.GetTopStockMoversInput{
+		Limit: limit,
+	})
+	if err != nil {
+		return
+	}
+	responseWriter.Header().Set("Content-Type", "application/json")
+	err = json.NewEncoder(responseWriter).Encode(output)
+	fatal.OnErrorUnlessDone(ctx, err)
 }

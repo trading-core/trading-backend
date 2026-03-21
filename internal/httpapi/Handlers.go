@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
-	"github.com/kduong/tradingbot/internal/bybit"
+	"github.com/kduong/trading-backend/internal/bybit"
 )
 
 type HTTPAPI struct {

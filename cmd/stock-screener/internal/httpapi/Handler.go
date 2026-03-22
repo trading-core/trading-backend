@@ -20,9 +20,9 @@ func NewRouter(input NewRouterInput) *mux.Router {
 		alpacaClient: input.AlpacaClient,
 	}
 	router := mux.NewRouter().StrictSlash(true)
-	screenerV1Router := router.PathPrefix("/stock-screener/v1").Subrouter()
+	stockScreenerV1Router := router.PathPrefix("/stock-screener/v1").Subrouter()
 	// TODO: authorization
-	screenerV1Router.HandleFunc("/most-actives", handler.GetActiveStocks).Methods(http.MethodGet).Name("GetActiveStocks")
-	screenerV1Router.HandleFunc("/movers", handler.GetTopStockMovers).Methods(http.MethodGet).Name("GetTopStockMovers")
+	stockScreenerV1Router.HandleFunc("/most-actives", handler.GetActiveStocks).Methods(http.MethodGet).Name("GetActiveStocks")
+	stockScreenerV1Router.HandleFunc("/movers", handler.GetTopStockMovers).Methods(http.MethodGet).Name("GetTopStockMovers")
 	return router
 }

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/kduong/trading-backend/internal/httputil"
@@ -79,6 +80,38 @@ func (client *HTTPClient) GetTopStockMovers(ctx context.Context, input GetTopSto
 	}
 	query := target.Query()
 	query.Set("top", strconv.Itoa(input.Limit))
+	target.RawQuery = query.Encode()
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, target.String(), nil)
+	if err != nil {
+		panic(err)
+	}
+	request.Header.Set("APCA-API-KEY-ID", client.keyID)
+	request.Header.Set("APCA-API-SECRET-KEY", client.secretKey)
+	response, err := client.Do(request)
+	if err != nil {
+		return
+	}
+	defer httputil.DrainAndClose(response.Body)
+	if response.StatusCode != http.StatusOK {
+		err = client.extractResponseError(response)
+		return
+	}
+	err = json.NewDecoder(response.Body).Decode(&output)
+	return
+}
+
+func (client *HTTPClient) GetStockNews(ctx context.Context, input GetStockNewsInput) (output *GetStockNewsOutput, err error) {
+	target := url.URL{
+		Scheme: client.baseURL.Scheme,
+		Host:   client.baseURL.Host,
+		Path:   "/v1beta1/news",
+	}
+	query := target.Query()
+	query.Set("limit", strconv.Itoa(input.Limit))
+	query.Set("symbols", strings.Join(input.Symbols, ","))
+	if input.NextPageToken != "" {
+		query.Set("next_page_token", input.NextPageToken)
+	}
 	target.RawQuery = query.Encode()
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, target.String(), nil)
 	if err != nil {

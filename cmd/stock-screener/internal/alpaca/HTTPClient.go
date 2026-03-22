@@ -108,9 +108,11 @@ func (client *HTTPClient) GetStockNews(ctx context.Context, input GetStockNewsIn
 	}
 	query := target.Query()
 	query.Set("limit", strconv.Itoa(input.Limit))
-	query.Set("symbols", strings.Join(input.Symbols, ","))
-	if input.NextPageToken != "" {
-		query.Set("next_page_token", input.NextPageToken)
+	if len(input.Symbols) > 0 {
+		query.Set("symbols", strings.Join(input.Symbols, ","))
+	}
+	if input.PageToken != "" {
+		query.Set("page_token", input.PageToken)
 	}
 	target.RawQuery = query.Encode()
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, target.String(), nil)

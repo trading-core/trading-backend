@@ -31,11 +31,11 @@ func (handler *Handler) GetStockNews(responseWriter http.ResponseWriter, request
 			return
 		}
 	}
-	nextPageToken := query.Get("next_page_token")
+	pageToken := query.Get("page_token")
 	output, err := handler.alpacaClient.GetStockNews(ctx, alpaca.GetStockNewsInput{
-		NextPageToken: nextPageToken,
-		Symbols:       symbols,
-		Limit:         limit,
+		PageToken: pageToken,
+		Symbols:   symbols,
+		Limit:     limit,
 	})
 	if err != nil {
 		return

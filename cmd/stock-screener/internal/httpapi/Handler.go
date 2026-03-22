@@ -24,5 +24,6 @@ func NewRouter(input NewRouterInput) *mux.Router {
 	// TODO: authorization
 	stockScreenerV1Router.HandleFunc("/most-actives", handler.GetActiveStocks).Methods(http.MethodGet).Name("GetActiveStocks")
 	stockScreenerV1Router.HandleFunc("/movers", handler.GetTopStockMovers).Methods(http.MethodGet).Name("GetTopStockMovers")
+	stockScreenerV1Router.HandleFunc("/news", handler.GetStockNews).Methods(http.MethodGet).Name("GetStockNews")
 	return router
 }

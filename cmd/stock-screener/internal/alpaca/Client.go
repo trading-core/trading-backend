@@ -54,9 +54,9 @@ type MoverStock struct {
 }
 
 type GetStockNewsInput struct {
-	NextPageToken string
-	Symbols       []string
-	Limit         int
+	PageToken string
+	Symbols   []string
+	Limit     int
 }
 
 type GetStockNewsOutput struct {

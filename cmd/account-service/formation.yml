@@ -1,0 +1,6 @@
+---
+- name: Render account-service .env
+  copy:
+    dest: account-service/.env
+    mode: '0600'
+    content: ""

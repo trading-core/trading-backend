@@ -1,0 +1,11 @@
+---
+- name: Render stock-screener .env
+  copy:
+    dest: stock-screener/.env
+    mode: '0600'
+    content: |
+      ALPACA_API_SCHEME=https
+      ALPACA_API_HOST=data.alpaca.markets
+      ALPACA_API_PORT=443
+      ALPACA_API_KEY={{ alpaca_api_key }}
+      ALPACA_API_SECRET={{ alpaca_api_secret }}

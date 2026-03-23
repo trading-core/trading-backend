@@ -14,7 +14,12 @@ func NewInMemoryObjectStore() *InMemoryObjectStore {
 	}
 }
 
-func (store *InMemoryObjectStore) GetObject(ctx context.Context, accountID string) (*Object, error) {
+func (store *InMemoryObjectStore) Put(ctx context.Context, object *Object) error {
+	store.objectByAccountID[object.AccountID] = object
+	return nil
+}
+
+func (store *InMemoryObjectStore) Get(ctx context.Context, accountID string) (*Object, error) {
 	account, ok := store.objectByAccountID[accountID]
 	if !ok {
 		return nil, ErrAccountNotFound

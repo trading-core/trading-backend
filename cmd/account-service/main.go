@@ -11,10 +11,19 @@ import (
 )
 
 func main() {
-	accountObjectStore := account.NewLockingDecorator(account.NewLockingDecoratorInput{
-		Decorated: NewTestAccountObjectStore(NewTestAccountObjectStoreInput{
-			Decorated: account.NewInMemoryObjectStore(),
-		}),
+	ctx := context.Background()
+	accountObjectStore := account.NewThreadSafeObjectStoreDecorator(account.NewThreadSafeObjectStoreDecoratorInput{
+		Decorated: account.NewInMemoryObjectStore(),
+	})
+	// Test data
+	accountObjectStore.Put(ctx, &account.Object{
+		AccountID:  "TEST",
+		BrokerType: account.BrokerTypeMockTest,
+	})
+	// Tasty Trade account
+	accountObjectStore.Put(ctx, &account.Object{
+		AccountID:  "TastyTradeAccountID",
+		BrokerType: account.BrokerTypeTastyTrade,
 	})
 	router := httpapi.NewRouter(httpapi.NewRouterInput{
 		AccountObjectStore:   accountObjectStore,
@@ -28,31 +37,4 @@ func main() {
 		AllowCredentials: true,
 	})
 	http.ListenAndServe(":9000", c.Handler(router))
-}
-
-var _ account.ObjectStore = (*TestAccountObjectStore)(nil)
-
-type TestAccountObjectStore struct {
-	decorated account.ObjectStore
-}
-
-type NewTestAccountObjectStoreInput struct {
-	Decorated account.ObjectStore
-}
-
-func NewTestAccountObjectStore(input NewTestAccountObjectStoreInput) *TestAccountObjectStore {
-	return &TestAccountObjectStore{
-		decorated: input.Decorated,
-	}
-}
-
-func (decorator *TestAccountObjectStore) GetObject(ctx context.Context, accountID string) (object *account.Object, err error) {
-	if accountID == "TEST" {
-		object = &account.Object{
-			ID:         "TEST",
-			BrokerType: account.BrokerTypeMockTest,
-		}
-		return
-	}
-	return decorator.decorated.GetObject(ctx, accountID)
 }

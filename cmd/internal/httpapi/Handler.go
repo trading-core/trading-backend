@@ -25,7 +25,7 @@ func NewRouter(input NewRouterInput) *mux.Router {
 		brokerAdapterFactory: input.BrokerAdapterFactory,
 	}
 	router := mux.NewRouter().StrictSlash(true)
-	accountV1Router := router.PathPrefix("/account/v1").Subrouter()
+	accountV1Router := router.PathPrefix("/accounts/v1").Subrouter()
 	// TODO: authorization
 	accountV1Router.HandleFunc("/balance", handler.GetBalance).Methods(http.MethodGet).Name("GetBalance")
 	return router

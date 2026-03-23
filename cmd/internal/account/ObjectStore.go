@@ -8,5 +8,6 @@ import (
 var ErrAccountNotFound = errors.New("account not found")
 
 type ObjectStore interface {
-	GetObject(ctx context.Context, accountID string) (*Object, error)
+	Put(ctx context.Context, object *Object) error
+	Get(ctx context.Context, accountID string) (*Object, error)
 }

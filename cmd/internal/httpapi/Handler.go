@@ -10,18 +10,18 @@ import (
 )
 
 type Handler struct {
-	accountObjectStore   account.ObjectStore
+	accountStore         account.Store
 	brokerAdapterFactory *broker.AdapterFactory
 }
 
 type NewRouterInput struct {
-	AccountObjectStore   account.ObjectStore
+	AccountStore         account.Store
 	BrokerAdapterFactory *broker.AdapterFactory
 }
 
 func NewRouter(input NewRouterInput) *mux.Router {
 	handler := &Handler{
-		accountObjectStore:   input.AccountObjectStore,
+		accountStore:         input.AccountStore,
 		brokerAdapterFactory: input.BrokerAdapterFactory,
 	}
 	router := mux.NewRouter().StrictSlash(true)

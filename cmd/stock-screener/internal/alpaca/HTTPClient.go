@@ -3,8 +3,6 @@ package alpaca
 import (
 	"context"
 	"encoding/json"
-	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -65,7 +63,7 @@ func (client *HTTPClient) GetActiveStocks(ctx context.Context, input GetActiveSt
 	}
 	defer httputil.DrainAndClose(response.Body)
 	if response.StatusCode != http.StatusOK {
-		err = client.extractResponseError(response)
+		err = httputil.ExtractResponseError(response)
 		return
 	}
 	err = json.NewDecoder(response.Body).Decode(&output)
@@ -93,7 +91,7 @@ func (client *HTTPClient) GetTopStockMovers(ctx context.Context, input GetTopSto
 	}
 	defer httputil.DrainAndClose(response.Body)
 	if response.StatusCode != http.StatusOK {
-		err = client.extractResponseError(response)
+		err = httputil.ExtractResponseError(response)
 		return
 	}
 	err = json.NewDecoder(response.Body).Decode(&output)
@@ -127,17 +125,9 @@ func (client *HTTPClient) GetStockNews(ctx context.Context, input GetStockNewsIn
 	}
 	defer httputil.DrainAndClose(response.Body)
 	if response.StatusCode != http.StatusOK {
-		err = client.extractResponseError(response)
+		err = httputil.ExtractResponseError(response)
 		return
 	}
 	err = json.NewDecoder(response.Body).Decode(&output)
 	return
-}
-
-func (client *HTTPClient) extractResponseError(response *http.Response) error {
-	data, err := io.ReadAll(response.Body)
-	if err != nil {
-		panic(err)
-	}
-	return fmt.Errorf("failed to perform request: %s", string(data))
 }

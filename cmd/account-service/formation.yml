@@ -1,7 +1,8 @@
 ---
 - name: Render account-service .env
   vars:
-    service_environment: {}
+    service_environment:
+      BROKER_CREDENTIALS_B64_JSON: "{{ broker_credentials_b64_json }}"
   template:
     src: "{{ playbook_dir }}/templates/service.env.j2"
     dest: account-service/.env

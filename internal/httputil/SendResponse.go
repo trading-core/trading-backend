@@ -2,6 +2,8 @@ package httputil
 
 import (
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 
 	"github.com/ansel1/merry"
@@ -30,4 +32,12 @@ func SendResponseJSON(responseWriter http.ResponseWriter, statusCode int, body i
 	} else {
 		panic("failed to marshal json")
 	}
+}
+
+func ExtractResponseError(response *http.Response) error {
+	data, err := io.ReadAll(response.Body)
+	if err != nil {
+		panic(err)
+	}
+	return fmt.Errorf("failed to perform request: %s", string(data))
 }

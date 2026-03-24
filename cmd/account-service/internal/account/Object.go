@@ -3,9 +3,7 @@ package account
 type BrokerType string
 
 const (
-	BrokerTypeTastyTrade        BrokerType = "tastytrade"
-	BrokerTypeTastyTradeSandbox BrokerType = "tastytrade_sandbox"
-	BrokerTypeMockTest          BrokerType = "mocktest"
+	BrokerTypeTastyTrade BrokerType = "tastytrade"
 )
 
 type Object struct {

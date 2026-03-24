@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/kduong/trading-backend/cmd/internal/account"
-	"github.com/kduong/trading-backend/cmd/internal/broker"
-	"github.com/kduong/trading-backend/cmd/internal/httpapi"
+	"github.com/kduong/trading-backend/cmd/account-service/internal/account"
+	"github.com/kduong/trading-backend/cmd/account-service/internal/broker"
+	"github.com/kduong/trading-backend/cmd/account-service/internal/httpapi"
 	"github.com/kduong/trading-backend/internal/config"
 	"github.com/kduong/trading-backend/internal/fatal"
 	"github.com/rs/cors"
@@ -19,11 +19,6 @@ func main() {
 	ctx := context.Background()
 	accountStore := account.NewThreadSafeStoreDecorator(account.NewThreadSafeStoreDecoratorInput{
 		Decorated: account.NewInMemoryStore(),
-	})
-	// Test data
-	accountStore.Put(ctx, &account.Object{
-		AccountID:  "TEST",
-		BrokerType: account.BrokerTypeMockTest,
 	})
 	// Tasty Trade account
 	accountStore.Put(ctx, &account.Object{

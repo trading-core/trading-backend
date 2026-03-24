@@ -5,8 +5,8 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/kduong/trading-backend/cmd/internal/account"
-	"github.com/kduong/trading-backend/cmd/internal/broker"
+	"github.com/kduong/trading-backend/cmd/account-service/internal/account"
+	"github.com/kduong/trading-backend/cmd/account-service/internal/broker"
 )
 
 type Handler struct {

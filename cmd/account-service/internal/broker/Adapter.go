@@ -4,8 +4,18 @@ import (
 	"context"
 	"sync"
 
-	"github.com/kduong/trading-backend/cmd/internal/account"
+	"github.com/kduong/trading-backend/cmd/account-service/internal/account"
 )
+
+type Adapter interface {
+	GetBalanceInfo(ctx context.Context) (*BalanceInfo, error)
+}
+
+type BalanceInfo struct {
+	AccountBroker account.BrokerType `json:"account_broker"`
+	Balance       float64            `json:"balance"`
+	Currency      string             `json:"currency"`
+}
 
 type AdapterFactory struct {
 	mutex                    sync.Mutex
@@ -30,15 +40,19 @@ func (factory *AdapterFactory) GetBrokerAdapter(ctx context.Context, object *acc
 		credentials := factory.brokerCredentialsByType[object.BrokerType]
 		tokenManager := factory.getOrCreateTokenManager(object.BrokerType, credentials.AuthorizationServer)
 		return NewTastyTradeAdapter(NewTastyTradeAdapterInput{
-			AccountObject:  object,
-			APIEndpoint:    credentials.APIURL,
+			Account:        object,
+			RawAPIURL:      credentials.APIURL,
 			GetAccessToken: tokenManager.GetAccessToken,
 		})
-	case account.BrokerTypeMockTest:
-		return NewMockTestAdapter()
 	default:
 		panic("Unsupported broker type: " + object.BrokerType)
 	}
+}
+
+var tokenManagerFactory = map[account.BrokerType]func(authorizationServerInfo AuthorizationServerInfo) TokenManager{
+	account.BrokerTypeTastyTrade: func(authorizationServerInfo AuthorizationServerInfo) TokenManager {
+		return NewTastyTradeTokenManager(&authorizationServerInfo)
+	},
 }
 
 func (factory *AdapterFactory) getOrCreateTokenManager(brokerType account.BrokerType, authorizationServerInfo AuthorizationServerInfo) TokenManager {
@@ -46,7 +60,7 @@ func (factory *AdapterFactory) getOrCreateTokenManager(brokerType account.Broker
 	defer factory.mutex.Unlock()
 	tokenManager, ok := factory.tokenManagerByBrokerType[brokerType]
 	if !ok {
-		tokenManager = NewTastyTradeTokenManager(&authorizationServerInfo)
+		tokenManager = tokenManagerFactory[brokerType](authorizationServerInfo)
 		factory.tokenManagerByBrokerType[brokerType] = tokenManager
 	}
 	return tokenManager

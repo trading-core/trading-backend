@@ -33,3 +33,15 @@ func (decorator *ThreadSafeStoreDecorator) Get(ctx context.Context, accountID st
 	defer decorator.mutex.Unlock()
 	return decorator.decorated.Get(ctx, accountID)
 }
+
+func (decorator *ThreadSafeStoreDecorator) GetByEmail(ctx context.Context, email string) (*Object, error) {
+	decorator.mutex.Lock()
+	defer decorator.mutex.Unlock()
+	return decorator.decorated.GetByEmail(ctx, email)
+}
+
+func (decorator *ThreadSafeStoreDecorator) List(ctx context.Context) ([]*Object, error) {
+	decorator.mutex.Lock()
+	defer decorator.mutex.Unlock()
+	return decorator.decorated.List(ctx)
+}

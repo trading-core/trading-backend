@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/kduong/trading-backend/cmd/account-service/internal/account"
+	"github.com/kduong/trading-backend/internal/account"
 )
 
 type Adapter interface {

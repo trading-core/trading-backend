@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/kduong/trading-backend/cmd/account-service/internal/account"
 	"github.com/kduong/trading-backend/cmd/account-service/internal/broker"
 	"github.com/kduong/trading-backend/cmd/account-service/internal/httpapi"
+	"github.com/kduong/trading-backend/internal/account"
 	"github.com/kduong/trading-backend/internal/config"
 	"github.com/kduong/trading-backend/internal/fatal"
 	"github.com/rs/cors"
@@ -37,6 +37,9 @@ func main() {
 		BrokerAdapterFactory: broker.NewAdapterFactory(broker.NewAdapterFactoryInput{
 			BrokerCredentialsByType: brokerCredentialsByType,
 		}),
+		AuthJWTSecret:          config.EnvString("AUTH_JWT_SECRET", "local-dev-auth-secret"),
+		DefaultBrokerType:      account.BrokerTypeTastyTrade,
+		DefaultBrokerAccountID: config.EnvString("DEFAULT_BROKER_ACCOUNT_ID", "6AB16514"),
 	})
 	c := cors.New(cors.Options{
 		AllowedOrigins:   []string{"*"},

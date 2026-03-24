@@ -9,11 +9,7 @@ const (
 )
 
 type Object struct {
-	AccountID        string            `json:"account_id"`
-	BrokerType       BrokerType        `json:"broker_type"`
-	BrokerTastyTrade *BrokerTastyTrade `json:"broker_tasty_trade,omitempty"`
-}
-
-type BrokerTastyTrade struct {
-	AccountNumber string `json:"account_number"`
+	AccountID       string     `json:"account_id"`
+	BrokerType      BrokerType `json:"broker_type"`
+	BrokerAccountID string     `json:"broker_account_id"`
 }

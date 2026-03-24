@@ -17,11 +17,11 @@ func (handler *Handler) GetBalance(responseWriter http.ResponseWriter, request *
 	}()
 	ctx := request.Context()
 	// TODO: extract account ID from request (e.g. from JWT claims) and pass it to the broker client to fetch the correct balance
-	object, err := handler.accountObjectStore.Get(ctx, "TEST")
+	account, err := handler.accountStore.Get(ctx, "TastyTradeAccountID")
 	if err != nil {
 		return
 	}
-	broker := handler.brokerAdapterFactory.GetBrokerAdapter(ctx, object)
+	broker := handler.brokerAdapterFactory.GetBrokerAdapter(ctx, account)
 	balanceInfo, err := broker.GetBalanceInfo(ctx)
 	if err != nil {
 		return

@@ -1,0 +1,12 @@
+---
+- name: Render auth-service .env
+  vars:
+    service_environment:
+      AUTH_STORE_DRIVER: postgres
+      AUTH_POSTGRES_DSN: postgresql://postgres:postgres@postgres:5432/trading_auth?sslmode=disable
+      AUTH_JWT_SECRET: change-me-in-production
+      AUTH_JWT_TTL_MINUTES: 60
+  template:
+    src: "{{ playbook_dir }}/templates/service.env.j2"
+    dest: auth-service/.env
+    mode: '0600'

@@ -2,8 +2,10 @@ package httpapi
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
+	"github.com/kduong/trading-backend/internal/account"
 	"github.com/kduong/trading-backend/internal/fatal"
 	"github.com/kduong/trading-backend/internal/httputil"
 )
@@ -16,12 +18,26 @@ func (handler *Handler) GetBalance(responseWriter http.ResponseWriter, request *
 		}
 	}()
 	ctx := request.Context()
-	// TODO: extract account ID from request (e.g. from JWT claims) and pass it to the broker client to fetch the correct balance
-	account, err := handler.accountStore.Get(ctx, "TastyTradeAccountID")
+	accountID, err := handler.extractAccountID(request)
 	if err != nil {
 		return
 	}
-	broker := handler.brokerAdapterFactory.GetBrokerAdapter(ctx, account)
+	accountObject, err := handler.accountStore.Get(ctx, accountID)
+	if errors.Is(err, account.ErrAccountNotFound) {
+		err = handler.accountStore.Put(ctx, &account.Object{
+			AccountID:       accountID,
+			BrokerType:      handler.defaultBrokerType,
+			BrokerAccountID: handler.defaultBrokerAccountID,
+		})
+		if err != nil {
+			return
+		}
+		accountObject, err = handler.accountStore.Get(ctx, accountID)
+	}
+	if err != nil {
+		return
+	}
+	broker := handler.brokerAdapterFactory.GetBrokerAdapter(ctx, accountObject)
 	balanceInfo, err := broker.GetBalanceInfo(ctx)
 	if err != nil {
 		return

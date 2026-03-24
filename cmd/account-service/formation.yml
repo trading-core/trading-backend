@@ -1,6 +1,8 @@
 ---
 - name: Render account-service .env
-  copy:
+  vars:
+    service_environment: {}
+  template:
+    src: "{{ playbook_dir }}/templates/service.env.j2"
     dest: account-service/.env
     mode: '0600'
-    content: ""

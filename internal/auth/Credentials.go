@@ -1,4 +1,4 @@
-package broker
+package auth
 
 type Credentials struct {
 	ID                  string                  `json:"id"`

@@ -1,4 +1,4 @@
-package broker
+package auth
 
 import (
 	"bytes"
@@ -37,7 +37,7 @@ func NewTastyTradeTokenManager(authorizationServerInfo *AuthorizationServerInfo)
 		clientID:     clientID,
 		clientSecret: clientSecret,
 		refreshToken: authorizationServerInfo.RefreshToken,
-		gracePeriod:  30 * time.Second,
+		gracePeriod:  5 * time.Minute,
 	}
 }
 
@@ -64,18 +64,28 @@ type GetAccessTokenRequestBody struct {
 	ClientSecret string `json:"client_secret"`
 }
 
+type GetAccessTokenOutput struct {
+	AccessToken string `json:"access_token"`
+	TokenType   string `json:"token_type"`
+	ExpiresIn   int    `json:"expires_in"`
+	IDToken     string `json:"id_token"`
+}
+
 func (tokenManager *TastyTradeTokenManager) RequestAccessToken(ctx context.Context) (output GetAccessTokenOutput, err error) {
 	target := url.URL{
 		Scheme: tokenManager.tokenURL.Scheme,
 		Host:   tokenManager.tokenURL.Host,
 		Path:   "/oauth/token",
 	}
-	body := fatal.UnlessMarshal(GetAccessTokenRequestBody{
+	body, err := json.Marshal(GetAccessTokenRequestBody{
 		GrantType:    "refresh_token",
 		RefreshToken: tokenManager.refreshToken,
 		ClientID:     tokenManager.clientID,
 		ClientSecret: tokenManager.clientSecret,
 	})
+	if err != nil {
+		panic(err)
+	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, target.String(), bytes.NewReader(body))
 	if err != nil {
 		panic(err)

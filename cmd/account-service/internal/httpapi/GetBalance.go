@@ -2,10 +2,9 @@ package httpapi
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
 
-	"github.com/kduong/trading-backend/internal/account"
+	"github.com/kduong/trading-backend/internal/contextx"
 	"github.com/kduong/trading-backend/internal/fatal"
 	"github.com/kduong/trading-backend/internal/httputil"
 )
@@ -18,22 +17,8 @@ func (handler *Handler) GetBalance(responseWriter http.ResponseWriter, request *
 		}
 	}()
 	ctx := request.Context()
-	accountID, err := handler.extractAccountID(request)
-	if err != nil {
-		return
-	}
+	accountID := contextx.GetAccountID(ctx)
 	accountObject, err := handler.accountStore.Get(ctx, accountID)
-	if errors.Is(err, account.ErrAccountNotFound) {
-		err = handler.accountStore.Put(ctx, &account.Object{
-			AccountID:       accountID,
-			BrokerType:      handler.defaultBrokerType,
-			BrokerAccountID: handler.defaultBrokerAccountID,
-		})
-		if err != nil {
-			return
-		}
-		accountObject, err = handler.accountStore.Get(ctx, accountID)
-	}
 	if err != nil {
 		return
 	}

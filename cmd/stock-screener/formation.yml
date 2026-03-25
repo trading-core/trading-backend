@@ -9,5 +9,5 @@
       ALPACA_API_SECRET: "{{ alpaca_api_secret }}"
   template:
     src: "{{ playbook_dir }}/templates/service.env.j2"
-    dest: stock-screener/.env
+    dest: backend/stock-screener/.env
     mode: '0600'

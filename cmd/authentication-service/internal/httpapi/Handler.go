@@ -1,0 +1,60 @@
+package httpapi
+
+import (
+	"net/http"
+	"time"
+
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/gorilla/mux"
+	"github.com/kduong/trading-backend/cmd/authentication-service/internal/user"
+	"github.com/kduong/trading-backend/internal/auth"
+	"github.com/kduong/trading-backend/internal/eventsource"
+)
+
+type Handler struct {
+	userStore   user.Store
+	log         eventsource.Log
+	tokenSecret []byte
+	expiryTTL   time.Duration
+}
+
+type NewRouterInput struct {
+	UserStore   user.Store
+	Log         eventsource.Log
+	TokenSecret []byte
+	ExpiryTTL   time.Duration
+}
+
+func NewRouter(input NewRouterInput) *mux.Router {
+	handler := &Handler{
+		userStore:   input.UserStore,
+		log:         input.Log,
+		tokenSecret: input.TokenSecret,
+		expiryTTL:   input.ExpiryTTL,
+	}
+	router := mux.NewRouter().StrictSlash(true)
+	authV1Router := router.PathPrefix("/auth/v1").Subrouter()
+	authV1Router.HandleFunc("/users", handler.CreateUser).Methods(http.MethodPost).Name("CreateUser")
+	authV1Router.HandleFunc("/sessions", handler.CreateSession).Methods(http.MethodPost).Name("CreateSession")
+	return router
+}
+
+func (handler *Handler) GenerateToken(user *user.User) (string, time.Time, error) {
+	now := time.Now().UTC()
+	expiresAt := now.Add(handler.expiryTTL)
+	claims := auth.TokenClaims{
+		AccountID: user.AccountID,
+		Email:     user.Email,
+		RegisteredClaims: jwt.RegisteredClaims{
+			IssuedAt:  jwt.NewNumericDate(now),
+			ExpiresAt: jwt.NewNumericDate(expiresAt),
+			Subject:   user.AccountID,
+		},
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	signed, err := token.SignedString(handler.tokenSecret)
+	if err != nil {
+		return "", time.Time{}, err
+	}
+	return signed, expiresAt, nil
+}

@@ -9,17 +9,17 @@ import (
 type contextKey string
 
 const (
-	contextKeyFooBar contextKey = "context_key"
+	contextKeyAccountID contextKey = "account_id"
 )
 
-func WithFooBar(ctx context.Context, fooBar string) context.Context {
-	return context.WithValue(ctx, contextKeyFooBar, fooBar)
+func WithAccountID(ctx context.Context, accountID string) context.Context {
+	return context.WithValue(ctx, contextKeyAccountID, accountID)
 }
 
-func GetFooBar(ctx context.Context) (fooBar string) {
-	v := ctx.Value(contextKeyFooBar)
-	fatal.Unless(v != nil, "foo bar not found in context")
-	fooBar, ok := v.(string)
-	fatal.Unless(ok, "foo bar has wrong type")
+func GetAccountID(ctx context.Context) (accountID string) {
+	v := ctx.Value(contextKeyAccountID)
+	fatal.Unless(v != nil, "account ID not found in context")
+	accountID, ok := v.(string)
+	fatal.Unless(ok, "account ID has wrong type")
 	return
 }

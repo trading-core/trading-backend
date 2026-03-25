@@ -8,28 +8,24 @@ import (
 	"net/url"
 	"strconv"
 
-	"github.com/kduong/trading-backend/cmd/account-service/internal/account"
-	"github.com/kduong/trading-backend/internal/fatal"
 	"github.com/kduong/trading-backend/internal/httputil"
 )
 
 type TastyTradeAdapter struct {
-	apiURL         url.URL
-	account        *account.Account
+	apiURL         *url.URL
+	account        *Account
 	getAccessToken func(ctx context.Context) (accessToken string, err error)
 }
 
 type NewTastyTradeAdapterInput struct {
-	Account        *account.Account
-	RawAPIURL      string
+	Account        *Account
+	APIURL         *url.URL
 	GetAccessToken func(ctx context.Context) (accessToken string, err error)
 }
 
 func NewTastyTradeAdapter(input NewTastyTradeAdapterInput) *TastyTradeAdapter {
-	apiURL, err := url.Parse(input.RawAPIURL)
-	fatal.OnError(err)
 	return &TastyTradeAdapter{
-		apiURL:         *apiURL,
+		apiURL:         input.APIURL,
 		account:        input.Account,
 		getAccessToken: input.GetAccessToken,
 	}
@@ -39,7 +35,7 @@ func (adapter *TastyTradeAdapter) GetBalanceInfo(ctx context.Context) (output *B
 	target := url.URL{
 		Scheme: adapter.apiURL.Scheme,
 		Host:   adapter.apiURL.Host,
-		Path:   fmt.Sprintf("/accounts/%s/balances", adapter.account.BrokerID),
+		Path:   fmt.Sprintf("/accounts/%s/balances", adapter.account.ID),
 	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, target.String(), nil)
 	if err != nil {
@@ -69,7 +65,7 @@ func (adapter *TastyTradeAdapter) GetBalanceInfo(ctx context.Context) (output *B
 		return
 	}
 	output = &BalanceInfo{
-		Broker:   adapter.account.BrokerType,
+		Account:  adapter.account,
 		Balance:  balance,
 		Currency: tastyTradeAccountBalance.Data.Currency,
 	}

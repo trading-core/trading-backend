@@ -7,9 +7,12 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/kduong/trading-backend/cmd/account-service/internal/account"
 	"github.com/kduong/trading-backend/cmd/account-service/internal/broker"
+
 	"github.com/kduong/trading-backend/cmd/account-service/internal/httpapi"
-	"github.com/kduong/trading-backend/internal/account"
+
+	"github.com/kduong/trading-backend/internal/auth"
 	"github.com/kduong/trading-backend/internal/config"
 	"github.com/kduong/trading-backend/internal/fatal"
 	"github.com/rs/cors"
@@ -17,29 +20,22 @@ import (
 
 func main() {
 	ctx := context.Background()
-	accountStore := account.NewThreadSafeStoreDecorator(account.NewThreadSafeStoreDecoratorInput{
-		Decorated: account.NewInMemoryStore(),
-	})
-	// Tasty Trade account
-	accountStore.Put(ctx, &account.Object{
-		AccountID:       "TastyTradeAccountID",
-		BrokerType:      account.BrokerTypeTastyTrade,
-		BrokerAccountID: "6AB16514",
-	})
-	var brokerCredentialsByType map[account.BrokerType]broker.Credentials
+	var brokerCredentialsByType map[string]auth.Credentials
 	data := config.EnvStringOrFatal("BROKER_CREDENTIALS_B64_JSON")
 	reader := strings.NewReader(data)
 	base64Decoder := base64.NewDecoder(base64.StdEncoding, reader)
 	err := json.NewDecoder(base64Decoder).Decode(&brokerCredentialsByType)
 	fatal.OnError(err)
 	router := httpapi.NewRouter(httpapi.NewRouterInput{
-		AccountStore: accountStore,
+		AccountStore: account.NewThreadSafeStoreDecorator(account.NewThreadSafeStoreDecoratorInput{
+			Decorated: account.StoreFromEnv(ctx),
+		}),
 		BrokerAdapterFactory: broker.NewAdapterFactory(broker.NewAdapterFactoryInput{
 			BrokerCredentialsByType: brokerCredentialsByType,
 		}),
-		AuthJWTSecret:          config.EnvString("AUTH_JWT_SECRET", "local-dev-auth-secret"),
-		DefaultBrokerType:      account.BrokerTypeTastyTrade,
-		DefaultBrokerAccountID: config.EnvString("DEFAULT_BROKER_ACCOUNT_ID", "6AB16514"),
+		AuthMiddleWare: &auth.MiddleWare{
+			TokenSecret: config.EnvStringOrFatal("TOKEN_SECRET"),
+		},
 	})
 	c := cors.New(cors.Options{
 		AllowedOrigins:   []string{"*"},

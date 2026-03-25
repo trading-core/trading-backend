@@ -12,18 +12,14 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/kduong/trading-backend/cmd/authentication-service/internal/user"
-	"github.com/kduong/trading-backend/internal/broker"
 	"github.com/kduong/trading-backend/internal/eventsource"
 	"github.com/kduong/trading-backend/internal/fatal"
 	"github.com/kduong/trading-backend/internal/httputil"
-	"github.com/kduong/trading-backend/internal/logger"
 )
 
 type CreateUserInput struct {
-	Email      string `json:"email"`
-	Password   string `json:"password"`
-	BrokerID   string `json:"broker_id"`
-	BrokerType string `json:"broker_type"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
 }
 
 func (handler *Handler) CreateUser(responseWriter http.ResponseWriter, request *http.Request) {
@@ -45,38 +41,6 @@ func (handler *Handler) CreateUser(responseWriter http.ResponseWriter, request *
 		err = merry.Wrap(err).WithHTTPCode(http.StatusBadRequest).WithUserMessage("email is required")
 		return
 	}
-	brokerType := strings.ToLower(strings.TrimSpace(input.BrokerType))
-	if len(brokerType) == 0 {
-		err = merry.Wrap(err).WithHTTPCode(http.StatusBadRequest).WithUserMessage("broker_type is required")
-		return
-	}
-	brokerID := strings.TrimSpace(input.BrokerID)
-	if len(brokerID) == 0 {
-		err = merry.Wrap(err).WithHTTPCode(http.StatusBadRequest).WithUserMessage("broker_id is required")
-		return
-	}
-	switch brokerType {
-	case broker.TypeTastyTrade:
-		// supported broker
-	default:
-		err = merry.Wrap(err).WithHTTPCode(http.StatusBadRequest).WithUserMessage("unsupported broker_type")
-		return
-	}
-	if len(input.Password) < 8 {
-		err = merry.Wrap(err).WithHTTPCode(http.StatusBadRequest).WithUserMessage("password must be at least 8 characters")
-		return
-	}
-	_, err = handler.userStore.GetByEmail(ctx, email)
-	switch {
-	case err == nil:
-		err = merry.Wrap(err).WithHTTPCode(http.StatusConflict).WithUserMessage("user already exists")
-		return
-	case errors.Is(err, user.ErrNotFound):
-		err = nil
-	default:
-		logger.Fatal(err)
-		return
-	}
 	passwordHash, err := HashPassword(input.Password)
 	if err != nil {
 		return
@@ -95,13 +59,10 @@ func (handler *Handler) CreateUser(responseWriter http.ResponseWriter, request *
 		}
 		return
 	}
-	// TODO: check broker credentials and link account if valid
 	payload := fatal.UnlessMarshal(EventUserCreated{
-		EventBase:  eventsource.NewEventBase(EventTypeUserCreated),
-		AccountID:  object.AccountID,
-		Email:      object.Email,
-		BrokerType: brokerType,
-		BrokerID:   brokerID,
+		EventBase: eventsource.NewEventBase(EventTypeUserCreated),
+		AccountID: object.AccountID,
+		Email:     object.Email,
 	})
 	_, err = handler.log.Append(payload)
 	fatal.OnError(err)
@@ -122,8 +83,6 @@ const EventTypeUserCreated eventsource.EventType = "user_created"
 
 type EventUserCreated struct {
 	eventsource.EventBase
-	AccountID  string `json:"account_id"`
-	Email      string `json:"email"`
-	BrokerType string `json:"broker_type"`
-	BrokerID   string `json:"broker_id"`
+	AccountID string `json:"account_id"`
+	Email     string `json:"email"`
 }

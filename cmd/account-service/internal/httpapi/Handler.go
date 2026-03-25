@@ -6,8 +6,8 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/kduong/trading-backend/cmd/account-service/internal/account"
-	"github.com/kduong/trading-backend/cmd/account-service/internal/broker"
 	"github.com/kduong/trading-backend/internal/auth"
+	"github.com/kduong/trading-backend/internal/broker"
 )
 
 type Handler struct {
@@ -29,6 +29,7 @@ func NewRouter(input NewRouterInput) *mux.Router {
 	router := mux.NewRouter().StrictSlash(true)
 	accountV1Router := router.PathPrefix("/accounts/v1").Subrouter()
 	accountV1Router.Use(input.AuthMiddleWare.Handle)
+	accountV1Router.HandleFunc("/broker/link", handler.LinkBroker).Methods(http.MethodPost).Name("LinkBroker")
 	accountV1Router.HandleFunc("/balance", handler.GetBalance).Methods(http.MethodGet).Name("GetBalance")
 	return router
 }

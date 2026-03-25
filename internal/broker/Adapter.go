@@ -9,7 +9,7 @@ type Adapter interface {
 }
 
 type BalanceInfo struct {
-	Broker   string  `json:"broker"`
-	Balance  float64 `json:"balance"`
-	Currency string  `json:"currency"`
+	Account  *Account `json:"account"`
+	Balance  float64  `json:"balance"`
+	Currency string   `json:"currency"`
 }

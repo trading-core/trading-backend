@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
-	"github.com/kduong/trading-backend/cmd/stock-screener/internal/alpaca"
+	"github.com/kduong/trading-backend/internal/broker/alpaca"
 )
 
 type Handler struct {

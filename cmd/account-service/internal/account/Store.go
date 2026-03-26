@@ -8,7 +8,10 @@ import (
 	"github.com/kduong/trading-backend/internal/config"
 )
 
-var ErrNotFound = errors.New("account not found")
+var (
+	ErrNotFound  = errors.New("account not found")
+	ErrForbidden = errors.New("forbidden")
+)
 
 type Store interface {
 	Put(ctx context.Context, account Account) error
@@ -17,11 +20,13 @@ type Store interface {
 
 type Account struct {
 	ID            string          `json:"account_id"`
-	Email         string          `json:"email,omitempty"`
+	UserID        string          `json:"user_id"`
+	Name          string          `json:"name"`
+	BrokerLinked  bool            `json:"broker_linked"`
 	BrokerAccount *broker.Account `json:"broker_account,omitempty"`
 }
 
-func StoreFromEnv(ctx context.Context) Store {
+func StoreFromEnv() Store {
 	implementation := config.EnvString("ACCOUNT_STORE_IMPLEMENTATION", "INMEMORY")
 	switch implementation {
 	case "INMEMORY":

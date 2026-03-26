@@ -29,8 +29,8 @@ func NewPostgresStore(ctx context.Context, dataSourceName string) *PostgresStore
 
 func (store *PostgresStore) ensureSchema(ctx context.Context) error {
 	_, err := store.db.ExecContext(ctx, `
-		CREATE TABLE IF NOT EXISTS auth_accounts (
-			account_id TEXT PRIMARY KEY,
+		CREATE TABLE IF NOT EXISTS users (
+			id TEXT PRIMARY KEY,
 			email TEXT UNIQUE NOT NULL,
 			password_hash TEXT NOT NULL,
 			created_at TIMESTAMPTZ NOT NULL
@@ -42,8 +42,8 @@ func (store *PostgresStore) ensureSchema(ctx context.Context) error {
 func (store *PostgresStore) Put(ctx context.Context, user User) error {
 	_, err := store.db.ExecContext(
 		ctx,
-		`INSERT INTO auth_accounts(account_id, email, password_hash, created_at) VALUES($1, $2, $3, $4)`,
-		user.AccountID,
+		`INSERT INTO users(id, email, password_hash, created_at) VALUES($1, $2, $3, $4)`,
+		user.ID,
 		strings.ToLower(strings.TrimSpace(user.Email)),
 		user.PasswordHash,
 		user.CreatedAt,
@@ -58,13 +58,13 @@ func (store *PostgresStore) Put(ctx context.Context, user User) error {
 	return nil
 }
 
-func (store *PostgresStore) Get(ctx context.Context, accountID string) (output *User, err error) {
+func (store *PostgresStore) Get(ctx context.Context, userID string) (output *User, err error) {
 	var user User
 	err = store.db.QueryRowContext(
 		ctx,
-		`SELECT account_id, email, password_hash, created_at FROM auth_accounts WHERE account_id = $1`,
-		accountID,
-	).Scan(&user.AccountID, &user.Email, &user.PasswordHash, &user.CreatedAt)
+		`SELECT id, email, password_hash, created_at FROM users WHERE id = $1`,
+		userID,
+	).Scan(&user.ID, &user.Email, &user.PasswordHash, &user.CreatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			err = ErrNotFound
@@ -80,9 +80,9 @@ func (store *PostgresStore) GetByEmail(ctx context.Context, email string) (outpu
 	var user User
 	err = store.db.QueryRowContext(
 		ctx,
-		`SELECT account_id, email, password_hash, created_at FROM auth_accounts WHERE email = $1`,
+		`SELECT id, email, password_hash, created_at FROM users WHERE email = $1`,
 		strings.ToLower(strings.TrimSpace(email)),
-	).Scan(&user.AccountID, &user.Email, &user.PasswordHash, &user.CreatedAt)
+	).Scan(&user.ID, &user.Email, &user.PasswordHash, &user.CreatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			err = ErrNotFound

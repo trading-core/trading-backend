@@ -19,7 +19,7 @@ type Store interface {
 }
 
 type User struct {
-	AccountID    string
+	ID           string
 	Email        string
 	PasswordHash string
 	CreatedAt    time.Time

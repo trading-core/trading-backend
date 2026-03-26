@@ -22,7 +22,7 @@ type CreateSessionOutput struct {
 	AccessToken string `json:"access_token"`
 	TokenType   string `json:"token_type"`
 	ExpiresAt   string `json:"expires_at"`
-	AccountID   string `json:"account_id"`
+	UserID      string `json:"user_id"`
 	Email       string `json:"email"`
 }
 
@@ -64,10 +64,12 @@ func (handler *Handler) CreateSession(responseWriter http.ResponseWriter, reques
 		AccessToken: token,
 		TokenType:   "Bearer",
 		ExpiresAt:   expiresAt.Format("2006-01-02T15:04:05Z07:00"),
-		AccountID:   object.AccountID,
+		UserID:      object.ID,
 		Email:       object.Email,
 	}
-	httputil.SendResponseJSON(responseWriter, http.StatusOK, output)
+	responseWriter.Header().Set("Content-Type", "application/json")
+	err = json.NewEncoder(responseWriter).Encode(&output)
+	fatal.OnErrorUnlessDone(ctx, err)
 }
 
 func VerifyPassword(password string, hash string) bool {

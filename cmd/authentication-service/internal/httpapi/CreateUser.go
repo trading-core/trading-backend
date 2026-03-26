@@ -12,7 +12,6 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/kduong/trading-backend/cmd/authentication-service/internal/user"
-	"github.com/kduong/trading-backend/internal/eventsource"
 	"github.com/kduong/trading-backend/internal/fatal"
 	"github.com/kduong/trading-backend/internal/httputil"
 )
@@ -46,7 +45,7 @@ func (handler *Handler) CreateUser(responseWriter http.ResponseWriter, request *
 		return
 	}
 	object := user.User{
-		AccountID:    uuid.NewV4().String(),
+		ID:           uuid.NewV4().String(),
 		Email:        email,
 		PasswordHash: passwordHash,
 		CreatedAt:    time.Now().UTC(),
@@ -59,14 +58,8 @@ func (handler *Handler) CreateUser(responseWriter http.ResponseWriter, request *
 		}
 		return
 	}
-	payload := fatal.UnlessMarshal(EventUserCreated{
-		EventBase: eventsource.NewEventBase(EventTypeUserCreated),
-		AccountID: object.AccountID,
-		Email:     object.Email,
-	})
-	_, err = handler.log.Append(payload)
-	fatal.OnError(err)
-	httputil.SendResponseJSON(responseWriter, http.StatusCreated, object)
+	responseWriter.Header().Set("Content-Type", "application/json")
+	err = json.NewEncoder(responseWriter).Encode(&object)
 	fatal.OnErrorUnlessDone(ctx, err)
 }
 
@@ -77,12 +70,4 @@ func HashPassword(password string) (hashPassword string, err error) {
 	}
 	hashPassword = string(hashBytes)
 	return
-}
-
-const EventTypeUserCreated eventsource.EventType = "user_created"
-
-type EventUserCreated struct {
-	eventsource.EventBase
-	AccountID string `json:"account_id"`
-	Email     string `json:"email"`
 }

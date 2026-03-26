@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/base64"
 	"encoding/json"
 	"net/http"
@@ -14,19 +13,33 @@ import (
 
 	"github.com/kduong/trading-backend/internal/auth"
 	"github.com/kduong/trading-backend/internal/broker"
+	"github.com/kduong/trading-backend/internal/broker/tastytrade"
 	"github.com/kduong/trading-backend/internal/config"
 	"github.com/kduong/trading-backend/internal/fatal"
 	"github.com/rs/cors"
 )
 
 func main() {
-	ctx := context.Background()
+	var brokerCredentialsByType map[string]auth.Credentials
+	data := config.EnvStringOrFatal("BROKER_CREDENTIALS_B64_JSON")
+	reader := strings.NewReader(data)
+	base64Decoder := base64.NewDecoder(base64.StdEncoding, reader)
+	err := json.NewDecoder(base64Decoder).Decode(&brokerCredentialsByType)
+	fatal.OnError(err)
+	tastyTradeCredentials, ok := brokerCredentialsByType["tastytrade"]
+	fatal.Unless(ok)
+	tastyTradeAPIURL, err := url.Parse(tastyTradeCredentials.APIURL)
+	fatal.OnError(err)
+	tastyTradeTokenManager := auth.NewTastyTradeTokenManager(&tastyTradeCredentials.AuthorizationServer)
 	router := httpapi.NewRouter(httpapi.NewRouterInput{
 		AccountStore: account.NewThreadSafeStoreDecorator(account.NewThreadSafeStoreDecoratorInput{
-			Decorated: account.StoreFromEnv(ctx),
+			Decorated: account.StoreFromEnv(),
 		}),
-		BrokerAdapterFactory: &broker.AdapterFactory{
-			BrokerClientByType: BrokerClientByTypeFromEnv(),
+		BrokerClientFactory: &broker.ClientFactory{
+			TastyTradeClientFactory: &tastytrade.HTTPClientFactory{
+				APIURL:         tastyTradeAPIURL,
+				GetAccessToken: tastyTradeTokenManager.GetAccessToken,
+			},
 		},
 		AuthMiddleWare: &auth.MiddleWare{
 			TokenSecret: config.EnvStringOrFatal("TOKEN_SECRET"),
@@ -40,23 +53,4 @@ func main() {
 		AllowCredentials: true,
 	})
 	http.ListenAndServe(":9000", c.Handler(router))
-}
-
-func BrokerClientByTypeFromEnv() map[string]broker.Client {
-	var brokerCredentialsByType map[string]auth.Credentials
-	data := config.EnvStringOrFatal("BROKER_CREDENTIALS_B64_JSON")
-	reader := strings.NewReader(data)
-	base64Decoder := base64.NewDecoder(base64.StdEncoding, reader)
-	err := json.NewDecoder(base64Decoder).Decode(&brokerCredentialsByType)
-	fatal.OnError(err)
-	brokerClientByType := make(map[string]broker.Client)
-	for brokerType, credentials := range brokerCredentialsByType {
-		apiURL, err := url.Parse(credentials.APIURL)
-		fatal.OnError(err)
-		brokerClientByType[brokerType] = broker.Client{
-			APIURL:       apiURL,
-			TokenManager: auth.TokenManagerFactory[brokerType](&credentials.AuthorizationServer),
-		}
-	}
-	return brokerClientByType
 }

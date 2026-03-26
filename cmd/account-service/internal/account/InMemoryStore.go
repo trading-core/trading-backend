@@ -2,6 +2,8 @@ package account
 
 import (
 	"context"
+
+	"github.com/kduong/trading-backend/internal/contextx"
 )
 
 var _ Store = (*InMemoryStore)(nil)
@@ -25,6 +27,10 @@ func (store *InMemoryStore) Get(ctx context.Context, accountID string) (*Account
 	account, ok := store.accountByID[accountID]
 	if !ok {
 		return nil, ErrNotFound
+	}
+	userID := contextx.GetUserID(ctx)
+	if account.UserID != userID {
+		return nil, ErrForbidden
 	}
 	return &account, nil
 }

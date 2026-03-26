@@ -84,7 +84,7 @@ func (log *RedisLog) Read(cursor int64, limit int, timeoutMS int64) (events []*E
 	}).Result()
 	if err == redis.Nil {
 		// Timed out with no new events.
-		return nil, cursor, nil
+		return nil, cursor, Timeout
 	}
 	if err != nil {
 		return nil, cursor, fmt.Errorf("eventsource/redis: XREAD BLOCK on %q: %w", log.channel, err)

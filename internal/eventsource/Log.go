@@ -1,6 +1,14 @@
 package eventsource
 
-import "io"
+import (
+	"errors"
+	"io"
+)
+
+var (
+	Timeout       = errors.New("timeout") // the log is empty
+	UnknownCursor = errors.New("unknown cursor")
+)
 
 type Log interface {
 	// Close releases resources held by the log implementation.

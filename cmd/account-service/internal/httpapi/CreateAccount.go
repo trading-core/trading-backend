@@ -5,9 +5,8 @@ import (
 	"net/http"
 
 	"github.com/ansel1/merry"
-	"github.com/kduong/trading-backend/cmd/account-service/internal/event"
-	"github.com/kduong/trading-backend/internal/contextx"
-	"github.com/kduong/trading-backend/internal/eventsource"
+
+	"github.com/kduong/trading-backend/cmd/account-service/internal/account"
 	"github.com/kduong/trading-backend/internal/fatal"
 	"github.com/kduong/trading-backend/internal/httputil"
 	uuid "github.com/satori/go.uuid"
@@ -38,15 +37,10 @@ func (handler *Handler) CreateAccount(responseWriter http.ResponseWriter, reques
 		return
 	}
 	accountID := uuid.NewV4().String()
-	payload := fatal.UnlessMarshal(event.Frame{
-		EventBase: eventsource.NewEventBase(event.EventTypeAccountCreated),
-		AccountCreatedEvent: &event.AccountCreatedEvent{
-			AccountID:   accountID,
-			AccountName: input.AccountName,
-			UserID:      contextx.GetUserID(ctx),
-		},
+	err = handler.accountStore.Create(ctx, account.CreateInput{
+		AccountID:   accountID,
+		AccountName: input.AccountName,
 	})
-	_, err = handler.log.Append(payload)
 	fatal.OnError(err)
 	output := CreateAccountOutput{
 		AccountID:   accountID,

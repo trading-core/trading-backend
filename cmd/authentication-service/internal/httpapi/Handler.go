@@ -7,20 +7,16 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/mux"
 	"github.com/kduong/trading-backend/cmd/authentication-service/internal/user"
-	"github.com/kduong/trading-backend/internal/auth"
-	"github.com/kduong/trading-backend/internal/eventsource"
 )
 
 type Handler struct {
 	userStore   user.Store
-	log         eventsource.Log
 	tokenSecret []byte
 	expiryTTL   time.Duration
 }
 
 type NewRouterInput struct {
 	UserStore   user.Store
-	Log         eventsource.Log
 	TokenSecret []byte
 	ExpiryTTL   time.Duration
 }
@@ -28,7 +24,6 @@ type NewRouterInput struct {
 func NewRouter(input NewRouterInput) *mux.Router {
 	handler := &Handler{
 		userStore:   input.UserStore,
-		log:         input.Log,
 		tokenSecret: input.TokenSecret,
 		expiryTTL:   input.ExpiryTTL,
 	}
@@ -42,14 +37,10 @@ func NewRouter(input NewRouterInput) *mux.Router {
 func (handler *Handler) GenerateToken(user *user.User) (string, time.Time, error) {
 	now := time.Now().UTC()
 	expiresAt := now.Add(handler.expiryTTL)
-	claims := auth.TokenClaims{
-		AccountID: user.AccountID,
-		Email:     user.Email,
-		RegisteredClaims: jwt.RegisteredClaims{
-			IssuedAt:  jwt.NewNumericDate(now),
-			ExpiresAt: jwt.NewNumericDate(expiresAt),
-			Subject:   user.AccountID,
-		},
+	claims := jwt.RegisteredClaims{
+		IssuedAt:  jwt.NewNumericDate(now),
+		ExpiresAt: jwt.NewNumericDate(expiresAt),
+		Subject:   user.ID,
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	signed, err := token.SignedString(handler.tokenSecret)

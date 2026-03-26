@@ -20,7 +20,7 @@ func NewInMemoryStore() *InMemoryStore {
 func (store *InMemoryStore) Put(ctx context.Context, user User) error {
 	if len(user.Email) > 0 {
 		existingUser, hasEmail := store.userByEmail[user.Email]
-		isEmailRegisteredToAnotherUser := hasEmail && existingUser.AccountID != user.AccountID
+		isEmailRegisteredToAnotherUser := hasEmail && existingUser.ID != user.ID
 		if isEmailRegisteredToAnotherUser {
 			return ErrAlreadyExists
 		}

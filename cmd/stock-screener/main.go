@@ -3,8 +3,8 @@ package main
 import (
 	"net/http"
 
-	"github.com/kduong/trading-backend/cmd/stock-screener/internal/alpaca"
 	"github.com/kduong/trading-backend/cmd/stock-screener/internal/httpapi"
+	"github.com/kduong/trading-backend/internal/broker/alpaca"
 	"github.com/rs/cors"
 )
 

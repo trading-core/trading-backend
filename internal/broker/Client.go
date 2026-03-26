@@ -4,7 +4,7 @@ import (
 	"context"
 )
 
-type Adapter interface {
+type Client interface {
 	GetBalanceInfo(ctx context.Context) (*BalanceInfo, error)
 }
 

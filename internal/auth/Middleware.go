@@ -34,7 +34,7 @@ func (middleware *MiddleWare) Handle(next http.Handler) http.Handler {
 			err = merry.New("invalid authorization header format").WithHTTPCode(http.StatusUnauthorized).WithUserMessage("unauthorized")
 			return
 		}
-		claims := &TokenClaims{}
+		claims := new(jwt.RegisteredClaims)
 		token, err := jwt.ParseWithClaims(parts[1], claims, func(token *jwt.Token) (interface{}, error) {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, errors.New("unexpected signing method")
@@ -45,11 +45,11 @@ func (middleware *MiddleWare) Handle(next http.Handler) http.Handler {
 			err = merry.New("invalid token").WithHTTPCode(http.StatusUnauthorized).WithUserMessage("unauthorized")
 			return
 		}
-		if len(claims.AccountID) == 0 {
-			err = merry.New("account_id claim missing").WithHTTPCode(http.StatusUnauthorized).WithUserMessage("unauthorized")
+		if len(claims.Subject) == 0 {
+			err = merry.New("user_id claim missing").WithHTTPCode(http.StatusUnauthorized).WithUserMessage("unauthorized")
 			return
 		}
-		ctx := contextx.WithAccountID(request.Context(), claims.AccountID)
+		ctx := contextx.WithUserID(request.Context(), claims.Subject)
 		next.ServeHTTP(responseWriter, request.WithContext(ctx))
 	})
 }

@@ -9,7 +9,6 @@ import (
 	"github.com/ansel1/merry"
 
 	"github.com/kduong/trading-backend/cmd/account-service/internal/account"
-	brokerType "github.com/kduong/trading-backend/internal/broker"
 	"github.com/kduong/trading-backend/internal/contextx"
 	"github.com/kduong/trading-backend/internal/httputil"
 )
@@ -34,7 +33,7 @@ func (handler *Handler) LinkBroker(responseWriter http.ResponseWriter, request *
 		}
 	}()
 	ctx := request.Context()
-	accountID := contextx.GetAccountID(ctx)
+	accountID := contextx.GetUserID(ctx)
 
 	var input LinkBrokerInput
 	err = json.NewDecoder(request.Body).Decode(&input)
@@ -62,24 +61,24 @@ func (handler *Handler) LinkBroker(responseWriter http.ResponseWriter, request *
 		err = nil
 	}
 
-	current.BrokerType = input.BrokerType
-	current.BrokerID = input.BrokerID
+	// current.BrokerType = input.BrokerType
+	// current.BrokerID = input.BrokerID
 	err = handler.accountStore.Put(ctx, *current)
 	if err != nil {
 		return
 	}
 
 	httputil.SendResponseJSON(responseWriter, http.StatusOK, LinkBrokerOutput{
-		AccountID:  accountID,
-		BrokerType: current.BrokerType,
-		BrokerID:   current.BrokerID,
-		Linked:     true,
+		AccountID: accountID,
+		// BrokerType: current.BrokerType,
+		// BrokerID:   current.BrokerID,
+		Linked: true,
 	})
 }
 
-func isSupportedBrokerType(rawBrokerType string) bool {
-	switch rawBrokerType {
-	case brokerType.TypeTastyTrade:
+func isSupportedBrokerType(brokerType string) bool {
+	switch brokerType {
+	case "tastytrade":
 		return true
 	default:
 		return false

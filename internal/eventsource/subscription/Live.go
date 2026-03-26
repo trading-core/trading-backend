@@ -1,4 +1,4 @@
-package eventsource
+package subscription
 
 import (
 	"context"
@@ -29,6 +29,8 @@ func Live(ctx context.Context, input LiveInput) (cursor int64) {
 					return
 				}
 			}
+		case eventsource.Timeout:
+			return
 		default:
 			logger.Fatal(err)
 		}

@@ -82,13 +82,13 @@ func (log *InMemoryLog) Read(cursor int64, limit int, timeoutMS int64) (events [
 
 		remaining := time.Until(deadline)
 		if remaining <= 0 {
-			return nil, cursor, nil
+			return nil, cursor, Timeout
 		}
 
 		select {
 		case <-waitCh:
 		case <-time.After(remaining):
-			return nil, cursor, nil
+			return nil, cursor, Timeout
 		}
 	}
 }

@@ -2,14 +2,15 @@ package httpapi
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
 	"strings"
 
 	"github.com/ansel1/merry"
+	"github.com/gorilla/mux"
 
 	"github.com/kduong/trading-backend/cmd/account-service/internal/account"
-	"github.com/kduong/trading-backend/internal/contextx"
+	"github.com/kduong/trading-backend/internal/broker"
+	"github.com/kduong/trading-backend/internal/fatal"
 	"github.com/kduong/trading-backend/internal/httputil"
 )
 
@@ -33,8 +34,8 @@ func (handler *Handler) LinkBroker(responseWriter http.ResponseWriter, request *
 		}
 	}()
 	ctx := request.Context()
-	accountID := contextx.GetUserID(ctx)
-
+	vars := mux.Vars(request)
+	accountID := vars["account_id"]
 	var input LinkBrokerInput
 	err = json.NewDecoder(request.Body).Decode(&input)
 	if err != nil {
@@ -48,32 +49,25 @@ func (handler *Handler) LinkBroker(responseWriter http.ResponseWriter, request *
 		return
 	}
 	if !isSupportedBrokerType(input.BrokerType) {
-		err = merry.New("unsupported broker type").WithHTTPCode(http.StatusBadRequest).WithUserMessage("unsupported broker_type")
+		err = merry.New("unsupported broker_type").WithHTTPCode(http.StatusBadRequest)
 		return
 	}
-
-	current, err := handler.accountStore.Get(ctx, accountID)
-	if err != nil {
-		if !errors.Is(err, account.ErrNotFound) {
-			return
-		}
-		current = &account.Account{ID: accountID}
-		err = nil
-	}
-
-	// current.BrokerType = input.BrokerType
-	// current.BrokerID = input.BrokerID
-	err = handler.accountStore.Put(ctx, *current)
-	if err != nil {
-		return
-	}
-
-	httputil.SendResponseJSON(responseWriter, http.StatusOK, LinkBrokerOutput{
+	// TODO: validate broker_id format based on broker_type
+	err = handler.accountStore.LinkBrokerAccount(ctx, account.LinkBrokerAccountInput{
 		AccountID: accountID,
-		// BrokerType: current.BrokerType,
-		// BrokerID:   current.BrokerID,
-		Linked: true,
+		BrokerAccount: &broker.Account{
+			Type: input.BrokerType,
+			ID:   input.BrokerID,
+		},
 	})
+	responseWriter.Header().Set("Content-Type", "application/json")
+	err = json.NewEncoder(responseWriter).Encode(LinkBrokerOutput{
+		AccountID:  accountID,
+		BrokerType: input.BrokerType,
+		BrokerID:   input.BrokerID,
+		Linked:     true,
+	})
+	fatal.OnErrorUnlessDone(ctx, err)
 }
 
 func isSupportedBrokerType(brokerType string) bool {

@@ -38,7 +38,9 @@ func main() {
 	fatal.OnError(err)
 	router := httpapi.NewRouter(httpapi.NewRouterInput{
 		AccountStore: account.NewThreadSafeStoreDecorator(account.NewThreadSafeStoreDecoratorInput{
-			Decorated: account.StoreFromEnv(),
+			Decorated: account.NewEventSourcedStore(account.NewEventSourcedStoreInput{
+				Log: log,
+			}),
 		}),
 		BrokerClientFactory: &broker.ClientFactory{
 			TastyTradeClientFactory: &tastytrade.HTTPClientFactory{

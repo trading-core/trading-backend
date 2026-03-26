@@ -1,4 +1,4 @@
-package eventsource
+package subscription
 
 import (
 	"context"
@@ -22,11 +22,16 @@ func CatchUp(ctx context.Context, input CatchUpInput) (cursor int64, err error) 
 		events, cursor, err = input.Log.Read(cursor, limit, timeout)
 		switch err {
 		case nil:
+			if len(events) == 0 {
+				return
+			}
 			for _, event := range events {
 				if err = input.Apply(ctx, event); err != nil {
 					return
 				}
 			}
+		case eventsource.Timeout:
+			return
 		default:
 			logger.Fatal(err)
 		}

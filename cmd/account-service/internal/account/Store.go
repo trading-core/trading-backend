@@ -5,17 +5,33 @@ import (
 	"errors"
 
 	"github.com/kduong/trading-backend/internal/broker"
-	"github.com/kduong/trading-backend/internal/config"
 )
 
 var (
-	ErrNotFound  = errors.New("account not found")
-	ErrForbidden = errors.New("forbidden")
+	ErrNotFound                   = errors.New("account not found")
+	ErrForbidden                  = errors.New("forbidden")
+	ErrBrokerAccountAlreadyLinked = errors.New("broker account already linked")
 )
 
 type Store interface {
-	Put(ctx context.Context, account Account) error
-	Get(ctx context.Context, accountID string) (*Account, error)
+	Create(ctx context.Context, input CreateInput) error
+	LinkBrokerAccount(ctx context.Context, input LinkBrokerAccountInput) error
+	Get(ctx context.Context, input GetInput) (*Account, error)
+	List(ctx context.Context) ([]*Account, error)
+}
+
+type CreateInput struct {
+	AccountID   string
+	AccountName string
+}
+
+type LinkBrokerAccountInput struct {
+	AccountID     string
+	BrokerAccount *broker.Account
+}
+
+type GetInput struct {
+	AccountID string
 }
 
 type Account struct {
@@ -24,14 +40,4 @@ type Account struct {
 	Name          string          `json:"name"`
 	BrokerLinked  bool            `json:"broker_linked"`
 	BrokerAccount *broker.Account `json:"broker_account,omitempty"`
-}
-
-func StoreFromEnv() Store {
-	implementation := config.EnvString("ACCOUNT_STORE_IMPLEMENTATION", "INMEMORY")
-	switch implementation {
-	case "INMEMORY":
-		return NewInMemoryStore()
-	default:
-		panic("unknown account store implementation: " + implementation)
-	}
 }

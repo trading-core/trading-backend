@@ -30,6 +30,7 @@ func (handler *Handler) CreateAccount(responseWriter http.ResponseWriter, reques
 		}
 	}()
 	ctx := request.Context()
+	// TODO: validate input
 	var input CreateAccountInput
 	err = json.NewDecoder(request.Body).Decode(&input)
 	if err != nil {

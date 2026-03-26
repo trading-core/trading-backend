@@ -15,6 +15,7 @@ import (
 	"github.com/kduong/trading-backend/internal/broker"
 	"github.com/kduong/trading-backend/internal/broker/tastytrade"
 	"github.com/kduong/trading-backend/internal/config"
+	"github.com/kduong/trading-backend/internal/eventsource"
 	"github.com/kduong/trading-backend/internal/fatal"
 	"github.com/rs/cors"
 )
@@ -31,6 +32,10 @@ func main() {
 	tastyTradeAPIURL, err := url.Parse(tastyTradeCredentials.APIURL)
 	fatal.OnError(err)
 	tastyTradeTokenManager := auth.NewTastyTradeTokenManager(&tastyTradeCredentials.AuthorizationServer)
+	logFactory, err := eventsource.LogFactoryFromEnv("LOG", "INMEMORY")
+	fatal.OnError(err)
+	log, err := logFactory.Create("account:events")
+	fatal.OnError(err)
 	router := httpapi.NewRouter(httpapi.NewRouterInput{
 		AccountStore: account.NewThreadSafeStoreDecorator(account.NewThreadSafeStoreDecoratorInput{
 			Decorated: account.StoreFromEnv(),

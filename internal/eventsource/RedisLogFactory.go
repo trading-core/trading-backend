@@ -18,6 +18,10 @@ func NewRedisLogFactory(input NewRedisLogFactoryInput) *RedisLogFactory {
 	}
 }
 
+func (factory *RedisLogFactory) Close() error {
+	return factory.client.Close()
+}
+
 func (factory *RedisLogFactory) Create(channel string) (log Log, err error) {
 	log = &RedisLog{
 		client:  factory.client,

@@ -16,13 +16,24 @@ type RedisLog struct {
 	channel string
 }
 
+func NewRedisLog(client *redis.Client, channel string) *RedisLog {
+	return &RedisLog{
+		client:  client,
+		channel: channel,
+	}
+}
+
+func (log *RedisLog) Close() error {
+	return nil
+}
+
 func (log *RedisLog) Channel() string {
 	return log.channel
 }
 
 func (log *RedisLog) Append(data []byte) (event *Event, err error) {
 	ctx := context.Background()
-	sequence, err := log.client.Incr(ctx, log.channel).Result()
+	sequence, err := log.client.Incr(ctx, log.sequenceKey()).Result()
 	if err != nil {
 		return nil, fmt.Errorf("eventsource/redis: increment seq for %q: %w", log.channel, err)
 	}
@@ -42,6 +53,10 @@ func (log *RedisLog) Append(data []byte) (event *Event, err error) {
 		Data:     data,
 	}
 	return
+}
+
+func (log *RedisLog) sequenceKey() string {
+	return log.channel + ":seq"
 }
 
 // Read returns up to limit events starting after cursor (exclusive).

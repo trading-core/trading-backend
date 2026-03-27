@@ -3,19 +3,21 @@ package account
 import (
 	"context"
 
+	"github.com/kduong/trading-backend/internal/broker"
 	"github.com/kduong/trading-backend/internal/contextx"
 	"github.com/kduong/trading-backend/internal/eventsource"
 	"github.com/kduong/trading-backend/internal/eventsource/subscription"
 	"github.com/kduong/trading-backend/internal/fatal"
+	"github.com/kduong/trading-backend/internal/logger"
 )
 
 var _ Store = (*EventSourcedStore)(nil)
 
 type EventSourcedStore struct {
-	log                    eventsource.Log
-	cursor                 int64
-	accountByID            map[string]*Account
-	brokerAccountIDsByType map[string]map[string]struct{}
+	log           eventsource.Log
+	cursor        int64
+	accountByID   map[string]*Account
+	tastyTradeIDs map[string]struct{}
 }
 
 type NewEventSourcedStoreInput struct {
@@ -24,9 +26,9 @@ type NewEventSourcedStoreInput struct {
 
 func NewEventSourcedStore(input NewEventSourcedStoreInput) *EventSourcedStore {
 	return &EventSourcedStore{
-		log:                    input.Log,
-		accountByID:            make(map[string]*Account),
-		brokerAccountIDsByType: make(map[string]map[string]struct{}),
+		log:           input.Log,
+		accountByID:   make(map[string]*Account),
+		tastyTradeIDs: make(map[string]struct{}),
 	}
 }
 
@@ -58,8 +60,8 @@ func (store *EventSourcedStore) LinkBrokerAccount(ctx context.Context, input Lin
 	if account.BrokerLinked {
 		return ErrBrokerAccountAlreadyLinked
 	}
-	if _, ok := store.brokerAccountIDsByType[input.BrokerAccount.Type][input.BrokerAccount.ID]; ok {
-		return ErrBrokerAccountAlreadyLinked
+	if err := store.checkBrokerIsAlreadyLinked(input.BrokerAccount); err != nil {
+		return err
 	}
 	payload := fatal.UnlessMarshal(EventFrame{
 		EventBase: eventsource.NewEventBase(EventTypeBrokerAccountLinked),
@@ -70,6 +72,18 @@ func (store *EventSourcedStore) LinkBrokerAccount(ctx context.Context, input Lin
 	})
 	_, err := store.log.Append(payload)
 	fatal.OnError(err)
+	return nil
+}
+
+func (store *EventSourcedStore) checkBrokerIsAlreadyLinked(brokerAccount *broker.Account) error {
+	switch brokerAccount.Type {
+	case broker.AccountTypeTastyTrade:
+		if _, isBrokerAccountAlreadyLinked := store.tastyTradeIDs[brokerAccount.TastyTrade.ID]; isBrokerAccountAlreadyLinked {
+			return ErrBrokerAccountAlreadyLinked
+		}
+	default:
+		logger.Fatalf("unknown broker type %s", brokerAccount.Type)
+	}
 	return nil
 }
 
@@ -114,19 +128,31 @@ func (store *EventSourcedStore) apply(ctx context.Context, event *eventsource.Ev
 	fatal.UnlessUnmarshal(event.Data, &frame)
 	switch frame.Type {
 	case EventTypeAccountCreated:
-		store.accountByID[frame.AccountCreatedEvent.AccountID] = &Account{
-			ID:     frame.AccountCreatedEvent.AccountID,
-			UserID: frame.AccountCreatedEvent.UserID,
-			Name:   frame.AccountCreatedEvent.AccountName,
-		}
+		store.applyAccountCreatedEvent(ctx, frame)
 	case EventTypeBrokerAccountLinked:
-		account := store.accountByID[frame.BrokerAccountLinkedEvent.AccountID]
-		account.BrokerLinked = true
-		account.BrokerAccount = frame.BrokerAccountLinkedEvent.BrokerAccount
-		if _, ok := store.brokerAccountIDsByType[frame.BrokerAccountLinkedEvent.BrokerAccount.Type]; !ok {
-			store.brokerAccountIDsByType[frame.BrokerAccountLinkedEvent.BrokerAccount.Type] = make(map[string]struct{})
-		}
-		store.brokerAccountIDsByType[frame.BrokerAccountLinkedEvent.BrokerAccount.Type][frame.BrokerAccountLinkedEvent.BrokerAccount.ID] = struct{}{}
+		store.applyBrokerAccountLinkedEvent(ctx, frame)
+	}
+	return
+}
+
+func (store *EventSourcedStore) applyAccountCreatedEvent(ctx context.Context, frame EventFrame) (err error) {
+	store.accountByID[frame.AccountCreatedEvent.AccountID] = &Account{
+		ID:     frame.AccountCreatedEvent.AccountID,
+		UserID: frame.AccountCreatedEvent.UserID,
+		Name:   frame.AccountCreatedEvent.AccountName,
+	}
+	return
+}
+
+func (store *EventSourcedStore) applyBrokerAccountLinkedEvent(ctx context.Context, frame EventFrame) (err error) {
+	account := store.accountByID[frame.BrokerAccountLinkedEvent.AccountID]
+	account.BrokerLinked = true
+	account.BrokerAccount = frame.BrokerAccountLinkedEvent.BrokerAccount
+	switch frame.BrokerAccountLinkedEvent.BrokerAccount.Type {
+	case broker.AccountTypeTastyTrade:
+		store.tastyTradeIDs[frame.BrokerAccountLinkedEvent.BrokerAccount.TastyTrade.ID] = struct{}{}
+	default:
+		logger.Fatalf("unknown broker type %s", frame.BrokerAccountLinkedEvent.BrokerAccount.Type)
 	}
 	return
 }

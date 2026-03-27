@@ -103,7 +103,7 @@ func (store *EventSourcedStore) Get(ctx context.Context, input GetInput) (*Accou
 func (store *EventSourcedStore) List(ctx context.Context) ([]*Account, error) {
 	store.catchUp(ctx)
 	userID := contextx.GetUserID(ctx)
-	var accounts []*Account
+	accounts := make([]*Account, 0)
 	for _, account := range store.accountByID {
 		if account.UserID != userID {
 			continue

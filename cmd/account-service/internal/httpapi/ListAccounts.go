@@ -1,8 +1,10 @@
 package httpapi
 
 import (
+	"encoding/json"
 	"net/http"
 
+	"github.com/kduong/trading-backend/internal/fatal"
 	"github.com/kduong/trading-backend/internal/httputil"
 )
 
@@ -13,4 +15,12 @@ func (handler *Handler) ListAccounts(responseWriter http.ResponseWriter, request
 			httputil.SendErrorResponse(responseWriter, err)
 		}
 	}()
+	ctx := request.Context()
+	accounts, err := handler.accountStore.List(ctx)
+	if err != nil {
+		return
+	}
+	responseWriter.Header().Set("Content-Type", "application/json")
+	err = json.NewEncoder(responseWriter).Encode(accounts)
+	fatal.OnErrorUnlessDone(ctx, err)
 }

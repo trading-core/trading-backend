@@ -36,6 +36,11 @@ func main() {
 	fatal.OnError(err)
 	log, err := logFactory.Create("account:events")
 	fatal.OnError(err)
+	authorizationRedirectURI := url.URL{
+		Scheme: config.EnvStringOrFatal("TRADING_API_SCHEME"),
+		Host:   config.EnvStringOrFatal("TRADING_API_HOST"),
+		Path:   "/accounts/v1/authorization_callback",
+	}
 	router := httpapi.NewRouter(httpapi.NewRouterInput{
 		AccountStore: account.NewThreadSafeStoreDecorator(account.NewThreadSafeStoreDecoratorInput{
 			Decorated: account.NewEventSourcedStore(account.NewEventSourcedStoreInput{
@@ -51,6 +56,9 @@ func main() {
 		AuthMiddleWare: &auth.MiddleWare{
 			TokenSecret: config.EnvStringOrFatal("TOKEN_SECRET"),
 		},
+		BackendRedirectURI:    authorizationRedirectURI.String(),
+		TastyTradeCredentials: tastyTradeCredentials,
+		FrontendBaseURL:       config.EnvStringOrFatal("FRONTEND_BASE_URL"),
 	})
 	c := cors.New(cors.Options{
 		AllowedOrigins:   []string{"*"},

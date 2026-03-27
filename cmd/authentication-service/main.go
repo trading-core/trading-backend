@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/kduong/trading-backend/cmd/authentication-service/internal/httpapi"
-	"github.com/kduong/trading-backend/cmd/authentication-service/internal/user"
+	"github.com/kduong/trading-backend/cmd/authentication-service/internal/userstore"
 	"github.com/kduong/trading-backend/internal/config"
 	"github.com/rs/cors"
 )
@@ -14,8 +14,8 @@ import (
 func main() {
 	ctx := context.Background()
 	router := httpapi.NewRouter(httpapi.NewRouterInput{
-		UserStore: user.NewThreadSafeStoreDecorator(user.NewThreadSafeStoreDecoratorInput{
-			Decorated: user.StoreFromEnv(ctx),
+		UserStore: userstore.NewThreadSafeDecorator(userstore.NewThreadSafeDecoratorInput{
+			Decorated: userstore.FromEnv(ctx),
 		}),
 		TokenSecret: []byte(config.EnvStringOrFatal("TOKEN_SECRET")),
 		ExpiryTTL:   1 * time.Hour,

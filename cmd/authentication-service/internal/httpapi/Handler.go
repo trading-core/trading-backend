@@ -6,17 +6,18 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/mux"
-	"github.com/kduong/trading-backend/cmd/authentication-service/internal/user"
+
+	"github.com/kduong/trading-backend/cmd/authentication-service/internal/userstore"
 )
 
 type Handler struct {
-	userStore   user.Store
+	userStore   userstore.Store
 	tokenSecret []byte
 	expiryTTL   time.Duration
 }
 
 type NewRouterInput struct {
-	UserStore   user.Store
+	UserStore   userstore.Store
 	TokenSecret []byte
 	ExpiryTTL   time.Duration
 }
@@ -34,7 +35,7 @@ func NewRouter(input NewRouterInput) *mux.Router {
 	return router
 }
 
-func (handler *Handler) GenerateToken(user *user.User) (string, time.Time, error) {
+func (handler *Handler) GenerateToken(user *userstore.User) (string, time.Time, error) {
 	now := time.Now().UTC()
 	expiresAt := now.Add(handler.expiryTTL)
 	claims := jwt.RegisteredClaims{

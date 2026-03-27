@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/ansel1/merry"
-	"github.com/kduong/trading-backend/cmd/authentication-service/internal/user"
+	"github.com/kduong/trading-backend/cmd/authentication-service/internal/userstore"
 	"github.com/kduong/trading-backend/internal/fatal"
 	"github.com/kduong/trading-backend/internal/httputil"
 	"golang.org/x/crypto/bcrypt"
@@ -47,7 +47,7 @@ func (handler *Handler) CreateSession(responseWriter http.ResponseWriter, reques
 	}
 	object, err := handler.userStore.GetByEmail(ctx, input.Email)
 	if err != nil {
-		if errors.Is(err, user.ErrNotFound) {
+		if errors.Is(err, userstore.ErrNotFound) {
 			err = merry.Wrap(err).WithHTTPCode(http.StatusUnauthorized).WithUserMessage("invalid credentials")
 			return
 		}

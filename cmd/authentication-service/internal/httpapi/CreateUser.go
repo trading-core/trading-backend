@@ -11,7 +11,7 @@ import (
 	uuid "github.com/satori/go.uuid"
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/kduong/trading-backend/cmd/authentication-service/internal/user"
+	"github.com/kduong/trading-backend/cmd/authentication-service/internal/userstore"
 	"github.com/kduong/trading-backend/internal/fatal"
 	"github.com/kduong/trading-backend/internal/httputil"
 )
@@ -44,7 +44,7 @@ func (handler *Handler) CreateUser(responseWriter http.ResponseWriter, request *
 	if err != nil {
 		return
 	}
-	object := user.User{
+	object := userstore.User{
 		ID:           uuid.NewV4().String(),
 		Email:        email,
 		PasswordHash: passwordHash,
@@ -52,7 +52,7 @@ func (handler *Handler) CreateUser(responseWriter http.ResponseWriter, request *
 	}
 	err = handler.userStore.Put(ctx, object)
 	if err != nil {
-		if errors.Is(err, user.ErrAlreadyExists) {
+		if errors.Is(err, userstore.ErrAlreadyExists) {
 			err = merry.Wrap(err).WithHTTPCode(http.StatusConflict).WithUserMessage("user already exists")
 			return
 		}

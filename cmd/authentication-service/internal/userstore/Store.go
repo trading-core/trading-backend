@@ -1,4 +1,4 @@
-package user
+package userstore
 
 import (
 	"context"
@@ -25,7 +25,7 @@ type User struct {
 	CreatedAt    time.Time
 }
 
-func StoreFromEnv(ctx context.Context) Store {
+func FromEnv(ctx context.Context) Store {
 	implementation := config.EnvString("USER_STORE_IMPLEMENTATION", "INMEMORY")
 	switch implementation {
 	case "INMEMORY":

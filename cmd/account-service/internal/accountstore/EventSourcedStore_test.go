@@ -1,10 +1,10 @@
-package account_test
+package accountstore_test
 
 import (
 	"context"
 	"testing"
 
-	"github.com/kduong/trading-backend/cmd/account-service/internal/account"
+	"github.com/kduong/trading-backend/cmd/account-service/internal/accountstore"
 	"github.com/kduong/trading-backend/internal/broker"
 	"github.com/kduong/trading-backend/internal/contextx"
 	"github.com/kduong/trading-backend/internal/eventsource"
@@ -14,14 +14,14 @@ import (
 func TestEventSourcedStoreTest(t *testing.T) {
 	Convey("Given an event sourced store with multiple accounts", t, func() {
 		log := eventsource.NewInMemoryLog("accounts")
-		store := account.NewEventSourcedStore(account.NewEventSourcedStoreInput{Log: log})
+		store := accountstore.NewEventSourcedStore(accountstore.NewEventSourcedStoreInput{Log: log})
 		Convey("When creating multiple accounts for a user", func() {
 			userCtx := contextx.WithUserID(context.Background(), "user-1")
-			err1 := store.Create(userCtx, account.CreateInput{
+			err1 := store.Create(userCtx, accountstore.CreateInput{
 				AccountID:   "account-1",
 				AccountName: "Primary",
 			})
-			err2 := store.Create(userCtx, account.CreateInput{
+			err2 := store.Create(userCtx, accountstore.CreateInput{
 				AccountID:   "account-2",
 				AccountName: "Secondary",
 			})
@@ -41,7 +41,7 @@ func TestEventSourcedStoreTest(t *testing.T) {
 				So(idMap["account-2"], ShouldEqual, "Secondary")
 			})
 			Convey("And user can get specific account", func() {
-				acc, err := store.Get(userCtx, account.GetInput{AccountID: "account-1"})
+				acc, err := store.Get(userCtx, accountstore.GetInput{AccountID: "account-1"})
 				So(err, ShouldBeNil)
 				So(acc.Name, ShouldEqual, "Primary")
 			})
@@ -51,8 +51,8 @@ func TestEventSourcedStoreTest(t *testing.T) {
 				So(err, ShouldBeNil)
 				So(len(listed), ShouldEqual, 0)
 
-				acc, err := store.Get(otherCtx, account.GetInput{AccountID: "account-1"})
-				So(err, ShouldEqual, account.ErrForbidden)
+				acc, err := store.Get(otherCtx, accountstore.GetInput{AccountID: "account-1"})
+				So(err, ShouldEqual, accountstore.ErrForbidden)
 				So(acc, ShouldBeNil)
 			})
 			Convey("When linking broker account", func() {
@@ -62,7 +62,7 @@ func TestEventSourcedStoreTest(t *testing.T) {
 						ID: "tastytrade-123",
 					},
 				}
-				err := store.LinkBrokerAccount(userCtx, account.LinkBrokerAccountInput{
+				err := store.LinkBrokerAccount(userCtx, accountstore.LinkBrokerAccountInput{
 					AccountID:     "account-1",
 					BrokerAccount: brokerAcc,
 				})
@@ -70,18 +70,18 @@ func TestEventSourcedStoreTest(t *testing.T) {
 					So(err, ShouldBeNil)
 				})
 				Convey("And account shows as linked", func() {
-					acc, err := store.Get(userCtx, account.GetInput{AccountID: "account-1"})
+					acc, err := store.Get(userCtx, accountstore.GetInput{AccountID: "account-1"})
 					So(err, ShouldBeNil)
 					So(acc.BrokerLinked, ShouldBeTrue)
 					So(acc.BrokerAccount.TastyTrade.ID, ShouldEqual, "tastytrade-123")
 					So(acc.BrokerAccount.Type, ShouldEqual, broker.AccountTypeTastyTrade)
 				})
 				Convey("And cannot link again", func() {
-					err := store.LinkBrokerAccount(userCtx, account.LinkBrokerAccountInput{
+					err := store.LinkBrokerAccount(userCtx, accountstore.LinkBrokerAccountInput{
 						AccountID:     "account-1",
 						BrokerAccount: brokerAcc,
 					})
-					So(err, ShouldEqual, account.ErrBrokerAccountAlreadyLinked)
+					So(err, ShouldEqual, accountstore.ErrBrokerAccountAlreadyLinked)
 				})
 			})
 			Convey("When other user tries to link broker account", func() {
@@ -92,12 +92,12 @@ func TestEventSourcedStoreTest(t *testing.T) {
 						ID: "tastytrade-456",
 					},
 				}
-				err := store.LinkBrokerAccount(otherCtx, account.LinkBrokerAccountInput{
+				err := store.LinkBrokerAccount(otherCtx, accountstore.LinkBrokerAccountInput{
 					AccountID:     "account-1",
 					BrokerAccount: brokerAcc,
 				})
 				Convey("Then it fails with ErrForbidden", func() {
-					So(err, ShouldEqual, account.ErrForbidden)
+					So(err, ShouldEqual, accountstore.ErrForbidden)
 				})
 			})
 			Convey("When trying to link to nonexistent account", func() {
@@ -107,12 +107,12 @@ func TestEventSourcedStoreTest(t *testing.T) {
 						ID: "tastytrade-789",
 					},
 				}
-				err := store.LinkBrokerAccount(userCtx, account.LinkBrokerAccountInput{
+				err := store.LinkBrokerAccount(userCtx, accountstore.LinkBrokerAccountInput{
 					AccountID:     "nonexistent",
 					BrokerAccount: brokerAcc,
 				})
 				Convey("Then it fails with ErrNotFound", func() {
-					So(err, ShouldEqual, account.ErrNotFound)
+					So(err, ShouldEqual, accountstore.ErrNotFound)
 				})
 			})
 		})

@@ -1,4 +1,4 @@
-package account
+package accountstore
 
 import (
 	"github.com/kduong/trading-backend/internal/broker"

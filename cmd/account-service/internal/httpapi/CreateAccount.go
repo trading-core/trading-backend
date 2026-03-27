@@ -6,7 +6,7 @@ import (
 
 	"github.com/ansel1/merry"
 
-	"github.com/kduong/trading-backend/cmd/account-service/internal/account"
+	"github.com/kduong/trading-backend/cmd/account-service/internal/accountstore"
 	"github.com/kduong/trading-backend/internal/fatal"
 	"github.com/kduong/trading-backend/internal/httputil"
 	uuid "github.com/satori/go.uuid"
@@ -37,7 +37,7 @@ func (handler *Handler) CreateAccount(responseWriter http.ResponseWriter, reques
 		return
 	}
 	accountID := uuid.NewV4().String()
-	err = handler.accountStore.Create(ctx, account.CreateInput{
+	err = handler.accountStore.Create(ctx, accountstore.CreateInput{
 		AccountID:   accountID,
 		AccountName: input.AccountName,
 	})

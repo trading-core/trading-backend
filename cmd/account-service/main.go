@@ -7,7 +7,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/kduong/trading-backend/cmd/account-service/internal/account"
+	"github.com/kduong/trading-backend/cmd/account-service/internal/accountstore"
 
 	"github.com/kduong/trading-backend/cmd/account-service/internal/httpapi"
 
@@ -42,8 +42,8 @@ func main() {
 		Path:   "/accounts/v1/authorization_callback",
 	}
 	router := httpapi.NewRouter(httpapi.NewRouterInput{
-		AccountStore: account.NewThreadSafeStoreDecorator(account.NewThreadSafeStoreDecoratorInput{
-			Decorated: account.NewEventSourcedStore(account.NewEventSourcedStoreInput{
+		AccountStore: accountstore.NewThreadSafeDecorator(accountstore.NewThreadSafeDecoratorInput{
+			Decorated: accountstore.NewEventSourcedStore(accountstore.NewEventSourcedStoreInput{
 				Log: log,
 			}),
 		}),

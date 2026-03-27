@@ -6,7 +6,7 @@ import (
 
 	"github.com/ansel1/merry"
 	"github.com/gorilla/mux"
-	"github.com/kduong/trading-backend/cmd/account-service/internal/account"
+	"github.com/kduong/trading-backend/cmd/account-service/internal/accountstore"
 	"github.com/kduong/trading-backend/internal/fatal"
 	"github.com/kduong/trading-backend/internal/httputil"
 )
@@ -21,10 +21,11 @@ func (handler *Handler) GetAccountBalance(responseWriter http.ResponseWriter, re
 	ctx := request.Context()
 	vars := mux.Vars(request)
 	accountID := vars["account_id"]
-	account, err := handler.accountStore.Get(ctx, account.GetInput{
+	account, err := handler.accountStore.Get(ctx, accountstore.GetInput{
 		AccountID: accountID,
 	})
 	if err != nil {
+		err = merryErrorByAccountStoreError[err]
 		return
 	}
 	if !account.BrokerLinked {

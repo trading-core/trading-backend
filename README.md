@@ -1,5 +1,4 @@
 # tradingbot
-bybit
 
 ## TODO
 - create event source

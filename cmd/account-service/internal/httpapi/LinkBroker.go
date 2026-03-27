@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 
@@ -34,14 +35,36 @@ func (handler *Handler) LinkBroker(responseWriter http.ResponseWriter, request *
 		err = merry.Wrap(err).WithHTTPCode(http.StatusBadRequest).WithUserMessage("invalid request body")
 		return
 	}
+	if err = handler.ValidateBrokerAccount(ctx, &input); err != nil {
+		return
+	}
 	err = handler.accountStore.LinkBrokerAccount(ctx, account.LinkBrokerAccountInput{
 		AccountID:     accountID,
 		BrokerAccount: &input,
 	})
+	if err != nil {
+		return
+	}
 	responseWriter.Header().Set("Content-Type", "application/json")
 	err = json.NewEncoder(responseWriter).Encode(LinkBrokerOutput{
 		AccountID:     accountID,
 		BrokerAccount: input,
 	})
 	fatal.OnErrorUnlessDone(ctx, err)
+}
+
+var validBrokerAccountTypes = map[broker.AccountType]struct{}{
+	broker.AccountTypeTastyTrade: {},
+}
+
+func (handler *Handler) ValidateBrokerAccount(ctx context.Context, brokerAccount *broker.Account) error {
+	if _, isValidBrokerAccountType := validBrokerAccountTypes[brokerAccount.Type]; !isValidBrokerAccountType {
+		return merry.Errorf("unsupported broker account type: %s", brokerAccount.Type).WithHTTPCode(http.StatusBadRequest)
+	}
+	broker := handler.brokerClientFactory.GetClient(ctx, brokerAccount)
+	if _, err := broker.GetBalanceInfo(ctx); err != nil {
+		return merry.Wrap(err).WithHTTPCode(http.StatusBadRequest).WithUserMessage("failed to validate broker account")
+	}
+	return nil
+
 }

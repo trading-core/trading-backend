@@ -57,8 +57,10 @@ func TestEventSourcedStoreTest(t *testing.T) {
 			})
 			Convey("When linking broker account", func() {
 				brokerAcc := &broker.Account{
-					ID:   "alpaca-123",
-					Type: "alpaca",
+					Type: broker.AccountTypeTastyTrade,
+					TastyTrade: &broker.AccountTastyTrade{
+						ID: "tastytrade-123",
+					},
 				}
 				err := store.LinkBrokerAccount(userCtx, account.LinkBrokerAccountInput{
 					AccountID:     "account-1",
@@ -71,8 +73,8 @@ func TestEventSourcedStoreTest(t *testing.T) {
 					acc, err := store.Get(userCtx, account.GetInput{AccountID: "account-1"})
 					So(err, ShouldBeNil)
 					So(acc.BrokerLinked, ShouldBeTrue)
-					So(acc.BrokerAccount.ID, ShouldEqual, "alpaca-123")
-					So(acc.BrokerAccount.Type, ShouldEqual, "alpaca")
+					So(acc.BrokerAccount.TastyTrade.ID, ShouldEqual, "tastytrade-123")
+					So(acc.BrokerAccount.Type, ShouldEqual, broker.AccountTypeTastyTrade)
 				})
 				Convey("And cannot link again", func() {
 					err := store.LinkBrokerAccount(userCtx, account.LinkBrokerAccountInput{
@@ -85,8 +87,10 @@ func TestEventSourcedStoreTest(t *testing.T) {
 			Convey("When other user tries to link broker account", func() {
 				otherCtx := contextx.WithUserID(context.Background(), "user-2")
 				brokerAcc := &broker.Account{
-					ID:   "alpaca-456",
-					Type: "alpaca",
+					Type: broker.AccountTypeTastyTrade,
+					TastyTrade: &broker.AccountTastyTrade{
+						ID: "tastytrade-456",
+					},
 				}
 				err := store.LinkBrokerAccount(otherCtx, account.LinkBrokerAccountInput{
 					AccountID:     "account-1",
@@ -98,8 +102,10 @@ func TestEventSourcedStoreTest(t *testing.T) {
 			})
 			Convey("When trying to link to nonexistent account", func() {
 				brokerAcc := &broker.Account{
-					ID:   "alpaca-789",
-					Type: "alpaca",
+					Type: broker.AccountTypeTastyTrade,
+					TastyTrade: &broker.AccountTastyTrade{
+						ID: "tastytrade-789",
+					},
 				}
 				err := store.LinkBrokerAccount(userCtx, account.LinkBrokerAccountInput{
 					AccountID:     "nonexistent",

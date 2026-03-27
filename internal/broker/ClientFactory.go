@@ -12,7 +12,7 @@ type ClientFactory struct {
 
 func (factory *ClientFactory) GetClient(ctx context.Context, account *Account) Client {
 	switch account.Type {
-	case "tastytrade":
+	case AccountTypeTastyTrade:
 		return NewTastyTradeAdapter(NewTastyTradeAdapterInput{
 			Account: account,
 			Client:  factory.TastyTradeClientFactory.Create(),

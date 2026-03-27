@@ -25,7 +25,8 @@ func NewTastyTradeAdapter(input NewTastyTradeAdapterInput) *TastyTradeAdapter {
 }
 
 func (adapter *TastyTradeAdapter) GetBalanceInfo(ctx context.Context) (output *BalanceInfo, err error) {
-	tastyTradeAccountBalance, err := adapter.client.GetAccountBalance(ctx, adapter.account.ID)
+	accountID := adapter.account.TastyTrade.ID
+	tastyTradeAccountBalance, err := adapter.client.GetAccountBalance(ctx, accountID)
 	if err != nil {
 		return
 	}

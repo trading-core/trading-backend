@@ -1,6 +1,16 @@
 package broker
 
+type AccountType string
+
+const (
+	AccountTypeTastyTrade AccountType = "tastytrade"
+)
+
 type Account struct {
-	ID   string `json:"id"`
-	Type string `json:"type"`
+	Type       AccountType        `json:"type"`
+	TastyTrade *AccountTastyTrade `json:"tastytrade,omitempty"`
+}
+
+type AccountTastyTrade struct {
+	ID string `json:"id"`
 }

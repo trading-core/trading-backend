@@ -35,7 +35,7 @@ func main() {
 	tastyTradeAPIURL, err := url.Parse(tastyTradeCredentials.APIURL)
 	fatal.OnError(err)
 	tastyTradeTokenManager := auth.NewTastyTradeTokenManager(&tastyTradeCredentials.AuthorizationServer)
-	logFactory, err := eventsource.LogFactoryFromEnv("LOG", "INMEMORY")
+	logFactory, err := eventsource.LogFactoryFromEnv("ACCOUNT_EVENT_LOG", "INMEMORY")
 	fatal.OnError(err)
 	log, err := logFactory.Create("account:events")
 	fatal.OnError(err)

@@ -33,20 +33,25 @@ func (factory *BrokerOnboardingClientFactory) GetAuthorizationClient(accountType
 func (factory *BrokerOnboardingClientFactory) GetAccountDiscoveryClient(accountType broker.AccountType, accessToken string) (accountDiscoveryClient broker.AccountDiscoveryClient, err error) {
 	switch accountType {
 	case broker.AccountTypeTastyTrade:
-		var apiURL *url.URL
-		apiURL, err = url.Parse(factory.CredentialsByType[accountType].APIURL)
-		fatal.OnError(err)
-		accountDiscoveryClient = broker.NewTastyTradeAccountDiscoveryAdapter(broker.TastyTradeAccountDiscoveryAdapterInput{
-			Client: tastytrade.NewHTTPClient(tastytrade.NewHTTPClientInput{
-				APIURL: apiURL,
-				GetAccessToken: func(ctx context.Context) (string, error) {
-					return accessToken, nil
-				},
-			}),
-		})
-		return
+		return factory.getTastyTradeAccountDiscoveryAdapter(accessToken)
 	default:
 		err = fmt.Errorf("unsupported broker type: %s", accountType)
 		return
 	}
+}
+
+func (factory *BrokerOnboardingClientFactory) getTastyTradeAccountDiscoveryAdapter(accessToken string) (adapter *broker.TastyTradeAccountDiscoveryAdapter, err error) {
+	credentials, ok := factory.CredentialsByType[broker.AccountTypeTastyTrade]
+	fatal.Unless(ok)
+	apiURL, err := url.Parse(credentials.APIURL)
+	fatal.OnError(err)
+	adapter = broker.NewTastyTradeAccountDiscoveryAdapter(broker.TastyTradeAccountDiscoveryAdapterInput{
+		Client: tastytrade.NewHTTPClient(tastytrade.NewHTTPClientInput{
+			APIURL: apiURL,
+			GetAccessToken: func(ctx context.Context) (string, error) {
+				return accessToken, nil
+			},
+		}),
+	})
+	return
 }

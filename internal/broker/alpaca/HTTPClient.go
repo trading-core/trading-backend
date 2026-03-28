@@ -3,6 +3,7 @@ package alpaca
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -55,8 +56,7 @@ func (client *HTTPClient) GetActiveStocks(ctx context.Context, input GetActiveSt
 	if err != nil {
 		panic(err)
 	}
-	request.Header.Set("APCA-API-KEY-ID", client.keyID)
-	request.Header.Set("APCA-API-SECRET-KEY", client.secretKey)
+	client.authorizeRequest(request)
 	response, err := client.Do(request)
 	if err != nil {
 		return
@@ -83,8 +83,31 @@ func (client *HTTPClient) GetTopStockMovers(ctx context.Context, input GetTopSto
 	if err != nil {
 		panic(err)
 	}
-	request.Header.Set("APCA-API-KEY-ID", client.keyID)
-	request.Header.Set("APCA-API-SECRET-KEY", client.secretKey)
+	client.authorizeRequest(request)
+	response, err := client.Do(request)
+	if err != nil {
+		return
+	}
+	defer httputil.DrainAndClose(response.Body)
+	if response.StatusCode != http.StatusOK {
+		err = httputil.ExtractResponseError(response)
+		return
+	}
+	err = json.NewDecoder(response.Body).Decode(&output)
+	return
+}
+
+func (client *HTTPClient) GetStockSnapshot(ctx context.Context, input GetStockSnapshotInput) (output *GetStockSnapshotOutput, err error) {
+	target := url.URL{
+		Scheme: client.baseURL.Scheme,
+		Host:   client.baseURL.Host,
+		Path:   fmt.Sprintf("/v2/stocks/%s/snapshot", input.Symbol),
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, target.String(), nil)
+	if err != nil {
+		panic(err)
+	}
+	client.authorizeRequest(request)
 	response, err := client.Do(request)
 	if err != nil {
 		return
@@ -117,8 +140,7 @@ func (client *HTTPClient) GetStockNews(ctx context.Context, input GetStockNewsIn
 	if err != nil {
 		panic(err)
 	}
-	request.Header.Set("APCA-API-KEY-ID", client.keyID)
-	request.Header.Set("APCA-API-SECRET-KEY", client.secretKey)
+	client.authorizeRequest(request)
 	response, err := client.Do(request)
 	if err != nil {
 		return
@@ -130,4 +152,9 @@ func (client *HTTPClient) GetStockNews(ctx context.Context, input GetStockNewsIn
 	}
 	err = json.NewDecoder(response.Body).Decode(&output)
 	return
+}
+
+func (client *HTTPClient) authorizeRequest(request *http.Request) {
+	request.Header.Set("APCA-API-KEY-ID", client.keyID)
+	request.Header.Set("APCA-API-SECRET-KEY", client.secretKey)
 }

@@ -14,7 +14,7 @@ type Handler struct {
 
 type NewRouterInput struct {
 	AlpacaClient   alpaca.Client
-	AuthMiddleWare *auth.MiddleWare
+	AuthMiddleware *auth.Middleware
 }
 
 func NewRouter(input NewRouterInput) *mux.Router {
@@ -23,9 +23,10 @@ func NewRouter(input NewRouterInput) *mux.Router {
 	}
 	router := mux.NewRouter().StrictSlash(true)
 	stockScreenerV1Router := router.PathPrefix("/stock-screener/v1").Subrouter()
-	stockScreenerV1Router.Use(input.AuthMiddleWare.Handle)
+	stockScreenerV1Router.Use(input.AuthMiddleware.Handle)
 	stockScreenerV1Router.HandleFunc("/most-actives", handler.GetActiveStocks).Methods(http.MethodGet).Name("GetActiveStocks")
 	stockScreenerV1Router.HandleFunc("/movers", handler.GetTopStockMovers).Methods(http.MethodGet).Name("GetTopStockMovers")
 	stockScreenerV1Router.HandleFunc("/news", handler.GetStockNews).Methods(http.MethodGet).Name("GetStockNews")
+	stockScreenerV1Router.HandleFunc("/stocks/{symbol}/snapshot", handler.GetStockSnapshot).Methods(http.MethodGet).Name("GetStockSnapshot")
 	return router
 }

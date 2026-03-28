@@ -13,17 +13,17 @@ import (
 	"github.com/kduong/trading-backend/internal/httputil"
 )
 
-type MiddleWare struct {
+type Middleware struct {
 	tokenSecret string
 }
 
-func MiddleWareFromEnv() *MiddleWare {
-	return &MiddleWare{
+func MiddlewareFromEnv() *Middleware {
+	return &Middleware{
 		tokenSecret: config.EnvStringOrFatal("TOKEN_SECRET"),
 	}
 }
 
-func (middleware *MiddleWare) Handle(next http.Handler) http.Handler {
+func (middleware *Middleware) Handle(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
 		var err error
 		defer func() {
@@ -31,13 +31,13 @@ func (middleware *MiddleWare) Handle(next http.Handler) http.Handler {
 				httputil.SendErrorResponse(responseWriter, err)
 			}
 		}()
-		authHeader := strings.TrimSpace(request.Header.Get("Authorization"))
-		if len(authHeader) == 0 {
+		authorization := request.Header.Get("Authorization")
+		if len(authorization) == 0 {
 			err = merry.New("missing authorization header").WithHTTPCode(http.StatusUnauthorized).WithUserMessage("unauthorized")
 			return
 		}
-		parts := strings.SplitN(authHeader, " ", 2)
-		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
+		parts := strings.SplitN(authorization, " ", 2)
+		if len(parts) != 2 || parts[0] != "Bearer" {
 			err = merry.New("invalid authorization header format").WithHTTPCode(http.StatusUnauthorized).WithUserMessage("unauthorized")
 			return
 		}

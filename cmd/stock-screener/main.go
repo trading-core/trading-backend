@@ -12,7 +12,7 @@ import (
 func main() {
 	router := httpapi.NewRouter(httpapi.NewRouterInput{
 		AlpacaClient:   alpaca.ClientFromEnv(),
-		AuthMiddleWare: auth.MiddleWareFromEnv(),
+		AuthMiddleware: auth.MiddlewareFromEnv(),
 	})
 	c := cors.New(cors.Options{
 		AllowedOrigins:   []string{"*"},

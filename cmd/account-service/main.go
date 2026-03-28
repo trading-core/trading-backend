@@ -60,9 +60,7 @@ func main() {
 			BackendRedirectURI: authorizationRedirectURI.String(),
 			CredentialsByType:  brokerAuthorizationCredentials,
 		},
-		AuthMiddleWare: &auth.MiddleWare{
-			TokenSecret: config.EnvStringOrFatal("TOKEN_SECRET"),
-		},
+		AuthMiddleWare:     auth.MiddleWareFromEnv(),
 		BackendRedirectURI: authorizationRedirectURI.String(),
 		FrontendBaseURL:    config.EnvStringOrFatal("FRONTEND_BASE_URL"),
 	})

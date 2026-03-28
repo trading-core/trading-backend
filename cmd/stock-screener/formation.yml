@@ -2,6 +2,7 @@
 - name: Render stock-screener .env
   vars:
     service_environment:
+      TOKEN_SECRET: "{{ token_secret }}"
       ALPACA_API_SCHEME: https
       ALPACA_API_HOST: data.alpaca.markets
       ALPACA_API_PORT: 443

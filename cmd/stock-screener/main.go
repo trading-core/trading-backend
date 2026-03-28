@@ -4,13 +4,15 @@ import (
 	"net/http"
 
 	"github.com/kduong/trading-backend/cmd/stock-screener/internal/httpapi"
+	"github.com/kduong/trading-backend/internal/auth"
 	"github.com/kduong/trading-backend/internal/broker/alpaca"
 	"github.com/rs/cors"
 )
 
 func main() {
 	router := httpapi.NewRouter(httpapi.NewRouterInput{
-		AlpacaClient: alpaca.FromEnv(),
+		AlpacaClient:   alpaca.ClientFromEnv(),
+		AuthMiddleWare: auth.MiddleWareFromEnv(),
 	})
 	c := cors.New(cors.Options{
 		AllowedOrigins:   []string{"*"},

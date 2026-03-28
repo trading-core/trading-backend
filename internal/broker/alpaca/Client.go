@@ -84,7 +84,7 @@ type StockImage struct {
 	URL  string `json:"url"`
 }
 
-func FromEnv() Client {
+func ClientFromEnv() Client {
 	implementation := config.EnvString("ALPACA_CLIENT_IMPLEMENTATION", "HTTP")
 	switch implementation {
 	case "HTTP":

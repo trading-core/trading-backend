@@ -8,12 +8,19 @@ import (
 	"github.com/ansel1/merry"
 	"github.com/golang-jwt/jwt/v5"
 
+	"github.com/kduong/trading-backend/internal/config"
 	"github.com/kduong/trading-backend/internal/contextx"
 	"github.com/kduong/trading-backend/internal/httputil"
 )
 
 type MiddleWare struct {
-	TokenSecret string
+	tokenSecret string
+}
+
+func MiddleWareFromEnv() *MiddleWare {
+	return &MiddleWare{
+		tokenSecret: config.EnvStringOrFatal("TOKEN_SECRET"),
+	}
 }
 
 func (middleware *MiddleWare) Handle(next http.Handler) http.Handler {
@@ -39,7 +46,7 @@ func (middleware *MiddleWare) Handle(next http.Handler) http.Handler {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, errors.New("unexpected signing method")
 			}
-			return []byte(middleware.TokenSecret), nil
+			return []byte(middleware.tokenSecret), nil
 		})
 		if err != nil || token == nil || !token.Valid {
 			err = merry.New("invalid token").WithHTTPCode(http.StatusUnauthorized).WithUserMessage("unauthorized")

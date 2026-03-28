@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/ansel1/merry"
 	"github.com/kduong/trading-backend/cmd/authentication-service/internal/userstore"
@@ -63,7 +64,7 @@ func (handler *Handler) CreateSession(responseWriter http.ResponseWriter, reques
 	output := CreateSessionOutput{
 		AccessToken: token,
 		TokenType:   "Bearer",
-		ExpiresAt:   expiresAt.Format("2006-01-02T15:04:05Z07:00"),
+		ExpiresAt:   expiresAt.Format(time.RFC3339),
 		UserID:      object.ID,
 		Email:       object.Email,
 	}

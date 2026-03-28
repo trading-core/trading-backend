@@ -32,6 +32,7 @@ func NewRouter(input NewRouterInput) *mux.Router {
 	authV1Router := router.PathPrefix("/auth/v1").Subrouter()
 	authV1Router.HandleFunc("/users", handler.CreateUser).Methods(http.MethodPost).Name("CreateUser")
 	authV1Router.HandleFunc("/sessions", handler.CreateSession).Methods(http.MethodPost).Name("CreateSession")
+	authV1Router.HandleFunc("/sessions/refresh", handler.RefreshSession).Methods(http.MethodPost).Name("RefreshSession")
 	return router
 }
 

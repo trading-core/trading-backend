@@ -29,6 +29,9 @@ func main() {
 	fatal.OnError(err)
 	tastyTradeCredentials, ok := brokerCredentialsByType["tastytrade"]
 	fatal.Unless(ok)
+	brokerAuthorizationCredentials := map[broker.AccountType]auth.Credentials{
+		broker.AccountTypeTastyTrade: tastyTradeCredentials,
+	}
 	tastyTradeAPIURL, err := url.Parse(tastyTradeCredentials.APIURL)
 	fatal.OnError(err)
 	tastyTradeTokenManager := auth.NewTastyTradeTokenManager(&tastyTradeCredentials.AuthorizationServer)
@@ -47,18 +50,21 @@ func main() {
 				Log: log,
 			}),
 		}),
-		BrokerClientFactory: &broker.ClientFactory{
+		BrokerAccountClientFactory: &broker.AccountClientFactory{
 			TastyTradeClientFactory: &tastytrade.HTTPClientFactory{
 				APIURL:         tastyTradeAPIURL,
 				GetAccessToken: tastyTradeTokenManager.GetAccessToken,
 			},
 		},
+		BrokerAuthorizationFactory: &broker.AuthorizationClientFactory{
+			BackendRedirectURI: authorizationRedirectURI.String(),
+			CredentialsByType:  brokerAuthorizationCredentials,
+		},
 		AuthMiddleWare: &auth.MiddleWare{
 			TokenSecret: config.EnvStringOrFatal("TOKEN_SECRET"),
 		},
-		BackendRedirectURI:    authorizationRedirectURI.String(),
-		TastyTradeCredentials: tastyTradeCredentials,
-		FrontendBaseURL:       config.EnvStringOrFatal("FRONTEND_BASE_URL"),
+		BackendRedirectURI: authorizationRedirectURI.String(),
+		FrontendBaseURL:    config.EnvStringOrFatal("FRONTEND_BASE_URL"),
 	})
 	c := cors.New(cors.Options{
 		AllowedOrigins:   []string{"*"},

@@ -32,7 +32,7 @@ type NewRouterInput struct {
 	AccountStore                  accountstore.Store
 	BrokerAccountClientFactory    broker.AccountClientFactory
 	BrokerOnBoardingClientFactory broker.OnBoardingClientFactory
-	AuthMiddleWare                *auth.MiddleWare
+	AuthMiddleware                *auth.Middleware
 	BackendRedirectURI            string
 	FrontendBaseURL               string
 }
@@ -51,7 +51,7 @@ func NewRouter(input NewRouterInput) *mux.Router {
 	router.HandleFunc("/accounts/v1/authorization_callback", handler.HandleAuthorizationCallback).Methods(http.MethodGet).Name("HandleAuthorizationCallback")
 
 	accountV1Router := router.PathPrefix("/accounts/v1").Subrouter()
-	accountV1Router.Use(input.AuthMiddleWare.Handle)
+	accountV1Router.Use(input.AuthMiddleware.Handle)
 	accountV1Router.HandleFunc("/accounts", handler.CreateAccount).Methods(http.MethodPost).Name("CreateAccount")
 	accountV1Router.HandleFunc("/accounts", handler.ListAccounts).Methods(http.MethodGet).Name("ListAccounts")
 	accountV1Router.HandleFunc("/accounts/{account_id}", handler.GetAccount).Methods(http.MethodGet).Name("GetAccount")

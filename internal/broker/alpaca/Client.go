@@ -11,6 +11,7 @@ type Client interface {
 	GetActiveStocks(ctx context.Context, input GetActiveStocksInput) (output *GetActiveStocksOutput, err error)
 	GetTopStockMovers(ctx context.Context, input GetTopStockMoversInput) (output *GetTopStockMoversOutput, err error)
 	GetStockNews(ctx context.Context, input GetStockNewsInput) (output *GetStockNewsOutput, err error)
+	GetStockSnapshot(ctx context.Context, input GetStockSnapshotInput) (output *GetStockSnapshotOutput, err error)
 }
 
 type RankBy string
@@ -82,6 +83,42 @@ type StockNews struct {
 type StockImage struct {
 	Size string `json:"size"`
 	URL  string `json:"url"`
+}
+
+type GetStockSnapshotInput struct {
+	Symbol string
+}
+
+type GetStockSnapshotOutput struct {
+	LatestTrade  SnapshotTrade `json:"latestTrade"`
+	LatestQuote  SnapshotQuote `json:"latestQuote"`
+	MinuteBar    SnapshotBar   `json:"minuteBar"`
+	DailyBar     SnapshotBar   `json:"dailyBar"`
+	PrevDailyBar SnapshotBar   `json:"prevDailyBar"`
+}
+
+type SnapshotTrade struct {
+	Timestamp string  `json:"t"`
+	Price     float64 `json:"p"`
+	Size      float64 `json:"s"`
+}
+
+type SnapshotQuote struct {
+	Timestamp string  `json:"t"`
+	AskPrice  float64 `json:"ap"`
+	AskSize   float64 `json:"as"`
+	BidPrice  float64 `json:"bp"`
+	BidSize   float64 `json:"bs"`
+}
+
+type SnapshotBar struct {
+	Timestamp              string  `json:"t"`
+	Open                   float64 `json:"o"`
+	High                   float64 `json:"h"`
+	Low                    float64 `json:"l"`
+	Close                  float64 `json:"c"`
+	Volume                 float64 `json:"v"`
+	VolumeWeightedAvgPrice float64 `json:"vw"`
 }
 
 func ClientFromEnv() Client {

@@ -50,13 +50,13 @@ func main() {
 				Log: log,
 			}),
 		}),
-		BrokerAccountClientFactory: &broker.AccountClientFactory{
+		BrokerAccountClientFactory: &BrokerAccountClientFactory{
 			TastyTradeClientFactory: &tastytrade.HTTPClientFactory{
 				APIURL:         tastyTradeAPIURL,
 				GetAccessToken: tastyTradeTokenManager.GetAccessToken,
 			},
 		},
-		BrokerAuthorizationFactory: &broker.AuthorizationClientFactory{
+		BrokerOnBoardingClientFactory: &BrokerOnboardingClientFactory{
 			BackendRedirectURI: authorizationRedirectURI.String(),
 			CredentialsByType:  brokerAuthorizationCredentials,
 		},

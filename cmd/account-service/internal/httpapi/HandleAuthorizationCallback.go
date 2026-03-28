@@ -20,17 +20,22 @@ func (handler *Handler) HandleAuthorizationCallback(responseWriter http.Response
 		http.Redirect(responseWriter, request, frontendAccountURL+"?oauth_error=invalid_state", http.StatusFound)
 		return
 	}
-	authorizationClient, err := handler.brokerAuthorizationFactory.Get(stateEntry.Broker)
+	authorizationClient, err := handler.brokerOnBoardingClientFactory.GetAuthorizationClient(stateEntry.Broker)
 	if err != nil {
 		http.Redirect(responseWriter, request, frontendAccountURL+"?oauth_error=unsupported_broker", http.StatusFound)
 		return
 	}
-	tokens, err := authorizationClient.ExchangeCode(ctx, code)
+	tokenOutput, err := authorizationClient.RequestAccessTokenUsingAuthorizationCode(ctx, code)
 	if err != nil {
 		http.Redirect(responseWriter, request, frontendAccountURL+"?oauth_error=token_exchange_failed", http.StatusFound)
 		return
 	}
-	accountNumbers, err := authorizationClient.ListAccounts(ctx, tokens.AccessToken)
+	accountDiscoveryClient, err := handler.brokerOnBoardingClientFactory.GetAccountDiscoveryClient(stateEntry.Broker, tokenOutput.AccessToken)
+	if err != nil {
+		http.Redirect(responseWriter, request, frontendAccountURL+"?oauth_error=unsupported_broker", http.StatusFound)
+		return
+	}
+	accountNumbers, err := accountDiscoveryClient.ListAccountIDs(ctx)
 	if err != nil || len(accountNumbers) == 0 {
 		http.Redirect(responseWriter, request, frontendAccountURL+"?oauth_error=no_accounts_found", http.StatusFound)
 		return

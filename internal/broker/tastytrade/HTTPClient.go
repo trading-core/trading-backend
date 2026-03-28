@@ -27,6 +27,39 @@ func NewHTTPClient(input NewHTTPClientInput) *HTTPClient {
 	}
 }
 
+func (client *HTTPClient) ListAccounts(ctx context.Context) (output []*Accounts, err error) {
+	target := url.URL{
+		Scheme: client.apiURL.Scheme,
+		Host:   client.apiURL.Host,
+		Path:   "/customers/me/accounts",
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, target.String(), nil)
+	if err != nil {
+		panic(err)
+	}
+	accessToken, err := client.getAccessToken(ctx)
+	if err != nil {
+		return
+	}
+	request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", accessToken))
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		return
+	}
+	defer httputil.DrainAndClose(response.Body)
+	if response.StatusCode != http.StatusOK {
+		err = httputil.ExtractResponseError(response)
+		return
+	}
+	var accounts Accounts
+	err = json.NewDecoder(response.Body).Decode(&accounts)
+	if err != nil {
+		return
+	}
+	output = []*Accounts{&accounts}
+	return
+}
+
 func (client *HTTPClient) GetAccountBalance(ctx context.Context, accountID string) (output *AccountBalance, err error) {
 	target := url.URL{
 		Scheme: client.apiURL.Scheme,

@@ -7,10 +7,6 @@ const (
 )
 
 type Account struct {
-	Type       AccountType        `json:"type"`
-	TastyTrade *AccountTastyTrade `json:"tastytrade,omitempty"`
-}
-
-type AccountTastyTrade struct {
-	ID string `json:"id"`
+	Type AccountType `json:"account_type"`
+	ID   string      `json:"account_id"`
 }

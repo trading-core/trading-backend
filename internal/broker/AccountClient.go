@@ -12,3 +12,7 @@ type GetBalanceOutput struct {
 	Balance  float64 `json:"balance"`
 	Currency string  `json:"currency"`
 }
+
+type AccountClientFactory interface {
+	Get(ctx context.Context, account *Account) AccountClient
+}

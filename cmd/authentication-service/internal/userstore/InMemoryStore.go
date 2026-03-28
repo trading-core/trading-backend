@@ -9,11 +9,13 @@ var _ Store = (*InMemoryStore)(nil)
 
 type InMemoryStore struct {
 	userByEmail map[string]User
+	userByID    map[string]User
 }
 
 func NewInMemoryStore() *InMemoryStore {
 	return &InMemoryStore{
 		userByEmail: make(map[string]User),
+		userByID:    make(map[string]User),
 	}
 }
 
@@ -25,8 +27,17 @@ func (store *InMemoryStore) Put(ctx context.Context, user User) error {
 			return ErrAlreadyExists
 		}
 		store.userByEmail[user.Email] = user
+		store.userByID[user.ID] = user
 	}
 	return nil
+}
+
+func (store *InMemoryStore) GetByID(ctx context.Context, id string) (*User, error) {
+	user, ok := store.userByID[id]
+	if !ok {
+		return nil, ErrNotFound
+	}
+	return &user, nil
 }
 
 func (store *InMemoryStore) GetByEmail(ctx context.Context, email string) (*User, error) {

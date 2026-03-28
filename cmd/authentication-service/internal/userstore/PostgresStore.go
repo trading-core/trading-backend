@@ -58,7 +58,7 @@ func (store *PostgresStore) Put(ctx context.Context, user User) error {
 	return nil
 }
 
-func (store *PostgresStore) Get(ctx context.Context, userID string) (output *User, err error) {
+func (store *PostgresStore) GetByID(ctx context.Context, userID string) (output *User, err error) {
 	var user User
 	err = store.db.QueryRowContext(
 		ctx,

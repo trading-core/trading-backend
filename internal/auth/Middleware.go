@@ -14,12 +14,12 @@ import (
 )
 
 type Middleware struct {
-	tokenSecret string
+	tokenSecret []byte
 }
 
 func MiddlewareFromEnv() *Middleware {
 	return &Middleware{
-		tokenSecret: config.EnvStringOrFatal("TOKEN_SECRET"),
+		tokenSecret: []byte(config.EnvStringOrFatal("TOKEN_SECRET")),
 	}
 }
 
@@ -46,7 +46,7 @@ func (middleware *Middleware) Handle(next http.Handler) http.Handler {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, errors.New("unexpected signing method")
 			}
-			return []byte(middleware.tokenSecret), nil
+			return middleware.tokenSecret, nil
 		})
 		if err != nil || token == nil || !token.Valid {
 			err = merry.New("invalid token").WithHTTPCode(http.StatusUnauthorized).WithUserMessage("unauthorized")

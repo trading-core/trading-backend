@@ -54,7 +54,7 @@ func (handler *Handler) StartBrokerSelection(responseWriter http.ResponseWriter,
 	if err != nil {
 		return
 	}
-	authorizationClient, err := handler.brokerAuthorizationFactory.Get(input.Broker)
+	authorizationClient, err := handler.brokerOnBoardingClientFactory.GetAuthorizationClient(input.Broker)
 	if err != nil {
 		err = merry.Wrap(err).WithHTTPCode(http.StatusBadRequest)
 		return
@@ -65,13 +65,9 @@ func (handler *Handler) StartBrokerSelection(responseWriter http.ResponseWriter,
 		Broker:    input.Broker,
 		ExpiresAt: time.Now().Add(10 * time.Minute),
 	})
-	authorizationURL, err := authorizationClient.BuildAuthorizationURL(stateToken)
-	if err != nil {
-		return
-	}
 	responseWriter.Header().Set("Content-Type", "application/json")
 	err = json.NewEncoder(responseWriter).Encode(StartBrokerSelectionOutput{
-		AuthorizationURL: authorizationURL,
+		AuthorizationURL: authorizationClient.BuildAuthorizationURL(stateToken),
 	})
 	fatal.OnErrorUnlessDone(ctx, err)
 }

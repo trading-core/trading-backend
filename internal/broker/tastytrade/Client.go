@@ -3,7 +3,43 @@ package tastytrade
 import "context"
 
 type Client interface {
+	ListAccounts(ctx context.Context) ([]*Accounts, error)
 	GetAccountBalance(ctx context.Context, accountID string) (*AccountBalance, error)
+}
+
+type Accounts struct {
+	Data AccountsData `json:"data"`
+}
+
+type AccountsData struct {
+	Items []AccountsItem `json:"items"`
+}
+
+type AccountsItem struct {
+	Account        Account `json:"account"`
+	AuthorityLevel string  `json:"authority-level"`
+}
+
+type Account struct {
+	AccountNumber        string `json:"account-number"`
+	AccountTypeName      string `json:"account-type-name"`
+	CreatedAt            string `json:"created-at"`
+	DayTraderStatus      bool   `json:"day-trader-status"`
+	ExtCrmID             string `json:"ext-crm-id"`
+	ExternalID           string `json:"external-id"`
+	FundingDate          string `json:"funding-date"`
+	InvestmentObjective  string `json:"investment-objective"`
+	IsClosed             bool   `json:"is-closed"`
+	IsFirmError          bool   `json:"is-firm-error"`
+	IsFirmProprietary    bool   `json:"is-firm-proprietary"`
+	IsForeign            bool   `json:"is-foreign"`
+	IsFuturesApproved    bool   `json:"is-futures-approved"`
+	LiquidityNeeds       string `json:"liquidity-needs"`
+	MarginOrCash         string `json:"margin-or-cash"`
+	Nickname             string `json:"nickname"`
+	OpenedAt             string `json:"opened-at"`
+	RegulatoryDomain     string `json:"regulatory-domain"`
+	SuitableOptionsLevel string `json:"suitable-options-level"`
 }
 
 type AccountBalance struct {

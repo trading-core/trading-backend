@@ -7,24 +7,24 @@ import (
 	"github.com/kduong/trading-backend/internal/broker/tastytrade"
 )
 
-type TastyTradeAdapter struct {
+type TastyTradeAccountAdapter struct {
 	accountID string
 	client    tastytrade.Client
 }
 
-type NewTastyTradeAdapterInput struct {
+type NewTastyTradeAccountAdapterInput struct {
 	AccountID string
 	Client    tastytrade.Client
 }
 
-func NewTastyTradeAdapter(input NewTastyTradeAdapterInput) *TastyTradeAdapter {
-	return &TastyTradeAdapter{
+func NewTastyTradeAccountAdapter(input NewTastyTradeAccountAdapterInput) *TastyTradeAccountAdapter {
+	return &TastyTradeAccountAdapter{
 		accountID: input.AccountID,
 		client:    input.Client,
 	}
 }
 
-func (adapter *TastyTradeAdapter) GetBalance(ctx context.Context) (output *GetBalanceOutput, err error) {
+func (adapter *TastyTradeAccountAdapter) GetBalance(ctx context.Context) (output *GetBalanceOutput, err error) {
 	tastyTradeAccountBalance, err := adapter.client.GetAccountBalance(ctx, adapter.accountID)
 	if err != nil {
 		return

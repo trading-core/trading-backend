@@ -58,9 +58,7 @@ func TestEventSourcedStoreTest(t *testing.T) {
 			Convey("When linking broker account", func() {
 				brokerAcc := &broker.Account{
 					Type: broker.AccountTypeTastyTrade,
-					TastyTrade: &broker.AccountTastyTrade{
-						ID: "tastytrade-123",
-					},
+					ID:   "tastytrade-123",
 				}
 				err := store.LinkBrokerAccount(userCtx, accountstore.LinkBrokerAccountInput{
 					AccountID:     "account-1",
@@ -73,7 +71,7 @@ func TestEventSourcedStoreTest(t *testing.T) {
 					acc, err := store.Get(userCtx, accountstore.GetInput{AccountID: "account-1"})
 					So(err, ShouldBeNil)
 					So(acc.BrokerLinked, ShouldBeTrue)
-					So(acc.BrokerAccount.TastyTrade.ID, ShouldEqual, "tastytrade-123")
+					So(acc.BrokerAccount.ID, ShouldEqual, "tastytrade-123")
 					So(acc.BrokerAccount.Type, ShouldEqual, broker.AccountTypeTastyTrade)
 				})
 				Convey("And cannot link again", func() {
@@ -88,9 +86,7 @@ func TestEventSourcedStoreTest(t *testing.T) {
 				otherCtx := contextx.WithUserID(context.Background(), "user-2")
 				brokerAcc := &broker.Account{
 					Type: broker.AccountTypeTastyTrade,
-					TastyTrade: &broker.AccountTastyTrade{
-						ID: "tastytrade-456",
-					},
+					ID:   "tastytrade-456",
 				}
 				err := store.LinkBrokerAccount(otherCtx, accountstore.LinkBrokerAccountInput{
 					AccountID:     "account-1",
@@ -103,9 +99,7 @@ func TestEventSourcedStoreTest(t *testing.T) {
 			Convey("When trying to link to nonexistent account", func() {
 				brokerAcc := &broker.Account{
 					Type: broker.AccountTypeTastyTrade,
-					TastyTrade: &broker.AccountTastyTrade{
-						ID: "tastytrade-789",
-					},
+					ID:   "tastytrade-789",
 				}
 				err := store.LinkBrokerAccount(userCtx, accountstore.LinkBrokerAccountInput{
 					AccountID:     "nonexistent",

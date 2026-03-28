@@ -56,15 +56,9 @@ func (handler *Handler) CompleteBrokerSelection(responseWriter http.ResponseWrit
 		err = merry.New("broker account is not available for this selection").WithHTTPCode(http.StatusBadRequest)
 		return
 	}
-	authorizationClient, getClientErr := handler.brokerAuthorizationFactory.Get(entry.Broker)
-	if getClientErr != nil {
-		err = merry.Wrap(getClientErr).WithHTTPCode(http.StatusBadRequest)
-		return
-	}
-	brokerAccount, buildAccountErr := authorizationClient.GenerateAccount(input.BrokerAccountID)
-	if buildAccountErr != nil {
-		err = merry.Wrap(buildAccountErr).WithHTTPCode(http.StatusBadRequest)
-		return
+	brokerAccount := &broker.Account{
+		Type: entry.Broker,
+		ID:   input.BrokerAccountID,
 	}
 	ctx = contextx.WithUserID(ctx, entry.UserID)
 	err = handler.accountStore.LinkBrokerAccount(ctx, accountstore.LinkBrokerAccountInput{

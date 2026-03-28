@@ -21,31 +21,31 @@ type Handler struct {
 	pendingSelectionMutex sync.Mutex
 	pendingSelectionStore map[string]PendingBrokerSelectionEntry
 
-	accountStore               accountstore.Store
-	brokerAccountClientFactory *broker.AccountClientFactory
-	brokerAuthorizationFactory *broker.AuthorizationClientFactory
-	backendRedirectURI         string
-	frontendBaseURL            string
+	accountStore                  accountstore.Store
+	brokerAccountClientFactory    broker.AccountClientFactory
+	brokerOnBoardingClientFactory broker.OnBoardingClientFactory
+	backendRedirectURI            string
+	frontendBaseURL               string
 }
 
 type NewRouterInput struct {
-	AccountStore               accountstore.Store
-	BrokerAccountClientFactory *broker.AccountClientFactory
-	BrokerAuthorizationFactory *broker.AuthorizationClientFactory
-	AuthMiddleWare             *auth.MiddleWare
-	BackendRedirectURI         string
-	FrontendBaseURL            string
+	AccountStore                  accountstore.Store
+	BrokerAccountClientFactory    broker.AccountClientFactory
+	BrokerOnBoardingClientFactory broker.OnBoardingClientFactory
+	AuthMiddleWare                *auth.MiddleWare
+	BackendRedirectURI            string
+	FrontendBaseURL               string
 }
 
 func NewRouter(input NewRouterInput) *mux.Router {
 	handler := &Handler{
-		oauthStateStore:            make(map[string]OAuthStateEntry),
-		pendingSelectionStore:      make(map[string]PendingBrokerSelectionEntry),
-		accountStore:               input.AccountStore,
-		brokerAccountClientFactory: input.BrokerAccountClientFactory,
-		brokerAuthorizationFactory: input.BrokerAuthorizationFactory,
-		backendRedirectURI:         input.BackendRedirectURI,
-		frontendBaseURL:            input.FrontendBaseURL,
+		oauthStateStore:               make(map[string]OAuthStateEntry),
+		pendingSelectionStore:         make(map[string]PendingBrokerSelectionEntry),
+		accountStore:                  input.AccountStore,
+		brokerAccountClientFactory:    input.BrokerAccountClientFactory,
+		brokerOnBoardingClientFactory: input.BrokerOnBoardingClientFactory,
+		backendRedirectURI:            input.BackendRedirectURI,
+		frontendBaseURL:               input.FrontendBaseURL,
 	}
 	router := mux.NewRouter().StrictSlash(true)
 	router.HandleFunc("/accounts/v1/authorization_callback", handler.HandleAuthorizationCallback).Methods(http.MethodGet).Name("HandleAuthorizationCallback")

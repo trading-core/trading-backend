@@ -8,25 +8,24 @@ import (
 )
 
 type TastyTradeAdapter struct {
-	account *Account
-	client  tastytrade.Client
+	accountID string
+	client    tastytrade.Client
 }
 
 type NewTastyTradeAdapterInput struct {
-	Account *Account
-	Client  tastytrade.Client
+	AccountID string
+	Client    tastytrade.Client
 }
 
 func NewTastyTradeAdapter(input NewTastyTradeAdapterInput) *TastyTradeAdapter {
 	return &TastyTradeAdapter{
-		account: input.Account,
-		client:  input.Client,
+		accountID: input.AccountID,
+		client:    input.Client,
 	}
 }
 
-func (adapter *TastyTradeAdapter) GetBalanceInfo(ctx context.Context) (output *BalanceInfo, err error) {
-	accountID := adapter.account.TastyTrade.ID
-	tastyTradeAccountBalance, err := adapter.client.GetAccountBalance(ctx, accountID)
+func (adapter *TastyTradeAdapter) GetBalance(ctx context.Context) (output *GetBalanceOutput, err error) {
+	tastyTradeAccountBalance, err := adapter.client.GetAccountBalance(ctx, adapter.accountID)
 	if err != nil {
 		return
 	}
@@ -34,8 +33,7 @@ func (adapter *TastyTradeAdapter) GetBalanceInfo(ctx context.Context) (output *B
 	if err != nil {
 		return
 	}
-	output = &BalanceInfo{
-		Account:  adapter.account,
+	output = &GetBalanceOutput{
 		Balance:  balance,
 		Currency: tastyTradeAccountBalance.Data.Currency,
 	}

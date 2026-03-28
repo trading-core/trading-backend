@@ -21,31 +21,31 @@ type Handler struct {
 	pendingSelectionMutex sync.Mutex
 	pendingSelectionStore map[string]PendingBrokerSelectionEntry
 
-	accountStore          accountstore.Store
-	brokerClientFactory   *broker.ClientFactory
-	backendRedirectURI    string
-	tastyTradeCredentials auth.Credentials
-	frontendBaseURL       string
+	accountStore               accountstore.Store
+	brokerAccountClientFactory *broker.AccountClientFactory
+	brokerAuthorizationFactory *broker.AuthorizationClientFactory
+	backendRedirectURI         string
+	frontendBaseURL            string
 }
 
 type NewRouterInput struct {
-	AccountStore          accountstore.Store
-	BrokerClientFactory   *broker.ClientFactory
-	AuthMiddleWare        *auth.MiddleWare
-	BackendRedirectURI    string
-	TastyTradeCredentials auth.Credentials
-	FrontendBaseURL       string
+	AccountStore               accountstore.Store
+	BrokerAccountClientFactory *broker.AccountClientFactory
+	BrokerAuthorizationFactory *broker.AuthorizationClientFactory
+	AuthMiddleWare             *auth.MiddleWare
+	BackendRedirectURI         string
+	FrontendBaseURL            string
 }
 
 func NewRouter(input NewRouterInput) *mux.Router {
 	handler := &Handler{
-		oauthStateStore:       make(map[string]OAuthStateEntry),
-		pendingSelectionStore: make(map[string]PendingBrokerSelectionEntry),
-		accountStore:          input.AccountStore,
-		brokerClientFactory:   input.BrokerClientFactory,
-		backendRedirectURI:    input.BackendRedirectURI,
-		tastyTradeCredentials: input.TastyTradeCredentials,
-		frontendBaseURL:       input.FrontendBaseURL,
+		oauthStateStore:            make(map[string]OAuthStateEntry),
+		pendingSelectionStore:      make(map[string]PendingBrokerSelectionEntry),
+		accountStore:               input.AccountStore,
+		brokerAccountClientFactory: input.BrokerAccountClientFactory,
+		brokerAuthorizationFactory: input.BrokerAuthorizationFactory,
+		backendRedirectURI:         input.BackendRedirectURI,
+		frontendBaseURL:            input.FrontendBaseURL,
 	}
 	router := mux.NewRouter().StrictSlash(true)
 	router.HandleFunc("/accounts/v1/authorization_callback", handler.HandleAuthorizationCallback).Methods(http.MethodGet).Name("HandleAuthorizationCallback")
@@ -66,6 +66,7 @@ func NewRouter(input NewRouterInput) *mux.Router {
 type OAuthStateEntry struct {
 	AccountID string
 	UserID    string
+	Broker    broker.AccountType
 	ExpiresAt time.Time
 }
 
@@ -97,6 +98,7 @@ func (handler *Handler) PopOAuthStateEntry(token string) (OAuthStateEntry, bool)
 type PendingBrokerSelectionEntry struct {
 	AccountID      string
 	UserID         string
+	Broker         broker.AccountType
 	BrokerAccounts []string
 	ExpiresAt      time.Time
 }

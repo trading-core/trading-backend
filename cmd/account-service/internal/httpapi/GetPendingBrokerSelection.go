@@ -5,13 +5,15 @@ import (
 	"net/http"
 
 	"github.com/ansel1/merry"
+	"github.com/kduong/trading-backend/internal/broker"
 	"github.com/kduong/trading-backend/internal/contextx"
 	"github.com/kduong/trading-backend/internal/fatal"
 	"github.com/kduong/trading-backend/internal/httputil"
 )
 
 type GetPendingBrokerSelectionOutput struct {
-	BrokerAccounts []string `json:"broker_accounts"`
+	Broker         broker.AccountType `json:"broker"`
+	BrokerAccounts []string           `json:"broker_accounts"`
 }
 
 func (handler *Handler) GetPendingBrokerSelection(responseWriter http.ResponseWriter, request *http.Request) {
@@ -39,6 +41,7 @@ func (handler *Handler) GetPendingBrokerSelection(responseWriter http.ResponseWr
 	}
 	responseWriter.Header().Set("Content-Type", "application/json")
 	err = json.NewEncoder(responseWriter).Encode(GetPendingBrokerSelectionOutput{
+		Broker:         entry.Broker,
 		BrokerAccounts: entry.BrokerAccounts,
 	})
 	fatal.OnErrorUnlessDone(ctx, err)

@@ -32,12 +32,12 @@ func (handler *Handler) GetAccountBalance(responseWriter http.ResponseWriter, re
 		err = merry.New("account is not linked to a broker").WithHTTPCode(http.StatusBadRequest)
 		return
 	}
-	broker := handler.brokerClientFactory.GetClient(ctx, account.BrokerAccount)
-	balanceInfo, err := broker.GetBalanceInfo(ctx)
+	accountClient := handler.brokerAccountClientFactory.Get(ctx, account.BrokerAccount)
+	output, err := accountClient.GetBalance(ctx)
 	if err != nil {
 		return
 	}
 	responseWriter.Header().Set("Content-Type", "application/json")
-	err = json.NewEncoder(responseWriter).Encode(balanceInfo)
+	err = json.NewEncoder(responseWriter).Encode(output)
 	fatal.OnErrorUnlessDone(ctx, err)
 }

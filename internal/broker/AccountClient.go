@@ -9,8 +9,10 @@ type AccountClient interface {
 }
 
 type GetBalanceOutput struct {
-	Balance  float64 `json:"balance"`
-	Currency string  `json:"currency"`
+	NetLiquidatingValue float64 `json:"net_liquidating_value"`
+	CashBalance         float64 `json:"cash_balance"`
+	EquityBuyingPower   float64 `json:"equity_buying_power"`
+	Currency            string  `json:"currency"`
 }
 
 type AccountClientFactory interface {

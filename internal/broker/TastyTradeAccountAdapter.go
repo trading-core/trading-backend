@@ -29,13 +29,24 @@ func (adapter *TastyTradeAccountAdapter) GetBalance(ctx context.Context) (output
 	if err != nil {
 		return
 	}
-	balance, err := strconv.ParseFloat(tastyTradeAccountBalance.Data.EquityBuyingPower, 64)
+	data := tastyTradeAccountBalance.Data
+	netLiquidatingValue, err := strconv.ParseFloat(data.NetLiquidatingValue, 64)
+	if err != nil {
+		return
+	}
+	cashBalance, err := strconv.ParseFloat(data.CashBalance, 64)
+	if err != nil {
+		return
+	}
+	equityBuyingPower, err := strconv.ParseFloat(data.EquityBuyingPower, 64)
 	if err != nil {
 		return
 	}
 	output = &GetBalanceOutput{
-		Balance:  balance,
-		Currency: tastyTradeAccountBalance.Data.Currency,
+		NetLiquidatingValue: netLiquidatingValue,
+		CashBalance:         cashBalance,
+		EquityBuyingPower:   equityBuyingPower,
+		Currency:            data.Currency,
 	}
 	return
 }

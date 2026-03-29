@@ -143,7 +143,7 @@ func GenerateStateToken() (string, error) {
 }
 
 var merryErrorByAccountStoreError = map[error]error{
-	accountstore.ErrNotFound:                   merry.New("account not found").WithHTTPCode(http.StatusNotFound),
-	accountstore.ErrForbidden:                  merry.New("forbidden").WithHTTPCode(http.StatusForbidden),
+	accountstore.ErrAccountNotFound:            merry.New("account not found").WithHTTPCode(http.StatusNotFound),
+	accountstore.ErrAccountForbidden:           merry.New("forbidden").WithHTTPCode(http.StatusForbidden),
 	accountstore.ErrBrokerAccountAlreadyLinked: merry.New("broker already linked").WithHTTPCode(http.StatusConflict),
 }

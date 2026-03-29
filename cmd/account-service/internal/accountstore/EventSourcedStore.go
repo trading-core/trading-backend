@@ -51,11 +51,11 @@ func (store *EventSourcedStore) LinkBrokerAccount(ctx context.Context, input Lin
 	store.catchUp(ctx)
 	account, ok := store.accountByID[input.AccountID]
 	if !ok {
-		return ErrNotFound
+		return ErrAccountNotFound
 	}
 	userID := contextx.GetUserID(ctx)
 	if account.UserID != userID {
-		return ErrForbidden
+		return ErrAccountForbidden
 	}
 	if account.BrokerLinked {
 		return ErrBrokerAccountAlreadyLinked
@@ -91,11 +91,11 @@ func (store *EventSourcedStore) Get(ctx context.Context, input GetInput) (*Accou
 	store.catchUp(ctx)
 	account, ok := store.accountByID[input.AccountID]
 	if !ok {
-		return nil, ErrNotFound
+		return nil, ErrAccountNotFound
 	}
 	userID := contextx.GetUserID(ctx)
 	if account.UserID != userID {
-		return nil, ErrForbidden
+		return nil, ErrAccountForbidden
 	}
 	return account, nil
 }
@@ -128,31 +128,31 @@ func (store *EventSourcedStore) apply(ctx context.Context, event *eventsource.Ev
 	fatal.UnlessUnmarshal(event.Data, &frame)
 	switch frame.Type {
 	case EventTypeAccountCreated:
-		store.applyAccountCreatedEvent(ctx, frame)
+		return store.applyAccountCreatedEvent(ctx, frame.AccountCreatedEvent)
 	case EventTypeBrokerAccountLinked:
-		store.applyBrokerAccountLinkedEvent(ctx, frame)
+		return store.applyBrokerAccountLinkedEvent(ctx, frame.BrokerAccountLinkedEvent)
 	}
 	return
 }
 
-func (store *EventSourcedStore) applyAccountCreatedEvent(ctx context.Context, frame EventFrame) (err error) {
-	store.accountByID[frame.AccountCreatedEvent.AccountID] = &Account{
-		ID:     frame.AccountCreatedEvent.AccountID,
-		UserID: frame.AccountCreatedEvent.UserID,
-		Name:   frame.AccountCreatedEvent.AccountName,
+func (store *EventSourcedStore) applyAccountCreatedEvent(ctx context.Context, event *AccountCreatedEvent) (err error) {
+	store.accountByID[event.AccountID] = &Account{
+		ID:     event.AccountID,
+		UserID: event.UserID,
+		Name:   event.AccountName,
 	}
 	return
 }
 
-func (store *EventSourcedStore) applyBrokerAccountLinkedEvent(ctx context.Context, frame EventFrame) (err error) {
-	account := store.accountByID[frame.BrokerAccountLinkedEvent.AccountID]
+func (store *EventSourcedStore) applyBrokerAccountLinkedEvent(ctx context.Context, event *BrokerAccountLinkedEvent) (err error) {
+	account := store.accountByID[event.AccountID]
 	account.BrokerLinked = true
-	account.BrokerAccount = frame.BrokerAccountLinkedEvent.BrokerAccount
-	switch frame.BrokerAccountLinkedEvent.BrokerAccount.Type {
+	account.BrokerAccount = event.BrokerAccount
+	switch event.BrokerAccount.Type {
 	case broker.AccountTypeTastyTrade:
-		store.tastyTradeIDs[frame.BrokerAccountLinkedEvent.BrokerAccount.ID] = struct{}{}
+		store.tastyTradeIDs[event.BrokerAccount.ID] = struct{}{}
 	default:
-		logger.Fatalf("unknown broker type %s", frame.BrokerAccountLinkedEvent.BrokerAccount.Type)
+		logger.Fatalf("unknown broker type %s", event.BrokerAccount.Type)
 	}
 	return
 }

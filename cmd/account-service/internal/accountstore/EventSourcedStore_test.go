@@ -52,7 +52,7 @@ func TestEventSourcedStoreTest(t *testing.T) {
 				So(len(listed), ShouldEqual, 0)
 
 				acc, err := store.Get(otherCtx, accountstore.GetInput{AccountID: "account-1"})
-				So(err, ShouldEqual, accountstore.ErrForbidden)
+				So(err, ShouldEqual, accountstore.ErrAccountForbidden)
 				So(acc, ShouldBeNil)
 			})
 			Convey("When linking broker account", func() {
@@ -92,8 +92,8 @@ func TestEventSourcedStoreTest(t *testing.T) {
 					AccountID:     "account-1",
 					BrokerAccount: brokerAcc,
 				})
-				Convey("Then it fails with ErrForbidden", func() {
-					So(err, ShouldEqual, accountstore.ErrForbidden)
+				Convey("Then it fails with ErrAccountForbidden", func() {
+					So(err, ShouldEqual, accountstore.ErrAccountForbidden)
 				})
 			})
 			Convey("When trying to link to nonexistent account", func() {
@@ -105,8 +105,8 @@ func TestEventSourcedStoreTest(t *testing.T) {
 					AccountID:     "nonexistent",
 					BrokerAccount: brokerAcc,
 				})
-				Convey("Then it fails with ErrNotFound", func() {
-					So(err, ShouldEqual, accountstore.ErrNotFound)
+				Convey("Then it fails with ErrAccountNotFound", func() {
+					So(err, ShouldEqual, accountstore.ErrAccountNotFound)
 				})
 			})
 		})

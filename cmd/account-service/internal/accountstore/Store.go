@@ -8,8 +8,8 @@ import (
 )
 
 var (
-	ErrNotFound                   = errors.New("account not found")
-	ErrForbidden                  = errors.New("forbidden")
+	ErrAccountNotFound            = errors.New("account not found")
+	ErrAccountForbidden           = errors.New("account forbidden")
 	ErrBrokerAccountAlreadyLinked = errors.New("broker account already linked")
 )
 

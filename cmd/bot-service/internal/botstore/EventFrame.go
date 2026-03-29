@@ -21,7 +21,9 @@ type BotCreatedEvent struct {
 	AccountID       string `json:"account_id"`
 	BrokerAccountID string `json:"broker_account_id"`
 	BrokerType      string `json:"broker_type"`
-	Name            string `json:"name"`
+	Symbol          string `json:"symbol"`
+	StrategyTradeType string `json:"strategy_trade_type"`
+	Name            string `json:"name,omitempty"`
 	CreatedAt       string `json:"created_at"`
 }
 

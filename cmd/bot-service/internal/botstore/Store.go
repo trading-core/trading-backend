@@ -27,12 +27,13 @@ const (
 )
 
 type Bot struct {
-	ID              string    `json:"id"`
-	UserID          string    `json:"user_id"`
-	AccountID       string    `json:"account_id"`
-	BrokerAccountID string    `json:"broker_account_id,omitempty"`
-	BrokerType      string    `json:"broker_type,omitempty"`
-	Name            string    `json:"name"`
-	Status          BotStatus `json:"status"`
-	CreatedAt       string    `json:"created_at"`
+	ID                string    `json:"id"`
+	UserID            string    `json:"user_id"`
+	AccountID         string    `json:"account_id"`
+	BrokerAccountID   string    `json:"broker_account_id,omitempty"`
+	BrokerType        string    `json:"broker_type,omitempty"`
+	Symbol            string    `json:"symbol"`
+	StrategyTradeType string    `json:"strategy_trade_type"`
+	Status            BotStatus `json:"status"`
+	CreatedAt         string    `json:"created_at"`
 }

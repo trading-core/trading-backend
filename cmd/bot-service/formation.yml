@@ -3,8 +3,8 @@
   vars:
     service_environment:
       TOKEN_SECRET: "{{ token_secret }}"
-      TRADING_API_SCHEME: "http"
-      TRADING_API_HOST: "localhost:9000"
+      ACCOUNT_SERVICE_SCHEME: "http"
+      ACCOUNT_SERVICE_HOST: "localhost:9000"
   template:
     src: "{{ playbook_dir }}/templates/service.env.j2"
     dest: backend/bot-service/.env

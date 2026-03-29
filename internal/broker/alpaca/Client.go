@@ -126,7 +126,7 @@ func ClientFromEnv() Client {
 	switch implementation {
 	case "HTTP":
 		return NewHTTPClient(NewHTTPClientInput{
-			Timeout:   config.EnvDuration("ALPACA_CLIENT_IMPLEMENTATION", 20*time.Second),
+			Timeout:   config.EnvDuration("ALPACA_CLIENT_HTTP_TIMEOUT", 20*time.Second),
 			BaseURL:   config.EnvURLOrFatal("ALPACA_API"),
 			KeyID:     config.EnvStringOrFatal("ALPACA_API_KEY"),
 			SecretKey: config.EnvStringOrFatal("ALPACA_API_SECRET"),

@@ -34,15 +34,15 @@ func (strategy *CNNMarketStrategy) GetFearGreedIndex(ctx context.Context) (outpu
 	if err != nil {
 		return
 	}
-	value := int(math.Round(graphData.FearAndGreed.Score))
+	value := int(math.Round(graphData.FearGreed.Score))
 	output = &GetFearGreedIndexOutput{
 		Value:          value,
 		Classification: ClassifySentimentValue(value),
-		PreviousClose:  roundOptional(graphData.FearAndGreed.PreviousClose),
-		Previous1Week:  roundOptional(graphData.FearAndGreed.Previous1Week),
-		Previous1Month: roundOptional(graphData.FearAndGreed.Previous1Month),
-		Previous1Year:  roundOptional(graphData.FearAndGreed.Previous1Year),
-		Timeline:       buildTimeline(graphData.FearAndGreedHistorical.Data),
+		PreviousClose:  roundOptional(graphData.FearGreed.PreviousClose),
+		Previous1Week:  roundOptional(graphData.FearGreed.Previous1Week),
+		Previous1Month: roundOptional(graphData.FearGreed.Previous1Month),
+		Previous1Year:  roundOptional(graphData.FearGreed.Previous1Year),
+		Timeline:       buildTimeline(graphData.FearGreedHistorical.Data),
 		Source:         "CNN",
 		FetchedAt:      time.Now().UTC().Format(time.RFC3339),
 	}
@@ -50,11 +50,11 @@ func (strategy *CNNMarketStrategy) GetFearGreedIndex(ctx context.Context) (outpu
 }
 
 type graphData struct {
-	FearAndGreed           fearAndGreed           `json:"fear_and_greed"`
-	FearAndGreedHistorical fearAndGreedHistorical `json:"fear_and_greed_historical"`
+	FearGreed           fearGreed           `json:"fear_and_greed"`
+	FearGreedHistorical fearGreedHistorical `json:"fear_and_greed_historical"`
 }
 
-type fearAndGreed struct {
+type fearGreed struct {
 	Score          float64  `json:"score"`
 	PreviousClose  *float64 `json:"previous_close"`
 	Previous1Week  *float64 `json:"previous_1_week"`
@@ -62,7 +62,7 @@ type fearAndGreed struct {
 	Previous1Year  *float64 `json:"previous_1_year"`
 }
 
-type fearAndGreedHistorical struct {
+type fearGreedHistorical struct {
 	Data []dataPoint `json:"data"`
 }
 

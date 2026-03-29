@@ -1,120 +1,43 @@
 package httpapi
 
 import (
-	"encoding/json"
 	"net/http"
-	"sync"
 
+	"github.com/ansel1/merry"
 	"github.com/gorilla/mux"
+	"github.com/kduong/trading-backend/cmd/account-service/pkg/accountservice"
+	"github.com/kduong/trading-backend/cmd/bot-service/internal/botstore"
 	"github.com/kduong/trading-backend/internal/auth"
-	"github.com/kduong/trading-backend/internal/httputil"
 )
 
-type Bot struct {
-	ID        string `json:"id"`
-	AccountID string `json:"account_id"`
-	Name      string `json:"name"`
-	Status    string `json:"status"` // "running" or "stopped"
-	CreatedAt string `json:"created_at"`
-}
-
 type Handler struct {
-	botsMutex sync.RWMutex
-	bots      map[string]Bot
+	accountServiceClient accountservice.Client
+	botStore             botstore.Store
 }
 
 type NewRouterInput struct {
-	AuthMiddleware *auth.Middleware
+	AuthMiddleware       *auth.Middleware
+	AccountServiceClient accountservice.Client
+	BotStore             botstore.Store
 }
 
 func NewRouter(input NewRouterInput) *mux.Router {
 	handler := &Handler{
-		bots: make(map[string]Bot),
+		accountServiceClient: input.AccountServiceClient,
+		botStore:             input.BotStore,
 	}
 	router := mux.NewRouter().StrictSlash(true)
 	botV1Router := router.PathPrefix("/bots/v1").Subrouter()
 	botV1Router.Use(input.AuthMiddleware.Handle)
-
-	botV1Router.HandleFunc("/running", handler.ListRunningBotsByAccount).Methods(http.MethodGet).Name("ListRunningBotsByAccount")
-	botV1Router.HandleFunc("/{id}/start", handler.StartBot).Methods(http.MethodPost).Name("StartBot")
-	botV1Router.HandleFunc("/{id}/stop", handler.StopBot).Methods(http.MethodPost).Name("StopBot")
-
+	botV1Router.HandleFunc("/bots", handler.CreateBot).Methods(http.MethodPost).Name("CreateBot")
+	botV1Router.HandleFunc("/bots", handler.ListBots).Methods(http.MethodGet).Name("ListBots")
+	botV1Router.HandleFunc("/bots/{bot_id}", handler.GetBot).Methods(http.MethodGet).Name("GetBot")
+	botV1Router.HandleFunc("/bots/{bot_id}", handler.UpdateBot).Methods(http.MethodPatch).Name("UpdateBot")
+	botV1Router.HandleFunc("/bots/{bot_id}", handler.DeleteBot).Methods(http.MethodDelete).Name("DeleteBot")
 	return router
 }
 
-func (h *Handler) ListRunningBotsByAccount(w http.ResponseWriter, r *http.Request) {
-	accountID := r.Header.Get("X-Account-ID")
-
-	h.botsMutex.RLock()
-	defer h.botsMutex.RUnlock()
-
-	var runningBots []Bot
-	for _, bot := range h.bots {
-		if bot.AccountID == accountID && bot.Status == "running" {
-			runningBots = append(runningBots, bot)
-		}
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(runningBots)
-}
-
-func (h *Handler) StartBot(w http.ResponseWriter, r *http.Request) {
-	botID := mux.Vars(r)["id"]
-	accountID := r.Header.Get("X-Account-ID")
-
-	h.botsMutex.Lock()
-	defer h.botsMutex.Unlock()
-
-	bot, exists := h.bots[botID]
-	if !exists {
-		httputil.SendResponse(w, http.StatusNotFound, map[string]string{
-			"error": "bot not found",
-		})
-		return
-	}
-
-	if bot.AccountID != accountID {
-		httputil.SendResponse(w, http.StatusForbidden, map[string]string{
-			"error": "unauthorized",
-		})
-		return
-	}
-
-	bot.Status = "running"
-	h.bots[botID] = bot
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(bot)
-}
-
-func (h *Handler) StopBot(w http.ResponseWriter, r *http.Request) {
-	botID := mux.Vars(r)["id"]
-	accountID := r.Header.Get("X-Account-ID")
-
-	h.botsMutex.Lock()
-	defer h.botsMutex.Unlock()
-
-	bot, exists := h.bots[botID]
-	if !exists {
-		httputil.SendResponse(w, http.StatusNotFound, map[string]string{
-			"error": "bot not found",
-		})
-		return
-	}
-
-	if bot.AccountID != accountID {
-		httputil.SendResponse(w, http.StatusForbidden, map[string]string{
-			"error": "unauthorized",
-		})
-		return
-	}
-
-	bot.Status = "stopped"
-	h.bots[botID] = bot
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(bot)
+var merryErrorByBotStoreError = map[error]error{
+	botstore.ErrBotNotFound:  merry.New("bot not found").WithHTTPCode(http.StatusNotFound),
+	botstore.ErrBotForbidden: merry.New("forbidden").WithHTTPCode(http.StatusForbidden),
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/kduong/trading-backend/internal/auth"
 	"github.com/kduong/trading-backend/internal/broker"
 	"github.com/kduong/trading-backend/internal/broker/tastytrade"
+	"github.com/kduong/trading-backend/internal/contextx"
 	"github.com/kduong/trading-backend/internal/fatal"
 )
 
@@ -30,17 +31,18 @@ func (factory *BrokerOnboardingClientFactory) GetAuthorizationClient(accountType
 	}
 }
 
-func (factory *BrokerOnboardingClientFactory) GetAccountDiscoveryClient(accountType broker.AccountType, accessToken string) (accountDiscoveryClient broker.AccountDiscoveryClient, err error) {
+func (factory *BrokerOnboardingClientFactory) GetAccountDiscoveryClient(ctx context.Context, accountType broker.AccountType) (accountDiscoveryClient broker.AccountDiscoveryClient, err error) {
 	switch accountType {
 	case broker.AccountTypeTastyTrade:
-		return factory.getTastyTradeAccountDiscoveryAdapter(accessToken)
+		return factory.getTastyTradeAccountDiscoveryAdapter(ctx)
 	default:
 		err = fmt.Errorf("unsupported broker type: %s", accountType)
 		return
 	}
 }
 
-func (factory *BrokerOnboardingClientFactory) getTastyTradeAccountDiscoveryAdapter(accessToken string) (adapter *broker.TastyTradeAccountDiscoveryAdapter, err error) {
+func (factory *BrokerOnboardingClientFactory) getTastyTradeAccountDiscoveryAdapter(ctx context.Context) (adapter *broker.TastyTradeAccountDiscoveryAdapter, err error) {
+	accessToken := contextx.GetAccessToken(ctx)
 	credentials, ok := factory.CredentialsByType[broker.AccountTypeTastyTrade]
 	fatal.Unless(ok)
 	apiURL, err := url.Parse(credentials.APIURL)

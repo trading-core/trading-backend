@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"net/url"
 	"time"
+
+	"github.com/kduong/trading-backend/internal/contextx"
 )
 
 func (handler *Handler) HandleAuthorizationCallback(responseWriter http.ResponseWriter, request *http.Request) {
@@ -30,7 +32,8 @@ func (handler *Handler) HandleAuthorizationCallback(responseWriter http.Response
 		http.Redirect(responseWriter, request, frontendAccountURL+"?oauth_error=token_exchange_failed", http.StatusFound)
 		return
 	}
-	accountDiscoveryClient, err := handler.brokerOnBoardingClientFactory.GetAccountDiscoveryClient(stateEntry.Broker, tokenOutput.AccessToken)
+	ctx = contextx.WithAccessToken(ctx, tokenOutput.AccessToken)
+	accountDiscoveryClient, err := handler.brokerOnBoardingClientFactory.GetAccountDiscoveryClient(ctx, stateEntry.Broker)
 	if err != nil {
 		http.Redirect(responseWriter, request, frontendAccountURL+"?oauth_error=unsupported_broker", http.StatusFound)
 		return

@@ -18,8 +18,9 @@ import (
 )
 
 type CreateBotInput struct {
-	AccountID string `json:"account_id"`
-	Name      string `json:"name"`
+	AccountID         string `json:"account_id"`
+	Symbol            string `json:"symbol"`
+	StrategyTradeType string `json:"strategy_trade_type"`
 }
 
 func (handler *Handler) CreateBot(responseWriter http.ResponseWriter, request *http.Request) {
@@ -37,10 +38,12 @@ func (handler *Handler) CreateBot(responseWriter http.ResponseWriter, request *h
 		err = merry.Wrap(err).WithHTTPCode(http.StatusBadRequest)
 		return
 	}
-	if input.AccountID == "" || input.Name == "" {
-		err = merry.New("account_id and name are required").WithHTTPCode(http.StatusBadRequest)
+	if input.AccountID == "" || input.Symbol == "" || input.StrategyTradeType == "" {
+		err = merry.New("account_id, symbol, and strategy_trade_type are required").WithHTTPCode(http.StatusBadRequest)
 		return
 	}
+	input.Symbol = strings.ToUpper(strings.TrimSpace(input.Symbol))
+	input.StrategyTradeType = strings.TrimSpace(input.StrategyTradeType)
 	authorization := request.Header.Get("Authorization")
 	parts := strings.SplitN(authorization, " ", 2)
 	fatal.Unless(len(parts) == 2, "invalid authorization header format")
@@ -65,13 +68,14 @@ func (handler *Handler) CreateBot(responseWriter http.ResponseWriter, request *h
 		return
 	}
 	bot := &botstore.Bot{
-		ID:              uuid.NewV4().String(),
-		UserID:          userID,
-		AccountID:       account.ID,
-		BrokerAccountID: account.Broker.ID,
-		BrokerType:      account.Broker.Type,
-		Name:            input.Name,
-		CreatedAt:       time.Now().UTC().Format(time.RFC3339),
+		ID:                uuid.NewV4().String(),
+		UserID:            userID,
+		AccountID:         account.ID,
+		BrokerAccountID:   account.Broker.ID,
+		BrokerType:        account.Broker.Type,
+		Symbol:            input.Symbol,
+		StrategyTradeType: input.StrategyTradeType,
+		CreatedAt:         time.Now().UTC().Format(time.RFC3339),
 	}
 	err = handler.botStore.Create(ctx, bot)
 	if err != nil {

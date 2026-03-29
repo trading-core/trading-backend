@@ -42,7 +42,8 @@ func (store *EventSourcedStore) Create(ctx context.Context, bot *Bot) (err error
 			AccountID:       bot.AccountID,
 			BrokerAccountID: bot.BrokerAccountID,
 			BrokerType:      bot.BrokerType,
-			Name:            bot.Name,
+			Symbol:          bot.Symbol,
+			StrategyTradeType: bot.StrategyTradeType,
 			CreatedAt:       bot.CreatedAt,
 		},
 	})
@@ -149,14 +150,19 @@ func (store *EventSourcedStore) apply(ctx context.Context, event *eventsource.Ev
 }
 
 func (store *EventSourcedStore) applyBotCreatedEvent(ctx context.Context, event *BotCreatedEvent) (err error) {
+	symbol := event.Symbol
+	if symbol == "" {
+		symbol = event.Name
+	}
 	store.botByID[event.BotID] = &Bot{
-		ID:         event.BotID,
-		UserID:     event.UserID,
-		AccountID:  event.AccountID,
-		BrokerType: event.BrokerType,
-		Name:       event.Name,
-		Status:     BotStatusStopped,
-		CreatedAt:  event.CreatedAt,
+		ID:                event.BotID,
+		UserID:            event.UserID,
+		AccountID:         event.AccountID,
+		BrokerType:        event.BrokerType,
+		Symbol:            symbol,
+		StrategyTradeType: event.StrategyTradeType,
+		Status:            BotStatusStopped,
+		CreatedAt:         event.CreatedAt,
 	}
 	return
 }

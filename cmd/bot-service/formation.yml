@@ -3,8 +3,10 @@
   vars:
     service_environment:
       TOKEN_SECRET: "{{ token_secret }}"
+      ACCOUNT_SERVICE_CLIENT_IMPLEMENTATION: "HTTP"
       ACCOUNT_SERVICE_SCHEME: "http"
-      ACCOUNT_SERVICE_HOST: "localhost:9000"
+      ACCOUNT_SERVICE_HOST: "account-service"
+      ACCOUNT_SERVICE_PORT: "9000"
   template:
     src: "{{ playbook_dir }}/templates/service.env.j2"
     dest: backend/bot-service/.env

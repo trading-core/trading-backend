@@ -1,22 +1,38 @@
 package main
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/kduong/trading-backend/cmd/account-service/pkg/accountservice"
 	"github.com/kduong/trading-backend/cmd/bot-service/internal/botstore"
+	"github.com/kduong/trading-backend/cmd/bot-service/internal/botsync"
 	"github.com/kduong/trading-backend/cmd/bot-service/internal/httpapi"
 	"github.com/kduong/trading-backend/internal/auth"
 	"github.com/kduong/trading-backend/internal/eventsource"
+	"github.com/kduong/trading-backend/internal/eventsource/subscription"
 	"github.com/kduong/trading-backend/internal/fatal"
 	"github.com/rs/cors"
 )
 
 func main() {
+	ctx := context.Background()
 	logFactory, err := eventsource.LogFactoryFromEnv("BOT_EVENT_LOG", "INMEMORY")
 	fatal.OnError(err)
 	log, err := logFactory.Create("bot:events")
 	fatal.OnError(err)
+	botSyncActor := botsync.NewParentActor(botsync.NewActorInput{
+		Log: log,
+	})
+	go func() {
+		cursor := botSyncActor.CatchUp(ctx)
+		_, err = subscription.Live(ctx, subscription.LiveInput{
+			Log:    log,
+			Cursor: cursor,
+			Apply:  botSyncActor.Apply,
+		})
+		fatal.OnError(err)
+	}()
 	router := httpapi.NewRouter(httpapi.NewRouterInput{
 		AuthMiddleware:       auth.MiddlewareFromEnv(),
 		AccountServiceClient: accountservice.ClientFromEnv(),

@@ -14,12 +14,11 @@ type LiveInput struct {
 	Apply  func(ctx context.Context, event *eventsource.Event) error
 }
 
-func Live(ctx context.Context, input LiveInput) (cursor int64) {
+func Live(ctx context.Context, input LiveInput) (cursor int64, err error) {
 	const limit = 1000
 	const timeout = 10 * time.Second
 	var events []*eventsource.Event
 	cursor = input.Cursor
-	var err error
 	for {
 		events, cursor, err = input.Log.Read(cursor, limit, timeout.Milliseconds())
 		switch err {

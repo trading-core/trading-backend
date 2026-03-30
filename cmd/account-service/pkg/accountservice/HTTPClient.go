@@ -57,6 +57,31 @@ func (client *HTTPClient) GetAccount(ctx context.Context, accountID string) (out
 	return
 }
 
+func (client *HTTPClient) GetAccountBalance(ctx context.Context, accountID string) (output *Balance, err error) {
+	target := url.URL{
+		Scheme: client.baseURL.Scheme,
+		Host:   client.baseURL.Host,
+		Path:   fmt.Sprintf("/accounts/v1/accounts/%s/balances", accountID),
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, target.String(), nil)
+	if err != nil {
+		panic(err)
+	}
+	accessToken := contextx.GetAccessToken(ctx)
+	request.Header.Set("Authorization", "Bearer "+accessToken)
+	response, err := client.httpClient.Do(request)
+	if err != nil {
+		return
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		err = client.mapResponseError(response)
+		return
+	}
+	err = json.NewDecoder(response.Body).Decode(&output)
+	return
+}
+
 func (client *HTTPClient) mapResponseError(response *http.Response) (err error) {
 	body, err := io.ReadAll(response.Body)
 	if err != nil {

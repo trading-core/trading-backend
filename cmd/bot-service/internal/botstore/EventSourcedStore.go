@@ -34,17 +34,20 @@ func (store *EventSourcedStore) Create(ctx context.Context, bot *Bot) (err error
 		err = ErrBotAlreadyExists
 		return
 	}
+	fatal.Unless(bot.Status == BotStatusStopped, "new bot must have status stopped")
 	payload := fatal.UnlessMarshal(EventFrame{
 		EventBase: eventsource.NewEventBase(EventTypeBotCreated),
 		BotCreatedEvent: &BotCreatedEvent{
-			BotID:           bot.ID,
-			UserID:          bot.UserID,
-			AccountID:       bot.AccountID,
-			BrokerAccountID: bot.BrokerAccountID,
-			BrokerType:      bot.BrokerType,
-			Symbol:          bot.Symbol,
+			BotID:             bot.ID,
+			UserID:            bot.UserID,
+			AccountID:         bot.AccountID,
+			BrokerAccountID:   bot.BrokerAccountID,
+			BrokerType:        bot.BrokerType,
+			Symbol:            bot.Symbol,
 			StrategyTradeType: bot.StrategyTradeType,
-			CreatedAt:       bot.CreatedAt,
+			AllocationPercent: bot.AllocationPercent,
+			Status:            bot.Status,
+			CreatedAt:         bot.CreatedAt,
 		},
 	})
 	_, err = store.log.Append(payload)
@@ -150,18 +153,16 @@ func (store *EventSourcedStore) apply(ctx context.Context, event *eventsource.Ev
 }
 
 func (store *EventSourcedStore) applyBotCreatedEvent(ctx context.Context, event *BotCreatedEvent) (err error) {
-	symbol := event.Symbol
-	if symbol == "" {
-		symbol = event.Name
-	}
 	store.botByID[event.BotID] = &Bot{
 		ID:                event.BotID,
 		UserID:            event.UserID,
 		AccountID:         event.AccountID,
+		BrokerAccountID:   event.BrokerAccountID,
 		BrokerType:        event.BrokerType,
-		Symbol:            symbol,
+		Symbol:            event.Symbol,
 		StrategyTradeType: event.StrategyTradeType,
-		Status:            BotStatusStopped,
+		AllocationPercent: event.AllocationPercent,
+		Status:            event.Status,
 		CreatedAt:         event.CreatedAt,
 	}
 	return

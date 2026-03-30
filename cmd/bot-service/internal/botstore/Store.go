@@ -34,6 +34,7 @@ type Bot struct {
 	BrokerType        string    `json:"broker_type,omitempty"`
 	Symbol            string    `json:"symbol"`
 	StrategyTradeType string    `json:"strategy_trade_type"`
+	AllocationPercent float64   `json:"allocation_percent"`
 	Status            BotStatus `json:"status"`
 	CreatedAt         string    `json:"created_at"`
 }

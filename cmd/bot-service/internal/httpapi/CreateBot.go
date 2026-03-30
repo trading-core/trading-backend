@@ -2,25 +2,22 @@ package httpapi
 
 import (
 	"encoding/json"
-	"errors"
+	"math"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/ansel1/merry"
-	"github.com/kduong/trading-backend/cmd/account-service/pkg/accountservice"
 	"github.com/kduong/trading-backend/cmd/bot-service/internal/botstore"
 	"github.com/kduong/trading-backend/internal/contextx"
-	"github.com/kduong/trading-backend/internal/fatal"
 	"github.com/kduong/trading-backend/internal/httputil"
-	"github.com/kduong/trading-backend/internal/logger"
 	uuid "github.com/satori/go.uuid"
 )
 
 type CreateBotInput struct {
-	AccountID         string `json:"account_id"`
-	Symbol            string `json:"symbol"`
-	StrategyTradeType string `json:"strategy_trade_type"`
+	AccountID         string  `json:"account_id"`
+	Symbol            string  `json:"symbol"`
+	StrategyTradeType string  `json:"strategy_trade_type"`
+	AllocationPercent float64 `json:"allocation_percent"`
 }
 
 func (handler *Handler) CreateBot(responseWriter http.ResponseWriter, request *http.Request) {
@@ -42,26 +39,19 @@ func (handler *Handler) CreateBot(responseWriter http.ResponseWriter, request *h
 		err = merry.New("account_id, symbol, and strategy_trade_type are required").WithHTTPCode(http.StatusBadRequest)
 		return
 	}
-	input.Symbol = strings.ToUpper(strings.TrimSpace(input.Symbol))
-	input.StrategyTradeType = strings.TrimSpace(input.StrategyTradeType)
-	authorization := request.Header.Get("Authorization")
-	parts := strings.SplitN(authorization, " ", 2)
-	fatal.Unless(len(parts) == 2, "invalid authorization header format")
-	ctx = contextx.WithAccessToken(ctx, parts[1])
+	if math.IsNaN(input.AllocationPercent) || math.IsInf(input.AllocationPercent, 0) {
+		err = merry.New("allocation_percent must be a valid number").WithHTTPCode(http.StatusBadRequest)
+		return
+	}
+	if input.AllocationPercent <= 0 || input.AllocationPercent > MaxActiveAllocationPercent {
+		err = merry.New("allocation_percent must be greater than 0 and less than or equal to 80").WithHTTPCode(http.StatusBadRequest)
+		return
+	}
+	ctx = ContextWithAccessTokenFromRequestHeader(ctx, request)
 	account, err := handler.accountServiceClient.GetAccount(ctx, input.AccountID)
-	switch {
-	case err == nil:
-	case errors.Is(err, accountservice.ErrAccountNotFound):
-		err = merry.Wrap(err).WithHTTPCode(http.StatusNotFound)
+	if err != nil {
+		err = merrifyError[err]
 		return
-	case errors.Is(err, accountservice.ErrAccountForbidden):
-		err = merry.Wrap(err).WithHTTPCode(http.StatusForbidden)
-		return
-	case errors.Is(err, accountservice.ErrServerError):
-		err = merry.Wrap(err).WithHTTPCode(http.StatusBadGateway)
-		return
-	default:
-		logger.Fatal(err)
 	}
 	if !account.BrokerLinked {
 		err = merry.New("account is not linked to a broker").WithHTTPCode(http.StatusBadRequest)
@@ -75,6 +65,8 @@ func (handler *Handler) CreateBot(responseWriter http.ResponseWriter, request *h
 		BrokerType:        account.Broker.Type,
 		Symbol:            input.Symbol,
 		StrategyTradeType: input.StrategyTradeType,
+		AllocationPercent: input.AllocationPercent,
+		Status:            botstore.BotStatusStopped,
 		CreatedAt:         time.Now().UTC().Format(time.RFC3339),
 	}
 	err = handler.botStore.Create(ctx, bot)

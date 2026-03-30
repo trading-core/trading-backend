@@ -1,14 +1,20 @@
 package httpapi
 
 import (
+	"context"
 	"net/http"
+	"strings"
 
 	"github.com/ansel1/merry"
 	"github.com/gorilla/mux"
 	"github.com/kduong/trading-backend/cmd/account-service/pkg/accountservice"
 	"github.com/kduong/trading-backend/cmd/bot-service/internal/botstore"
 	"github.com/kduong/trading-backend/internal/auth"
+	"github.com/kduong/trading-backend/internal/contextx"
+	"github.com/kduong/trading-backend/internal/fatal"
 )
+
+const MaxActiveAllocationPercent = 80.0
 
 type Handler struct {
 	accountServiceClient accountservice.Client
@@ -37,7 +43,18 @@ func NewRouter(input NewRouterInput) *mux.Router {
 	return router
 }
 
-var merryErrorByBotStoreError = map[error]error{
+var merrifyError = map[error]error{
 	botstore.ErrBotNotFound:  merry.New("bot not found").WithHTTPCode(http.StatusNotFound),
 	botstore.ErrBotForbidden: merry.New("forbidden").WithHTTPCode(http.StatusForbidden),
+
+	accountservice.ErrAccountNotFound:  merry.New("account not found").WithHTTPCode(http.StatusNotFound),
+	accountservice.ErrAccountForbidden: merry.New("forbidden").WithHTTPCode(http.StatusForbidden),
+	accountservice.ErrServerError:      merry.New("account service error").WithHTTPCode(http.StatusInternalServerError),
+}
+
+func ContextWithAccessTokenFromRequestHeader(ctx context.Context, request *http.Request) context.Context {
+	authorization := request.Header.Get("Authorization")
+	parts := strings.SplitN(authorization, " ", 2)
+	fatal.Unless(len(parts) == 2, "invalid authorization header format")
+	return contextx.WithAccessToken(ctx, parts[1])
 }

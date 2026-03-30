@@ -16,6 +16,7 @@ var (
 
 type Client interface {
 	GetAccount(ctx context.Context, accountID string) (*Account, error)
+	GetAccountBalance(ctx context.Context, accountID string) (*Balance, error)
 }
 
 type Account struct {
@@ -29,6 +30,13 @@ type Account struct {
 type BrokerAccount struct {
 	Type string `json:"account_type"`
 	ID   string `json:"account_id"`
+}
+
+type Balance struct {
+	NetLiquidatingValue float64 `json:"net_liquidating_value"`
+	CashBalance         float64 `json:"cash_balance"`
+	EquityBuyingPower   float64 `json:"equity_buying_power"`
+	Currency            string  `json:"currency"`
 }
 
 func ClientFromEnv() Client {

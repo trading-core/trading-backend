@@ -19,7 +19,7 @@ type BrokerOnboardingClientFactory struct {
 
 func (factory *BrokerOnboardingClientFactory) GetAuthorizationClient(accountType broker.AccountType) (authorizationClient broker.AuthorizationClient, err error) {
 	switch accountType {
-	case broker.AccountTypeTastyTrade:
+	case broker.AccountTypeTastyTrade, broker.AccountTypeTastyTradeSandbox:
 		authorizationClient = broker.NewTastyTradeAuthorizationClient(broker.TastyTradeAuthorizationClientInput{
 			BackendRedirectURI: factory.BackendRedirectURI,
 			Credentials:        factory.CredentialsByType[accountType],
@@ -33,17 +33,17 @@ func (factory *BrokerOnboardingClientFactory) GetAuthorizationClient(accountType
 
 func (factory *BrokerOnboardingClientFactory) GetAccountDiscoveryClient(ctx context.Context, accountType broker.AccountType) (accountDiscoveryClient broker.AccountDiscoveryClient, err error) {
 	switch accountType {
-	case broker.AccountTypeTastyTrade:
-		return factory.getTastyTradeAccountDiscoveryAdapter(ctx)
+	case broker.AccountTypeTastyTrade, broker.AccountTypeTastyTradeSandbox:
+		return factory.getTastyTradeAccountDiscoveryAdapter(ctx, accountType)
 	default:
 		err = fmt.Errorf("unsupported broker type: %s", accountType)
 		return
 	}
 }
 
-func (factory *BrokerOnboardingClientFactory) getTastyTradeAccountDiscoveryAdapter(ctx context.Context) (adapter *broker.TastyTradeAccountDiscoveryAdapter, err error) {
+func (factory *BrokerOnboardingClientFactory) getTastyTradeAccountDiscoveryAdapter(ctx context.Context, accountType broker.AccountType) (adapter *broker.TastyTradeAccountDiscoveryAdapter, err error) {
 	accessToken := contextx.GetAccessToken(ctx)
-	credentials, ok := factory.CredentialsByType[broker.AccountTypeTastyTrade]
+	credentials, ok := factory.CredentialsByType[accountType]
 	fatal.Unless(ok)
 	apiURL, err := url.Parse(credentials.APIURL)
 	fatal.OnError(err)

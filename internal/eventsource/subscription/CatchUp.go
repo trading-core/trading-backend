@@ -31,6 +31,7 @@ func CatchUp(ctx context.Context, input CatchUpInput) (cursor int64, err error) 
 				}
 			}
 		case eventsource.Timeout:
+			err = nil
 			return
 		default:
 			logger.Fatal(err)

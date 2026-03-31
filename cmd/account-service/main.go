@@ -10,6 +10,8 @@ import (
 	"github.com/kduong/trading-backend/cmd/account-service/internal/accountstore"
 
 	"github.com/kduong/trading-backend/cmd/account-service/internal/httpapi"
+	"github.com/kduong/trading-backend/cmd/account-service/internal/oauthstatestore"
+	"github.com/kduong/trading-backend/cmd/account-service/internal/pendingselectionstore"
 
 	"github.com/kduong/trading-backend/internal/auth"
 	"github.com/kduong/trading-backend/internal/broker"
@@ -45,6 +47,8 @@ func main() {
 		Path:   "/accounts/v1/authorization_callback",
 	}
 	router := httpapi.NewRouter(httpapi.NewRouterInput{
+		OAuthStateStore:       oauthstatestore.NewInMemory(),
+		PendingSelectionStore: pendingselectionstore.NewInMemory(),
 		AccountStoreCommandHandler: accountstore.NewCommandHandlerThreadSafeDecorator(accountstore.NewCommandHandlerThreadSafeDecoratorInput{
 			Decorated: accountstore.NewEventSourcedCommandHandler(accountstore.NewEventSourcedCommandHandlerInput{
 				Log: log,

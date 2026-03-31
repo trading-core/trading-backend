@@ -26,7 +26,7 @@ func main() {
 	})
 	go func() {
 		cursor := botSyncActor.CatchUp(ctx)
-		_, err = subscription.Live(ctx, subscription.LiveInput{
+		_, err = subscription.Live(ctx, subscription.Input{
 			Log:    log,
 			Cursor: cursor,
 			Apply:  botSyncActor.Apply,

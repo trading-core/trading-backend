@@ -89,7 +89,7 @@ func (store *EventSourcedCommandHandler) checkBrokerIsAlreadyLinked(brokerAccoun
 
 func (store *EventSourcedCommandHandler) catchUp(ctx context.Context) {
 	var err error
-	store.cursor, err = subscription.CatchUp(ctx, subscription.CatchUpInput{
+	store.cursor, err = subscription.CatchUp(ctx, subscription.Input{
 		Log:    store.log,
 		Cursor: store.cursor,
 		Apply:  store.apply,

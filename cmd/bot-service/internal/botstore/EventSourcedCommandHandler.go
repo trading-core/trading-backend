@@ -9,26 +9,26 @@ import (
 	"github.com/kduong/trading-backend/internal/fatal"
 )
 
-var _ Store = (*EventSourcedStore)(nil)
+var _ CommandHandler = (*EventSourcedCommandHandler)(nil)
 
-type EventSourcedStore struct {
+type EventSourcedCommandHandler struct {
 	log     eventsource.Log
 	cursor  int64
 	botByID map[string]*Bot
 }
 
-type NewEventSourcedStoreInput struct {
+type NewEventSourcedCommandHandlerInput struct {
 	Log eventsource.Log
 }
 
-func NewEventSourcedStore(input NewEventSourcedStoreInput) *EventSourcedStore {
-	return &EventSourcedStore{
+func NewEventSourcedCommandHandler(input NewEventSourcedCommandHandlerInput) *EventSourcedCommandHandler {
+	return &EventSourcedCommandHandler{
 		log:     input.Log,
 		botByID: make(map[string]*Bot),
 	}
 }
 
-func (store *EventSourcedStore) Create(ctx context.Context, bot *Bot) (err error) {
+func (store *EventSourcedCommandHandler) Create(ctx context.Context, bot *Bot) (err error) {
 	store.catchUp(ctx)
 	if _, exists := store.botByID[bot.ID]; exists {
 		err = ErrBotAlreadyExists
@@ -54,7 +54,7 @@ func (store *EventSourcedStore) Create(ctx context.Context, bot *Bot) (err error
 	return
 }
 
-func (store *EventSourcedStore) UpdateBotStatus(ctx context.Context, botID string, status BotStatus) (err error) {
+func (store *EventSourcedCommandHandler) UpdateBotStatus(ctx context.Context, botID string, status BotStatus) (err error) {
 	store.catchUp(ctx)
 	storeBot, ok := store.botByID[botID]
 	if !ok {
@@ -77,35 +77,7 @@ func (store *EventSourcedStore) UpdateBotStatus(ctx context.Context, botID strin
 	return
 }
 
-func (store *EventSourcedStore) Get(ctx context.Context, botID string) (bot *Bot, err error) {
-	store.catchUp(ctx)
-	bot, ok := store.botByID[botID]
-	if !ok {
-		err = ErrBotNotFound
-		return
-	}
-	userID := contextx.GetUserID(ctx)
-	if bot.UserID != userID {
-		err = ErrBotForbidden
-		return
-	}
-	return
-}
-
-func (store *EventSourcedStore) List(ctx context.Context) ([]*Bot, error) {
-	store.catchUp(ctx)
-	userID := contextx.GetUserID(ctx)
-	result := make([]*Bot, 0)
-	for _, bot := range store.botByID {
-		if bot.UserID != userID {
-			continue
-		}
-		result = append(result, bot)
-	}
-	return result, nil
-}
-
-func (store *EventSourcedStore) Delete(ctx context.Context, botID string) (err error) {
+func (store *EventSourcedCommandHandler) Delete(ctx context.Context, botID string) (err error) {
 	store.catchUp(ctx)
 	storeBot, ok := store.botByID[botID]
 	if !ok {
@@ -128,7 +100,7 @@ func (store *EventSourcedStore) Delete(ctx context.Context, botID string) (err e
 	return
 }
 
-func (store *EventSourcedStore) catchUp(ctx context.Context) {
+func (store *EventSourcedCommandHandler) catchUp(ctx context.Context) {
 	var err error
 	store.cursor, err = subscription.CatchUp(ctx, subscription.CatchUpInput{
 		Log:    store.log,
@@ -138,7 +110,7 @@ func (store *EventSourcedStore) catchUp(ctx context.Context) {
 	fatal.OnError(err)
 }
 
-func (store *EventSourcedStore) apply(ctx context.Context, event *eventsource.Event) (err error) {
+func (store *EventSourcedCommandHandler) apply(ctx context.Context, event *eventsource.Event) (err error) {
 	var frame EventFrame
 	fatal.UnlessUnmarshal(event.Data, &frame)
 	switch frame.Type {
@@ -152,7 +124,7 @@ func (store *EventSourcedStore) apply(ctx context.Context, event *eventsource.Ev
 	return
 }
 
-func (store *EventSourcedStore) applyBotCreatedEvent(ctx context.Context, event *BotCreatedEvent) (err error) {
+func (store *EventSourcedCommandHandler) applyBotCreatedEvent(ctx context.Context, event *BotCreatedEvent) (err error) {
 	store.botByID[event.BotID] = &Bot{
 		ID:                event.BotID,
 		UserID:            event.UserID,
@@ -168,7 +140,7 @@ func (store *EventSourcedStore) applyBotCreatedEvent(ctx context.Context, event 
 	return
 }
 
-func (store *EventSourcedStore) applyBotStatusUpdatedEvent(ctx context.Context, event *BotStatusUpdatedEvent) (err error) {
+func (store *EventSourcedCommandHandler) applyBotStatusUpdatedEvent(ctx context.Context, event *BotStatusUpdatedEvent) (err error) {
 	storeBot, ok := store.botByID[event.BotID]
 	if !ok {
 		return
@@ -177,7 +149,7 @@ func (store *EventSourcedStore) applyBotStatusUpdatedEvent(ctx context.Context, 
 	return
 }
 
-func (store *EventSourcedStore) applyBotStatusDeletedEvent(ctx context.Context, event *BotStatusDeletedEvent) (err error) {
+func (store *EventSourcedCommandHandler) applyBotStatusDeletedEvent(ctx context.Context, event *BotStatusDeletedEvent) (err error) {
 	delete(store.botByID, event.BotID)
 	return
 }

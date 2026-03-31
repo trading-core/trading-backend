@@ -17,7 +17,7 @@ func (handler *Handler) DeleteBot(responseWriter http.ResponseWriter, request *h
 	ctx := request.Context()
 	vars := mux.Vars(request)
 	botID := vars["bot_id"]
-	err = handler.botStore.Delete(ctx, botID)
+	err = handler.botStoreCommandHandler.Delete(ctx, botID)
 	if err != nil {
 		err = merrifyError[err]
 		return

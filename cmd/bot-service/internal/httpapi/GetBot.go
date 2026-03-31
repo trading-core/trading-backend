@@ -18,7 +18,7 @@ func (handler *Handler) GetBot(responseWriter http.ResponseWriter, request *http
 	ctx := request.Context()
 	vars := mux.Vars(request)
 	botID := vars["bot_id"]
-	bot, err := handler.botStore.Get(ctx, botID)
+	bot, err := handler.botStoreQueryHandler.Get(ctx, botID)
 	if err != nil {
 		return
 	}

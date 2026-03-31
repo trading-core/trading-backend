@@ -45,8 +45,13 @@ func main() {
 		Path:   "/accounts/v1/authorization_callback",
 	}
 	router := httpapi.NewRouter(httpapi.NewRouterInput{
-		AccountStore: accountstore.NewThreadSafeDecorator(accountstore.NewThreadSafeDecoratorInput{
-			Decorated: accountstore.NewEventSourcedStore(accountstore.NewEventSourcedStoreInput{
+		AccountStoreCommandHandler: accountstore.NewCommandHandlerThreadSafeDecorator(accountstore.NewCommandHandlerThreadSafeDecoratorInput{
+			Decorated: accountstore.NewEventSourcedCommandHandler(accountstore.NewEventSourcedCommandHandlerInput{
+				Log: log,
+			}),
+		}),
+		AccountStoreQueryHandler: accountstore.NewQueryHandlerThreadSafeDecorator(accountstore.NewQueryHandlerThreadSafeDecoratorInput{
+			Decorated: accountstore.NewEventSourcedQueryHandler(accountstore.NewEventSourcedQueryHandlerInput{
 				Log: log,
 			}),
 		}),

@@ -21,7 +21,7 @@ func (handler *Handler) GetAccountBalance(responseWriter http.ResponseWriter, re
 	ctx := request.Context()
 	vars := mux.Vars(request)
 	accountID := vars["account_id"]
-	account, err := handler.accountStore.Get(ctx, accountstore.GetInput{
+	account, err := handler.accountStoreQueryHandler.Get(ctx, accountstore.GetInput{
 		AccountID: accountID,
 	})
 	if err != nil {

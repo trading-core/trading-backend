@@ -37,7 +37,7 @@ func (handler *Handler) CreateAccount(responseWriter http.ResponseWriter, reques
 		return
 	}
 	accountID := uuid.NewV4().String()
-	err = handler.accountStore.Create(ctx, accountstore.CreateInput{
+	err = handler.accountStoreCommandHandler.Create(ctx, accountstore.CreateInput{
 		AccountID:   accountID,
 		AccountName: input.AccountName,
 	})

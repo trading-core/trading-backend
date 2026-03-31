@@ -11,28 +11,28 @@ import (
 	"github.com/kduong/trading-backend/internal/logger"
 )
 
-var _ Store = (*EventSourcedStore)(nil)
+var _ CommandHandler = (*EventSourcedCommandHandler)(nil)
 
-type EventSourcedStore struct {
+type EventSourcedCommandHandler struct {
 	log           eventsource.Log
 	cursor        int64
 	accountByID   map[string]*Account
 	tastyTradeIDs map[string]struct{}
 }
 
-type NewEventSourcedStoreInput struct {
+type NewEventSourcedCommandHandlerInput struct {
 	Log eventsource.Log
 }
 
-func NewEventSourcedStore(input NewEventSourcedStoreInput) *EventSourcedStore {
-	return &EventSourcedStore{
+func NewEventSourcedCommandHandler(input NewEventSourcedCommandHandlerInput) *EventSourcedCommandHandler {
+	return &EventSourcedCommandHandler{
 		log:           input.Log,
 		accountByID:   make(map[string]*Account),
 		tastyTradeIDs: make(map[string]struct{}),
 	}
 }
 
-func (store *EventSourcedStore) Create(ctx context.Context, input CreateInput) error {
+func (store *EventSourcedCommandHandler) Create(ctx context.Context, input CreateInput) error {
 	store.catchUp(ctx)
 	payload := fatal.UnlessMarshal(EventFrame{
 		EventBase: eventsource.NewEventBase(EventTypeAccountCreated),
@@ -47,7 +47,7 @@ func (store *EventSourcedStore) Create(ctx context.Context, input CreateInput) e
 	return nil
 }
 
-func (store *EventSourcedStore) LinkBrokerAccount(ctx context.Context, input LinkBrokerAccountInput) error {
+func (store *EventSourcedCommandHandler) LinkBrokerAccount(ctx context.Context, input LinkBrokerAccountInput) error {
 	store.catchUp(ctx)
 	account, ok := store.accountByID[input.AccountID]
 	if !ok {
@@ -75,7 +75,7 @@ func (store *EventSourcedStore) LinkBrokerAccount(ctx context.Context, input Lin
 	return nil
 }
 
-func (store *EventSourcedStore) checkBrokerIsAlreadyLinked(brokerAccount *broker.Account) error {
+func (store *EventSourcedCommandHandler) checkBrokerIsAlreadyLinked(brokerAccount *broker.Account) error {
 	switch brokerAccount.Type {
 	case broker.AccountTypeTastyTrade:
 		if _, isBrokerAccountAlreadyLinked := store.tastyTradeIDs[brokerAccount.ID]; isBrokerAccountAlreadyLinked {
@@ -87,33 +87,7 @@ func (store *EventSourcedStore) checkBrokerIsAlreadyLinked(brokerAccount *broker
 	return nil
 }
 
-func (store *EventSourcedStore) Get(ctx context.Context, input GetInput) (*Account, error) {
-	store.catchUp(ctx)
-	account, ok := store.accountByID[input.AccountID]
-	if !ok {
-		return nil, ErrAccountNotFound
-	}
-	userID := contextx.GetUserID(ctx)
-	if account.UserID != userID {
-		return nil, ErrAccountForbidden
-	}
-	return account, nil
-}
-
-func (store *EventSourcedStore) List(ctx context.Context) ([]*Account, error) {
-	store.catchUp(ctx)
-	userID := contextx.GetUserID(ctx)
-	accounts := make([]*Account, 0)
-	for _, account := range store.accountByID {
-		if account.UserID != userID {
-			continue
-		}
-		accounts = append(accounts, account)
-	}
-	return accounts, nil
-}
-
-func (store *EventSourcedStore) catchUp(ctx context.Context) {
+func (store *EventSourcedCommandHandler) catchUp(ctx context.Context) {
 	var err error
 	store.cursor, err = subscription.CatchUp(ctx, subscription.CatchUpInput{
 		Log:    store.log,
@@ -123,7 +97,7 @@ func (store *EventSourcedStore) catchUp(ctx context.Context) {
 	fatal.OnError(err)
 }
 
-func (store *EventSourcedStore) apply(ctx context.Context, event *eventsource.Event) (err error) {
+func (store *EventSourcedCommandHandler) apply(ctx context.Context, event *eventsource.Event) (err error) {
 	var frame EventFrame
 	fatal.UnlessUnmarshal(event.Data, &frame)
 	switch frame.Type {
@@ -135,7 +109,7 @@ func (store *EventSourcedStore) apply(ctx context.Context, event *eventsource.Ev
 	return
 }
 
-func (store *EventSourcedStore) applyAccountCreatedEvent(ctx context.Context, event *AccountCreatedEvent) (err error) {
+func (store *EventSourcedCommandHandler) applyAccountCreatedEvent(ctx context.Context, event *AccountCreatedEvent) (err error) {
 	store.accountByID[event.AccountID] = &Account{
 		ID:     event.AccountID,
 		UserID: event.UserID,
@@ -144,7 +118,7 @@ func (store *EventSourcedStore) applyAccountCreatedEvent(ctx context.Context, ev
 	return
 }
 
-func (store *EventSourcedStore) applyBrokerAccountLinkedEvent(ctx context.Context, event *BrokerAccountLinkedEvent) (err error) {
+func (store *EventSourcedCommandHandler) applyBrokerAccountLinkedEvent(ctx context.Context, event *BrokerAccountLinkedEvent) (err error) {
 	account := store.accountByID[event.AccountID]
 	account.BrokerLinked = true
 	account.BrokerAccount = event.BrokerAccount

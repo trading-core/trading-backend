@@ -77,7 +77,7 @@ func (store *EventSourcedCommandHandler) LinkBrokerAccount(ctx context.Context, 
 
 func (store *EventSourcedCommandHandler) checkBrokerIsAlreadyLinked(brokerAccount *broker.Account) error {
 	switch brokerAccount.Type {
-	case broker.AccountTypeTastyTrade:
+	case broker.AccountTypeTastyTrade, broker.AccountTypeTastyTradeSandbox:
 		if _, isBrokerAccountAlreadyLinked := store.tastyTradeIDs[brokerAccount.ID]; isBrokerAccountAlreadyLinked {
 			return ErrBrokerAccountAlreadyLinked
 		}
@@ -123,7 +123,7 @@ func (store *EventSourcedCommandHandler) applyBrokerAccountLinkedEvent(ctx conte
 	account.BrokerLinked = true
 	account.BrokerAccount = event.BrokerAccount
 	switch event.BrokerAccount.Type {
-	case broker.AccountTypeTastyTrade:
+	case broker.AccountTypeTastyTrade, broker.AccountTypeTastyTradeSandbox:
 		store.tastyTradeIDs[event.BrokerAccount.ID] = struct{}{}
 	default:
 		logger.Fatalf("unknown broker type %s", event.BrokerAccount.Type)

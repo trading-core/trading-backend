@@ -7,13 +7,7 @@ import (
 	"github.com/kduong/trading-backend/internal/logger"
 )
 
-type CatchUpInput struct {
-	Log    eventsource.Log
-	Cursor int64
-	Apply  func(ctx context.Context, event *eventsource.Event) error
-}
-
-func CatchUp(ctx context.Context, input CatchUpInput) (cursor int64, err error) {
+func CatchUp(ctx context.Context, input Input) (cursor int64, err error) {
 	const limit = 1000
 	const timeout = 0
 	var events []*eventsource.Event

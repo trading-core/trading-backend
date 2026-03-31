@@ -56,7 +56,7 @@ func (store *EventSourcedQueryHandler) List(ctx context.Context) ([]*Account, er
 
 func (store *EventSourcedQueryHandler) catchUp(ctx context.Context) {
 	var err error
-	store.cursor, err = subscription.CatchUp(ctx, subscription.CatchUpInput{
+	store.cursor, err = subscription.CatchUp(ctx, subscription.Input{
 		Log:    store.log,
 		Cursor: store.cursor,
 		Apply:  store.apply,

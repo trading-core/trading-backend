@@ -37,7 +37,7 @@ type TradeBot struct {
 }
 
 func (actor *ParentActor) CatchUp(ctx context.Context) int64 {
-	cursor, err := subscription.CatchUp(ctx, subscription.CatchUpInput{
+	cursor, err := subscription.CatchUp(ctx, subscription.Input{
 		Log:    actor.log,
 		Cursor: 0,
 		Apply:  actor.applyCatchup,

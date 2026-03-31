@@ -8,13 +8,7 @@ import (
 	"github.com/kduong/trading-backend/internal/logger"
 )
 
-type LiveInput struct {
-	Log    eventsource.Log
-	Cursor int64
-	Apply  func(ctx context.Context, event *eventsource.Event) error
-}
-
-func Live(ctx context.Context, input LiveInput) (cursor int64, err error) {
+func Live(ctx context.Context, input Input) (cursor int64, err error) {
 	const limit = 1000
 	const timeout = 10 * time.Second
 	var events []*eventsource.Event

@@ -42,7 +42,7 @@ func (handler *Handler) CompleteBrokerSelection(responseWriter http.ResponseWrit
 		err = merry.New("pending_token and broker_account_id are required").WithHTTPCode(http.StatusBadRequest)
 		return
 	}
-	entry, ok := handler.GetPendingBrokerSelectionEntry(input.PendingToken)
+	entry, ok := handler.pendingSelectionStore.Get(input.PendingToken)
 	if !ok {
 		err = merry.New("pending broker selection not found").WithHTTPCode(http.StatusNotFound)
 		return
@@ -69,7 +69,7 @@ func (handler *Handler) CompleteBrokerSelection(responseWriter http.ResponseWrit
 		err = merryErrorByAccountStoreError[err]
 		return
 	}
-	handler.DeletePendingBrokerSelectionEntry(input.PendingToken)
+	handler.pendingSelectionStore.Delete(input.PendingToken)
 	responseWriter.Header().Set("Content-Type", "application/json")
 	err = json.NewEncoder(responseWriter).Encode(CompleteBrokerSelectionOutput{
 		AccountID:     entry.AccountID,

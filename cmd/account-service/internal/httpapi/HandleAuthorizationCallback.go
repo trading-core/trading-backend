@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/kduong/trading-backend/cmd/account-service/internal/pendingselectionstore"
 	"github.com/kduong/trading-backend/internal/contextx"
 )
 
@@ -17,7 +18,7 @@ func (handler *Handler) HandleAuthorizationCallback(responseWriter http.Response
 		http.Redirect(responseWriter, request, frontendAccountURL+"?oauth_error=missing_parameters", http.StatusFound)
 		return
 	}
-	stateEntry, ok := handler.PopOAuthStateEntry(stateToken)
+	stateEntry, ok := handler.oauthStateStore.Pop(stateToken)
 	if !ok {
 		http.Redirect(responseWriter, request, frontendAccountURL+"?oauth_error=invalid_state", http.StatusFound)
 		return
@@ -48,7 +49,7 @@ func (handler *Handler) HandleAuthorizationCallback(responseWriter http.Response
 		http.Redirect(responseWriter, request, frontendAccountURL+"?oauth_error=pending_token_failed", http.StatusFound)
 		return
 	}
-	handler.PutPendingBrokerSelectionEntry(pendingToken, PendingBrokerSelectionEntry{
+	handler.pendingSelectionStore.Put(pendingToken, pendingselectionstore.Entry{
 		AccountID:      stateEntry.AccountID,
 		UserID:         stateEntry.UserID,
 		Broker:         stateEntry.Broker,

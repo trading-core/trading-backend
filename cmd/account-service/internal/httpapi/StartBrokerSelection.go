@@ -8,6 +8,7 @@ import (
 	"github.com/ansel1/merry"
 	"github.com/gorilla/mux"
 	"github.com/kduong/trading-backend/cmd/account-service/internal/accountstore"
+	"github.com/kduong/trading-backend/cmd/account-service/internal/oauthstatestore"
 	"github.com/kduong/trading-backend/internal/broker"
 	"github.com/kduong/trading-backend/internal/contextx"
 	"github.com/kduong/trading-backend/internal/fatal"
@@ -59,7 +60,7 @@ func (handler *Handler) StartBrokerSelection(responseWriter http.ResponseWriter,
 		err = merry.Wrap(err).WithHTTPCode(http.StatusBadRequest)
 		return
 	}
-	handler.PutOAuthStateEntry(stateToken, OAuthStateEntry{
+	handler.oauthStateStore.Put(stateToken, oauthstatestore.Entry{
 		AccountID: accountID,
 		UserID:    userID,
 		Broker:    input.Broker,

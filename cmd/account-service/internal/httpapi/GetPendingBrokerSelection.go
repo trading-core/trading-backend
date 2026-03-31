@@ -30,7 +30,7 @@ func (handler *Handler) GetPendingBrokerSelection(responseWriter http.ResponseWr
 		err = merry.New("pending_token query parameter is required").WithHTTPCode(http.StatusBadRequest)
 		return
 	}
-	entry, ok := handler.GetPendingBrokerSelectionEntry(pendingToken)
+	entry, ok := handler.pendingSelectionStore.Get(pendingToken)
 	if !ok {
 		err = merry.New("pending broker selection not found").WithHTTPCode(http.StatusNotFound)
 		return

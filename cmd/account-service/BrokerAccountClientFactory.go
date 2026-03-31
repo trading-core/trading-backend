@@ -8,7 +8,8 @@ import (
 )
 
 type BrokerAccountClientFactory struct {
-	TastyTradeClientFactory tastytrade.ClientFactory
+	TastyTradeClientFactory        tastytrade.ClientFactory
+	TastyTradeSandboxClientFactory tastytrade.ClientFactory
 }
 
 func (factory *BrokerAccountClientFactory) Get(ctx context.Context, account *broker.Account) broker.AccountClient {
@@ -17,6 +18,11 @@ func (factory *BrokerAccountClientFactory) Get(ctx context.Context, account *bro
 		return broker.NewTastyTradeAccountAdapter(broker.NewTastyTradeAccountAdapterInput{
 			AccountID: account.ID,
 			Client:    factory.TastyTradeClientFactory.Create(),
+		})
+	case broker.AccountTypeTastyTradeSandbox:
+		return broker.NewTastyTradeAccountAdapter(broker.NewTastyTradeAccountAdapterInput{
+			AccountID: account.ID,
+			Client:    factory.TastyTradeSandboxClientFactory.Create(),
 		})
 	default:
 		panic("Unsupported broker type: " + account.Type)

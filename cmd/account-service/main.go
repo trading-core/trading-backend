@@ -1,11 +1,8 @@
 package main
 
 import (
-	"encoding/base64"
-	"encoding/json"
 	"net/http"
 	"net/url"
-	"strings"
 
 	"github.com/kduong/trading-backend/cmd/account-service/internal/accountstore"
 
@@ -23,20 +20,6 @@ import (
 )
 
 func main() {
-	var brokerCredentialsByType map[string]auth.Credentials
-	data := config.EnvStringOrFatal("BROKER_CREDENTIALS_B64_JSON")
-	reader := strings.NewReader(data)
-	base64Decoder := base64.NewDecoder(base64.StdEncoding, reader)
-	err := json.NewDecoder(base64Decoder).Decode(&brokerCredentialsByType)
-	fatal.OnError(err)
-	tastyTradeCredentials, ok := brokerCredentialsByType["tastytrade"]
-	fatal.Unless(ok)
-	brokerAuthorizationCredentials := map[broker.AccountType]auth.Credentials{
-		broker.AccountTypeTastyTrade: tastyTradeCredentials,
-	}
-	tastyTradeAPIURL, err := url.Parse(tastyTradeCredentials.APIURL)
-	fatal.OnError(err)
-	tastyTradeTokenManager := auth.NewTastyTradeTokenManager(&tastyTradeCredentials.AuthorizationServer)
 	logFactory, err := eventsource.LogFactoryFromEnv("ACCOUNT_EVENT_LOG", "INMEMORY")
 	fatal.OnError(err)
 	log, err := logFactory.Create("account:events")
@@ -45,6 +28,13 @@ func main() {
 		Scheme: config.EnvStringOrFatal("TRADING_API_SCHEME"),
 		Host:   config.EnvStringOrFatal("TRADING_API_HOST"),
 		Path:   "/accounts/v1/authorization_callback",
+	}
+	credentialsByType := auth.CredentialsByTypeFromEnv()
+	tastyTradeCredentials, tastyTradeAPIURL, tastyTradeTokenManager := LoadTastyTradeConfiguration(credentialsByType, "tastytrade")
+	tastyTradeSandboxCredentials, tastyTradeSandboxAPIURL, tastyTradeSandboxTokenManager := LoadTastyTradeConfiguration(credentialsByType, "tastytrade_sandbox")
+	brokerAuthorizationCredentials := map[broker.AccountType]auth.Credentials{
+		broker.AccountTypeTastyTrade:        tastyTradeCredentials,
+		broker.AccountTypeTastyTradeSandbox: tastyTradeSandboxCredentials,
 	}
 	router := httpapi.NewRouter(httpapi.NewRouterInput{
 		OAuthStateStore:       oauthstatestore.NewInMemory(),
@@ -64,6 +54,10 @@ func main() {
 				APIURL:         tastyTradeAPIURL,
 				GetAccessToken: tastyTradeTokenManager.GetAccessToken,
 			},
+			TastyTradeSandboxClientFactory: &tastytrade.HTTPClientFactory{
+				APIURL:         tastyTradeSandboxAPIURL,
+				GetAccessToken: tastyTradeSandboxTokenManager.GetAccessToken,
+			},
 		},
 		BrokerOnBoardingClientFactory: &BrokerOnboardingClientFactory{
 			BackendRedirectURI: authorizationRedirectURI.String(),
@@ -81,4 +75,13 @@ func main() {
 		AllowCredentials: true,
 	})
 	http.ListenAndServe(":9000", c.Handler(router))
+}
+
+func LoadTastyTradeConfiguration(credentialsByType map[string]auth.Credentials, brokerType string) (auth.Credentials, *url.URL, *auth.TastyTradeTokenManager) {
+	credentials, ok := credentialsByType[brokerType]
+	fatal.Unless(ok)
+	apiURL, err := url.Parse(credentials.APIURL)
+	fatal.OnError(err)
+	tokenManager := auth.NewTastyTradeTokenManager(&credentials.AuthorizationServer)
+	return credentials, apiURL, tokenManager
 }

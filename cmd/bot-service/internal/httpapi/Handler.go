@@ -17,20 +17,23 @@ import (
 const MaxActiveAllocationPercent = 80.0
 
 type Handler struct {
-	accountServiceClient accountservice.Client
-	botStore             botstore.Store
+	accountServiceClient   accountservice.Client
+	botStoreCommandHandler botstore.CommandHandler
+	botStoreQueryHandler   botstore.QueryHandler
 }
 
 type NewRouterInput struct {
-	AuthMiddleware       *auth.Middleware
-	AccountServiceClient accountservice.Client
-	BotStore             botstore.Store
+	AuthMiddleware         *auth.Middleware
+	AccountServiceClient   accountservice.Client
+	BotStoreCommandHandler botstore.CommandHandler
+	BotStoreQueryHandler   botstore.QueryHandler
 }
 
 func NewRouter(input NewRouterInput) *mux.Router {
 	handler := &Handler{
-		accountServiceClient: input.AccountServiceClient,
-		botStore:             input.BotStore,
+		accountServiceClient:   input.AccountServiceClient,
+		botStoreCommandHandler: input.BotStoreCommandHandler,
+		botStoreQueryHandler:   input.BotStoreQueryHandler,
 	}
 	router := mux.NewRouter().StrictSlash(true)
 	botV1Router := router.PathPrefix("/bots/v1").Subrouter()

@@ -36,8 +36,13 @@ func main() {
 	router := httpapi.NewRouter(httpapi.NewRouterInput{
 		AuthMiddleware:       auth.MiddlewareFromEnv(),
 		AccountServiceClient: accountservice.ClientFromEnv(),
-		BotStore: botstore.NewThreadSafeDecorator(botstore.NewThreadSafeDecoratorInput{
-			Decorated: botstore.NewEventSourcedStore(botstore.NewEventSourcedStoreInput{
+		BotStoreCommandHandler: botstore.NewCommandHandlerThreadSafeDecorator(botstore.NewCommandHandlerThreadSafeDecoratorInput{
+			Decorated: botstore.NewEventSourcedCommandHandler(botstore.NewEventSourcedCommandHandlerInput{
+				Log: log,
+			}),
+		}),
+		BotStoreQueryHandler: botstore.NewQueryHandlerThreadSafeDecorator(botstore.NewQueryHandlerThreadSafeDecoratorInput{
+			Decorated: botstore.NewEventSourcedQueryHandler(botstore.NewEventSourcedQueryHandlerInput{
 				Log: log,
 			}),
 		}),

@@ -69,7 +69,7 @@ func (handler *Handler) CreateBot(responseWriter http.ResponseWriter, request *h
 		Status:            botstore.BotStatusStopped,
 		CreatedAt:         time.Now().UTC().Format(time.RFC3339),
 	}
-	err = handler.botStore.Create(ctx, bot)
+	err = handler.botStoreCommandHandler.Create(ctx, bot)
 	if err != nil {
 		return
 	}

@@ -15,7 +15,7 @@ func (handler *Handler) ListBots(responseWriter http.ResponseWriter, request *ht
 		}
 	}()
 	ctx := request.Context()
-	bots, err := handler.botStore.List(ctx)
+	bots, err := handler.botStoreQueryHandler.List(ctx)
 	if err != nil {
 		return
 	}

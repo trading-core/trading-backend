@@ -43,7 +43,7 @@ func (handler *Handler) UpdateBot(responseWriter http.ResponseWriter, request *h
 		err = merry.New(`status must be "running" or "stopped"`).WithHTTPCode(http.StatusBadRequest)
 		return
 	}
-	err = handler.botStore.UpdateBotStatus(ctx, botID, status)
+	err = handler.botStoreCommandHandler.UpdateBotStatus(ctx, botID, status)
 	if err != nil {
 		err = merrifyError[err]
 		return
@@ -53,7 +53,7 @@ func (handler *Handler) UpdateBot(responseWriter http.ResponseWriter, request *h
 }
 
 func (handler *Handler) ensureAllocationPolicy(ctx context.Context, request *http.Request, botID string) (err error) {
-	bot, err := handler.botStore.Get(ctx, botID)
+	bot, err := handler.botStoreQueryHandler.Get(ctx, botID)
 	if err != nil {
 		err = merrifyError[err]
 		return
@@ -68,7 +68,7 @@ func (handler *Handler) ensureAllocationPolicy(ctx context.Context, request *htt
 		err = merry.New("account has no available cash balance").WithHTTPCode(http.StatusBadRequest)
 		return
 	}
-	bots, err := handler.botStore.List(ctx)
+	bots, err := handler.botStoreQueryHandler.List(ctx)
 	fatal.OnError(err)
 	activeAllocationPercent := 0.0
 	for _, botItem := range bots {

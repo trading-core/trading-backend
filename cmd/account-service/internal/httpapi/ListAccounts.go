@@ -16,7 +16,7 @@ func (handler *Handler) ListAccounts(responseWriter http.ResponseWriter, request
 		}
 	}()
 	ctx := request.Context()
-	accounts, err := handler.accountStore.List(ctx)
+	accounts, err := handler.accountStoreQueryHandler.List(ctx)
 	if err != nil {
 		return
 	}

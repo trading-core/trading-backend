@@ -21,7 +21,8 @@ type Handler struct {
 	pendingSelectionMutex sync.Mutex
 	pendingSelectionStore map[string]PendingBrokerSelectionEntry
 
-	accountStore                  accountstore.Store
+	accountStoreCommandHandler    accountstore.CommandHandler
+	accountStoreQueryHandler      accountstore.QueryHandler
 	brokerAccountClientFactory    broker.AccountClientFactory
 	brokerOnBoardingClientFactory broker.OnBoardingClientFactory
 	backendRedirectURI            string
@@ -29,7 +30,8 @@ type Handler struct {
 }
 
 type NewRouterInput struct {
-	AccountStore                  accountstore.Store
+	AccountStoreCommandHandler    accountstore.CommandHandler
+	AccountStoreQueryHandler      accountstore.QueryHandler
 	BrokerAccountClientFactory    broker.AccountClientFactory
 	BrokerOnBoardingClientFactory broker.OnBoardingClientFactory
 	AuthMiddleware                *auth.Middleware
@@ -41,7 +43,8 @@ func NewRouter(input NewRouterInput) *mux.Router {
 	handler := &Handler{
 		oauthStateStore:               make(map[string]OAuthStateEntry),
 		pendingSelectionStore:         make(map[string]PendingBrokerSelectionEntry),
-		accountStore:                  input.AccountStore,
+		accountStoreCommandHandler:    input.AccountStoreCommandHandler,
+		accountStoreQueryHandler:      input.AccountStoreQueryHandler,
 		brokerAccountClientFactory:    input.BrokerAccountClientFactory,
 		brokerOnBoardingClientFactory: input.BrokerOnBoardingClientFactory,
 		backendRedirectURI:            input.BackendRedirectURI,

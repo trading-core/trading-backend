@@ -14,14 +14,21 @@ import (
 func TestEventSourcedStoreTest(t *testing.T) {
 	Convey("Given an event sourced store with multiple accounts", t, func() {
 		log := eventsource.NewInMemoryLog("accounts")
-		store := accountstore.NewEventSourcedStore(accountstore.NewEventSourcedStoreInput{Log: log})
+		var commandHandler accountstore.CommandHandler
+		commandHandler = accountstore.NewEventSourcedCommandHandler(accountstore.NewEventSourcedCommandHandlerInput{
+			Log: log,
+		})
+		var queryHandler accountstore.QueryHandler
+		queryHandler = accountstore.NewEventSourcedQueryHandler(accountstore.NewEventSourcedQueryHandlerInput{
+			Log: log,
+		})
 		Convey("When creating multiple accounts for a user", func() {
 			userCtx := contextx.WithUserID(context.Background(), "user-1")
-			err1 := store.Create(userCtx, accountstore.CreateInput{
+			err1 := commandHandler.Create(userCtx, accountstore.CreateInput{
 				AccountID:   "account-1",
 				AccountName: "Primary",
 			})
-			err2 := store.Create(userCtx, accountstore.CreateInput{
+			err2 := commandHandler.Create(userCtx, accountstore.CreateInput{
 				AccountID:   "account-2",
 				AccountName: "Secondary",
 			})
@@ -30,7 +37,7 @@ func TestEventSourcedStoreTest(t *testing.T) {
 				So(err2, ShouldBeNil)
 			})
 			Convey("And both appear in owner's list", func() {
-				listed, err := store.List(userCtx)
+				listed, err := queryHandler.List(userCtx)
 				So(err, ShouldBeNil)
 				So(len(listed), ShouldEqual, 2)
 				idMap := make(map[string]string)
@@ -41,17 +48,17 @@ func TestEventSourcedStoreTest(t *testing.T) {
 				So(idMap["account-2"], ShouldEqual, "Secondary")
 			})
 			Convey("And user can get specific account", func() {
-				acc, err := store.Get(userCtx, accountstore.GetInput{AccountID: "account-1"})
+				acc, err := queryHandler.Get(userCtx, accountstore.GetInput{AccountID: "account-1"})
 				So(err, ShouldBeNil)
 				So(acc.Name, ShouldEqual, "Primary")
 			})
 			Convey("And different user cannot see these accounts", func() {
 				otherCtx := contextx.WithUserID(context.Background(), "user-2")
-				listed, err := store.List(otherCtx)
+				listed, err := queryHandler.List(otherCtx)
 				So(err, ShouldBeNil)
 				So(len(listed), ShouldEqual, 0)
 
-				acc, err := store.Get(otherCtx, accountstore.GetInput{AccountID: "account-1"})
+				acc, err := queryHandler.Get(otherCtx, accountstore.GetInput{AccountID: "account-1"})
 				So(err, ShouldEqual, accountstore.ErrAccountForbidden)
 				So(acc, ShouldBeNil)
 			})
@@ -60,7 +67,7 @@ func TestEventSourcedStoreTest(t *testing.T) {
 					Type: broker.AccountTypeTastyTrade,
 					ID:   "tastytrade-123",
 				}
-				err := store.LinkBrokerAccount(userCtx, accountstore.LinkBrokerAccountInput{
+				err := commandHandler.LinkBrokerAccount(userCtx, accountstore.LinkBrokerAccountInput{
 					AccountID:     "account-1",
 					BrokerAccount: brokerAcc,
 				})
@@ -68,14 +75,14 @@ func TestEventSourcedStoreTest(t *testing.T) {
 					So(err, ShouldBeNil)
 				})
 				Convey("And account shows as linked", func() {
-					acc, err := store.Get(userCtx, accountstore.GetInput{AccountID: "account-1"})
+					acc, err := queryHandler.Get(userCtx, accountstore.GetInput{AccountID: "account-1"})
 					So(err, ShouldBeNil)
 					So(acc.BrokerLinked, ShouldBeTrue)
 					So(acc.BrokerAccount.ID, ShouldEqual, "tastytrade-123")
 					So(acc.BrokerAccount.Type, ShouldEqual, broker.AccountTypeTastyTrade)
 				})
 				Convey("And cannot link again", func() {
-					err := store.LinkBrokerAccount(userCtx, accountstore.LinkBrokerAccountInput{
+					err := commandHandler.LinkBrokerAccount(userCtx, accountstore.LinkBrokerAccountInput{
 						AccountID:     "account-1",
 						BrokerAccount: brokerAcc,
 					})
@@ -88,7 +95,7 @@ func TestEventSourcedStoreTest(t *testing.T) {
 					Type: broker.AccountTypeTastyTrade,
 					ID:   "tastytrade-456",
 				}
-				err := store.LinkBrokerAccount(otherCtx, accountstore.LinkBrokerAccountInput{
+				err := commandHandler.LinkBrokerAccount(otherCtx, accountstore.LinkBrokerAccountInput{
 					AccountID:     "account-1",
 					BrokerAccount: brokerAcc,
 				})
@@ -101,7 +108,7 @@ func TestEventSourcedStoreTest(t *testing.T) {
 					Type: broker.AccountTypeTastyTrade,
 					ID:   "tastytrade-789",
 				}
-				err := store.LinkBrokerAccount(userCtx, accountstore.LinkBrokerAccountInput{
+				err := commandHandler.LinkBrokerAccount(userCtx, accountstore.LinkBrokerAccountInput{
 					AccountID:     "nonexistent",
 					BrokerAccount: brokerAcc,
 				})

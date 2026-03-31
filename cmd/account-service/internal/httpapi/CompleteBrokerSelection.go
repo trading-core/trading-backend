@@ -61,7 +61,7 @@ func (handler *Handler) CompleteBrokerSelection(responseWriter http.ResponseWrit
 		ID:   input.BrokerAccountID,
 	}
 	ctx = contextx.WithUserID(ctx, entry.UserID)
-	err = handler.accountStore.LinkBrokerAccount(ctx, accountstore.LinkBrokerAccountInput{
+	err = handler.accountStoreCommandHandler.LinkBrokerAccount(ctx, accountstore.LinkBrokerAccountInput{
 		AccountID:     entry.AccountID,
 		BrokerAccount: brokerAccount,
 	})

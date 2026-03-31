@@ -43,7 +43,7 @@ func (handler *Handler) StartBrokerSelection(responseWriter http.ResponseWriter,
 		err = merry.New("broker is required").WithHTTPCode(http.StatusBadRequest)
 		return
 	}
-	_, err = handler.accountStore.Get(ctx, accountstore.GetInput{
+	_, err = handler.accountStoreQueryHandler.Get(ctx, accountstore.GetInput{
 		AccountID: accountID,
 	})
 	if err != nil {

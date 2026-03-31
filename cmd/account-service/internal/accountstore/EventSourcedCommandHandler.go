@@ -14,10 +14,11 @@ import (
 var _ CommandHandler = (*EventSourcedCommandHandler)(nil)
 
 type EventSourcedCommandHandler struct {
-	log           eventsource.Log
-	cursor        int64
-	accountByID   map[string]*Account
-	tastyTradeIDs map[string]struct{}
+	log                  eventsource.Log
+	cursor               int64
+	accountByID          map[string]*Account
+	tastyTradeIDs        map[string]struct{}
+	tastyTradeSandboxIDs map[string]struct{}
 }
 
 type NewEventSourcedCommandHandlerInput struct {
@@ -26,9 +27,10 @@ type NewEventSourcedCommandHandlerInput struct {
 
 func NewEventSourcedCommandHandler(input NewEventSourcedCommandHandlerInput) *EventSourcedCommandHandler {
 	return &EventSourcedCommandHandler{
-		log:           input.Log,
-		accountByID:   make(map[string]*Account),
-		tastyTradeIDs: make(map[string]struct{}),
+		log:                  input.Log,
+		accountByID:          make(map[string]*Account),
+		tastyTradeIDs:        make(map[string]struct{}),
+		tastyTradeSandboxIDs: make(map[string]struct{}),
 	}
 }
 
@@ -77,8 +79,12 @@ func (store *EventSourcedCommandHandler) LinkBrokerAccount(ctx context.Context, 
 
 func (store *EventSourcedCommandHandler) checkBrokerIsAlreadyLinked(brokerAccount *broker.Account) error {
 	switch brokerAccount.Type {
-	case broker.AccountTypeTastyTrade, broker.AccountTypeTastyTradeSandbox:
+	case broker.AccountTypeTastyTrade:
 		if _, isBrokerAccountAlreadyLinked := store.tastyTradeIDs[brokerAccount.ID]; isBrokerAccountAlreadyLinked {
+			return ErrBrokerAccountAlreadyLinked
+		}
+	case broker.AccountTypeTastyTradeSandbox:
+		if _, isBrokerAccountAlreadyLinked := store.tastyTradeSandboxIDs[brokerAccount.ID]; isBrokerAccountAlreadyLinked {
 			return ErrBrokerAccountAlreadyLinked
 		}
 	default:
@@ -123,8 +129,10 @@ func (store *EventSourcedCommandHandler) applyBrokerAccountLinkedEvent(ctx conte
 	account.BrokerLinked = true
 	account.BrokerAccount = event.BrokerAccount
 	switch event.BrokerAccount.Type {
-	case broker.AccountTypeTastyTrade, broker.AccountTypeTastyTradeSandbox:
+	case broker.AccountTypeTastyTrade:
 		store.tastyTradeIDs[event.BrokerAccount.ID] = struct{}{}
+	case broker.AccountTypeTastyTradeSandbox:
+		store.tastyTradeSandboxIDs[event.BrokerAccount.ID] = struct{}{}
 	default:
 		logger.Fatalf("unknown broker type %s", event.BrokerAccount.Type)
 	}

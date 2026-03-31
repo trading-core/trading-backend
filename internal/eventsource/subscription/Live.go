@@ -29,6 +29,7 @@ func Live(ctx context.Context, input LiveInput) (cursor int64, err error) {
 				}
 			}
 		case eventsource.Timeout:
+			err = nil
 			return
 		default:
 			logger.Fatal(err)

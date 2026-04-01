@@ -36,6 +36,7 @@ func NewParentActor(input NewParentActorInput) *ParentActor {
 }
 
 type TradeBot struct {
+	ID                string
 	BrokerID          string
 	BrokerType        string
 	Symbol            string
@@ -51,17 +52,16 @@ func (actor *ParentActor) CatchUp(ctx context.Context) int64 {
 		Apply:  actor.applyCatchup,
 	})
 	fatal.OnError(err)
-	actor.startTradeBots(ctx)
+	actor.startTradeActors(ctx)
 	return cursor
 }
 
-func (actor *ParentActor) startTradeBots(ctx context.Context) {
+func (actor *ParentActor) startTradeActors(ctx context.Context) {
 	for botID, bot := range actor.tradeBotByID {
 		if !bot.IsActive {
 			continue
 		}
-		err := actor.startTradeBot(ctx, botID)
-		fatal.OnError(err)
+		actor.startTradeActor(ctx, botID)
 	}
 }
 
@@ -71,6 +71,7 @@ func (actor *ParentActor) applyCatchup(ctx context.Context, event *eventsource.E
 	switch frame.Type {
 	case botstore.EventTypeBotCreated:
 		actor.tradeBotByID[frame.BotCreatedEvent.BotID] = &TradeBot{
+			ID:                frame.BotCreatedEvent.BotID,
 			BrokerID:          frame.BotCreatedEvent.BrokerAccountID,
 			BrokerType:        frame.BotCreatedEvent.BrokerType,
 			Symbol:            frame.BotCreatedEvent.Symbol,
@@ -104,12 +105,12 @@ func (actor *ParentActor) Apply(ctx context.Context, event *eventsource.Event) (
 	case botstore.EventTypeBotStatusDeleted:
 		return actor.applyBotStatusDeletedEvent(ctx, frame.BotStatusDeletedEvent)
 	}
-
 	return nil
 }
 
 func (actor *ParentActor) applyBotCreatedEvent(ctx context.Context, event *botstore.BotCreatedEvent) (err error) {
 	actor.tradeBotByID[event.BotID] = &TradeBot{
+		ID:                event.BotID,
 		BrokerID:          event.BrokerAccountID,
 		BrokerType:        event.BrokerType,
 		Symbol:            event.Symbol,
@@ -127,52 +128,44 @@ func (actor *ParentActor) applyBotStatusUpdatedEvent(ctx context.Context, event 
 	}
 	bot.IsActive = event.Status == botstore.BotStatusRunning
 	if bot.IsActive {
-		return actor.startTradeBot(ctx, event.BotID)
+		return actor.startTradeActor(ctx, event.BotID)
 	}
-	return actor.stopTradeBot(ctx, event.BotID)
+	return actor.stopTradeActor(ctx, event.BotID)
 }
 
 func (actor *ParentActor) applyBotStatusDeletedEvent(ctx context.Context, event *botstore.BotStatusDeletedEvent) (err error) {
-	err = actor.stopTradeBot(ctx, event.BotID)
+	err = actor.stopTradeActor(ctx, event.BotID)
 	fatal.OnError(err)
 	delete(actor.tradeBotByID, event.BotID)
 	return
 }
 
-func (actor *ParentActor) startTradeBot(ctx context.Context, botID string) (err error) {
+func (actor *ParentActor) startTradeActor(ctx context.Context, botID string) (err error) {
 	bot, ok := actor.tradeBotByID[botID]
 	if !ok {
-		return nil
+		return
 	}
+	strategy := tradingstrategy.New(bot.StrategyType)
+	err = tradingstrategy.Validate(strategy)
+	fatal.OnError(err)
 	ctx, cancel := context.WithCancel(ctx)
 	actor.cancelByBotID[botID] = cancel
-	if actor.accountClientFactory == nil || actor.marketDataClientFactory == nil {
-		return nil
-	}
-
-	strategy := tradingstrategy.New(bot.StrategyType)
-	if err = tradingstrategy.Validate(strategy); err != nil {
-		cancel()
-		delete(actor.cancelByBotID, botID)
-		return err
-	}
-
-	tradeActor := NewActor(NewTradeActorInput{
-		TradingStrategy: strategy,
-		Symbol:          bot.Symbol,
-	})
 	brokerAccount := &broker.Account{
 		Type: broker.AccountType(bot.BrokerType),
 		ID:   bot.BrokerID,
 	}
-	accountClient := actor.accountClientFactory.Get(ctx, brokerAccount)
-	marketDataClient := actor.marketDataClientFactory.Get(ctx, brokerAccount)
-	go actor.runTradeBot(ctx, botID, tradeActor, bot, accountClient, marketDataClient)
-
-	return nil
+	tradeActor := NewTradeActor(NewTradeActorInput{
+		AccountClient:    actor.accountClientFactory.Get(ctx, brokerAccount),
+		MarketDataClient: actor.marketDataClientFactory.Get(ctx, brokerAccount),
+		MarketState:      NewMarketState(bot.Symbol),
+		TradingStrategy:  strategy,
+		BotID:            botID,
+	})
+	go tradeActor.Run(ctx)
+	return
 }
 
-func (actor *ParentActor) stopTradeBot(ctx context.Context, botID string) (err error) {
+func (actor *ParentActor) stopTradeActor(ctx context.Context, botID string) (err error) {
 	cancel, ok := actor.cancelByBotID[botID]
 	if !ok {
 		return
@@ -180,38 +173,4 @@ func (actor *ParentActor) stopTradeBot(ctx context.Context, botID string) (err e
 	cancel()
 	delete(actor.cancelByBotID, botID)
 	return nil
-}
-
-func (actor *ParentActor) runTradeBot(ctx context.Context, botID string, tradeActor *Actor, bot *TradeBot, accountClient broker.AccountClient, marketDataClient broker.MarketDataClient) {
-	iterator := marketDataClient.Stream(ctx, broker.StreamMarketDataInput{Symbol: bot.Symbol})
-	for iterator.Next() {
-		accountSnapshot, err := loadAccountSnapshot(ctx, accountClient)
-		if err != nil {
-			continue
-		}
-		decision, err := tradeActor.ApplyMarketData(ctx, iterator.Item(), accountSnapshot)
-		if err != nil {
-			continue
-		}
-		actor.handleDecision(botID, decision)
-	}
-	_ = iterator.Err()
-}
-
-func loadAccountSnapshot(ctx context.Context, accountClient broker.AccountClient) (tradingstrategy.AccountSnapshot, error) {
-	balance, err := accountClient.GetBalance(ctx)
-	if err != nil {
-		return tradingstrategy.AccountSnapshot{}, err
-	}
-	return tradingstrategy.AccountSnapshot{
-		CashBalance:      balance.CashBalance,
-		BuyingPower:      balance.EquityBuyingPower,
-		PositionQuantity: 0,
-		HasOpenOrder:     false,
-	}, nil
-}
-
-func (actor *ParentActor) handleDecision(botID string, decision tradingstrategy.Decision) {
-	_ = botID
-	_ = decision
 }

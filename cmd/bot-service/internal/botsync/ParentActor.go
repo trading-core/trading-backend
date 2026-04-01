@@ -9,6 +9,7 @@ import (
 	"github.com/kduong/trading-backend/internal/eventsource"
 	"github.com/kduong/trading-backend/internal/eventsource/subscription"
 	"github.com/kduong/trading-backend/internal/fatal"
+	"github.com/kduong/trading-backend/internal/logger"
 )
 
 type ParentActor struct {
@@ -161,6 +162,7 @@ func (actor *ParentActor) startTradeActor(ctx context.Context, botID string) (er
 		TradingStrategy:  strategy,
 		BotID:            botID,
 	})
+	logger.Noticef("Starting trading actor for bot %s", botID)
 	go tradeActor.Run(ctx)
 	return
 }

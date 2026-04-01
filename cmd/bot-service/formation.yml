@@ -4,6 +4,8 @@
     service_environment:
       BROKER_CREDENTIALS_B64_JSON: "{{ broker_credentials_b64_json }}"
       TOKEN_SECRET: "{{ token_secret }}"
+      BOT_EVENT_LOG_FACTORY: "REDIS"
+      BOT_EVENT_LOG_REDIS_ADDRESS: "redis:6379"
       ACCOUNT_SERVICE_CLIENT_IMPLEMENTATION: "HTTP"
       ACCOUNT_SERVICE_SCHEME: "http"
       ACCOUNT_SERVICE_HOST: "account-service"

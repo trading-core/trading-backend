@@ -13,7 +13,6 @@ type BrokerMarketDataClientFactory struct {
 }
 
 func (factory *BrokerMarketDataClientFactory) Get(ctx context.Context, account *broker.Account) broker.MarketDataClient {
-	_ = ctx
 	switch account.Type {
 	case broker.AccountTypeTastyTrade:
 		return broker.NewTastyTradeMarketDataAdapter(broker.NewTastyTradeMarketDataAdapterInput{
@@ -26,5 +25,4 @@ func (factory *BrokerMarketDataClientFactory) Get(ctx context.Context, account *
 	default:
 		panic("Unsupported broker type: " + account.Type)
 	}
-	return nil
 }

@@ -23,7 +23,9 @@ type MarketState struct {
 }
 
 func NewMarketState(symbol string) *MarketState {
-	return &MarketState{symbol: symbol}
+	return &MarketState{
+		symbol: symbol,
+	}
 }
 
 func (state *MarketState) Apply(message *broker.MarketDataMessage) tradingstrategy.MarketSnapshot {
@@ -98,6 +100,10 @@ func (state *MarketState) updateSessionRange(price float64) {
 	if state.sessionLowPrice == 0 || price < state.sessionLowPrice {
 		state.sessionLowPrice = price
 	}
+}
+
+func (state *MarketState) Symbol() string {
+	return state.symbol
 }
 
 func float64Ptr(value float64) *float64 {

@@ -1,10 +1,17 @@
 package tastytrade
 
-import "context"
+import (
+	"context"
+	"fmt"
+)
+
+var ErrSymbolNotFound = fmt.Errorf("symbol not found")
 
 type Client interface {
 	ListAccounts(ctx context.Context) ([]*Accounts, error)
 	GetAccountBalance(ctx context.Context, accountID string) (*AccountBalance, error)
+	SearchSymbol(ctx context.Context, symbol string) (*Symbol, error)
+	GetAPIQuoteToken(ctx context.Context) (*GetAPIQuoteTokenOutput, error)
 }
 
 type Accounts struct {
@@ -115,6 +122,30 @@ type AccountBalanceData struct {
 	LongIndexDerivativeValue               string `json:"long-index-derivative-value"`
 	ShortIndexDerivativeValue              string `json:"short-index-derivative-value"`
 	UpdatedAt                              string `json:"updated-at"`
+}
+
+type Symbol struct {
+	Symbol          string `json:"symbol"`
+	Description     string `json:"description"`
+	ListedMarket    string `json:"listed-market"`
+	PriceIncrements string `json:"price-increments"`
+	TradingHours    string `json:"trading-hours"`
+	AutoComplete    int    `json:"autocomplete"`
+	Options         bool   `json:"options"`
+	InstrumentType  string `json:"instrument-type"`
+}
+
+type GetAPIQuoteTokenOutput struct {
+	Data    APIQuoteTokenData `json:"data"`
+	Context string            `json:"context"`
+}
+
+type APIQuoteTokenData struct {
+	DXLinkURL string `json:"dxlink-url"`
+	ExpiresAt string `json:"expires-at"`
+	IssuedAt  string `json:"issued-at"`
+	Level     string `json:"level"`
+	Token     string `json:"token"`
 }
 
 type ClientFactory interface {

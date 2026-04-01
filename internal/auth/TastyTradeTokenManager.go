@@ -13,6 +13,8 @@ import (
 	"github.com/kduong/trading-backend/internal/httputil"
 )
 
+const userAgent = "trading-backend/1.0"
+
 var _ TokenManager = (*TastyTradeTokenManager)(nil)
 
 type TastyTradeTokenManager struct {
@@ -91,6 +93,8 @@ func (tokenManager *TastyTradeTokenManager) RequestAccessToken(ctx context.Conte
 		panic(err)
 	}
 	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Accept", "application/json")
+	request.Header.Set("User-Agent", userAgent)
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
 		return

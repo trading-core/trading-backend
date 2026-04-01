@@ -41,7 +41,8 @@ func (client *HTTPClient) ListAccounts(ctx context.Context) (output []*Accounts,
 	if err != nil {
 		return
 	}
-	request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", accessToken))
+	request.Header.Set("Authorization", "Bearer "+accessToken)
+	request.Header.Set("Accept", "application/json")
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
 		return
@@ -74,7 +75,77 @@ func (client *HTTPClient) GetAccountBalance(ctx context.Context, accountID strin
 	if err != nil {
 		return
 	}
-	request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", accessToken))
+	request.Header.Set("Authorization", "Bearer "+accessToken)
+	request.Header.Set("Accept", "application/json")
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		return
+	}
+	defer httputil.DrainAndClose(response.Body)
+	if response.StatusCode != http.StatusOK {
+		err = httputil.ExtractResponseError(response)
+		return
+	}
+	err = json.NewDecoder(response.Body).Decode(&output)
+	return
+}
+
+type SearchSymbolsResponse struct {
+	Data SearchSymbolsData `json:"data"`
+}
+
+type SearchSymbolsData struct {
+	Items []*Symbol `json:"items"`
+}
+
+func (client *HTTPClient) SearchSymbol(ctx context.Context, symbol string) (output *Symbol, err error) {
+	target := url.URL{
+		Scheme: client.apiURL.Scheme,
+		Host:   client.apiURL.Host,
+		Path:   fmt.Sprintf("/symbols/search/%s", symbol),
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, target.String(), nil)
+	if err != nil {
+		panic(err)
+	}
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		return
+	}
+	defer httputil.DrainAndClose(response.Body)
+	if response.StatusCode != http.StatusOK {
+		err = httputil.ExtractResponseError(response)
+		return
+	}
+	var body SearchSymbolsResponse
+	err = json.NewDecoder(response.Body).Decode(&body)
+	if err != nil {
+		return
+	}
+	if len(body.Data.Items) == 0 {
+		err = ErrSymbolNotFound
+		return
+	}
+	output = body.Data.Items[0]
+	return
+}
+
+func (client *HTTPClient) GetAPIQuoteToken(ctx context.Context) (output *GetAPIQuoteTokenOutput, err error) {
+	target := url.URL{
+		Scheme: client.apiURL.Scheme,
+		Host:   client.apiURL.Host,
+		Path:   "/api-quote-tokens",
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, target.String(), nil)
+	if err != nil {
+		panic(err)
+	}
+	accessToken, err := client.getAccessToken(ctx)
+	if err != nil {
+		return
+	}
+	request.Header.Set("Authorization", "Bearer "+accessToken)
+	request.Header.Set("Accept", "application/json")
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
 		return

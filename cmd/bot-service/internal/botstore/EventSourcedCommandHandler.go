@@ -7,6 +7,7 @@ import (
 	"github.com/kduong/trading-backend/internal/eventsource"
 	"github.com/kduong/trading-backend/internal/eventsource/subscription"
 	"github.com/kduong/trading-backend/internal/fatal"
+	"github.com/kduong/trading-backend/internal/logger"
 )
 
 var _ CommandHandler = (*EventSourcedCommandHandler)(nil)
@@ -31,8 +32,7 @@ func NewEventSourcedCommandHandler(input NewEventSourcedCommandHandlerInput) *Ev
 func (store *EventSourcedCommandHandler) Create(ctx context.Context, bot *Bot) (err error) {
 	store.catchUp(ctx)
 	if _, exists := store.botByID[bot.ID]; exists {
-		err = ErrBotAlreadyExists
-		return
+		logger.Fatalf("bot with ID %s already exists", bot.ID)
 	}
 	fatal.Unless(bot.Status == BotStatusStopped, "new bot must have status stopped")
 	payload := fatal.UnlessMarshal(EventFrame{

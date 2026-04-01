@@ -2,7 +2,6 @@ package tastytrade
 
 import (
 	"context"
-	"fmt"
 	"math"
 	"time"
 
@@ -10,11 +9,11 @@ import (
 )
 
 type DXLinkIterator struct {
-	client   Client
-	symbol   string
-	messageC chan Message
-	message  Message
-	err      error
+	client        Client
+	symbol        string
+	messageEventC chan *MessageEvent
+	messageEvent  *MessageEvent
+	err           error
 }
 
 type NewDXLinkIteratorInput struct {
@@ -24,16 +23,33 @@ type NewDXLinkIteratorInput struct {
 
 func NewDXLinkIterator(ctx context.Context, input NewDXLinkIteratorInput) *DXLinkIterator {
 	iterator := &DXLinkIterator{
-		client:   input.Client,
-		symbol:   input.Symbol,
-		messageC: make(chan Message, 32),
+		client:        input.Client,
+		symbol:        input.Symbol,
+		messageEventC: make(chan *MessageEvent, 32),
 	}
 	go iterator.run(ctx)
 	return iterator
 }
 
+func (iterator *DXLinkIterator) Next() bool {
+	item, ok := <-iterator.messageEventC
+	if !ok {
+		return false
+	}
+	iterator.messageEvent = item
+	return true
+}
+
+func (iterator *DXLinkIterator) MessageEvent() *MessageEvent {
+	return iterator.messageEvent
+}
+
+func (iterator *DXLinkIterator) Err() error {
+	return iterator.err
+}
+
 func (iterator *DXLinkIterator) run(ctx context.Context) {
-	defer close(iterator.messageC)
+	defer close(iterator.messageEventC)
 	apiQuoteToken, err := iterator.client.GetAPIQuoteToken(ctx)
 	if err != nil {
 		iterator.err = err
@@ -63,9 +79,7 @@ func (iterator *DXLinkIterator) run(ctx context.Context) {
 		iterator.err = err
 		return
 	}
-	keepAliveTicker := time.NewTicker(30 * time.Second)
-	defer keepAliveTicker.Stop()
-	go iterator.sendKeepAlives(ctx, connection, keepAliveTicker)
+	go iterator.keepConnectionAlive(ctx, connection)
 	for {
 		var rawMessage map[string]any
 		err = connection.ReadJSON(&rawMessage)
@@ -75,30 +89,27 @@ func (iterator *DXLinkIterator) run(ctx context.Context) {
 			}
 			return
 		}
-		messages, err := parseRawMessage(rawMessage)
-		if err != nil {
+		messages, ok := parseRawMessage(rawMessage)
+		if !ok {
 			continue
 		}
-		fmt.Println("how many message? ", len(messages))
 		for _, message := range messages {
 			select {
 			case <-ctx.Done():
 				return
-			case iterator.messageC <- message:
+			case iterator.messageEventC <- message:
 			}
 		}
 	}
 }
 
 func (iterator *DXLinkIterator) initiateDXLinkConnection(connection *websocket.Conn) (err error) {
-	return connection.WriteJSON(MessageSetup{
-		MessageBase: MessageBase{
-			Type:    MessageTypeSetup,
-			Channel: 0,
-		},
-		Version:                "0.1-DXF-GO/1.0",
-		KeepaliveTimeout:       60,
-		AcceptKeepaliveTimeout: 60,
+	return connection.WriteJSON(map[string]any{
+		"type":                   "SETUP",
+		"channel":                0,
+		"version":                "0.1-DXF-GO/1.0",
+		"keepaliveTimeout":       60,
+		"acceptKeepaliveTimeout": 60,
 	})
 }
 
@@ -109,72 +120,50 @@ func (iterator *DXLinkIterator) authorize(ctx context.Context, connection *webso
 			return ctx.Err()
 		default:
 		}
-		var message MessageAuthState
+		var message map[string]any
 		err = connection.ReadJSON(&message)
 		if err != nil {
 			return
 		}
-		if message.Type != MessageTypeAuthState {
+		if message["type"] != "AUTH_STATE" {
 			continue
 		}
-		switch message.State {
-		case AuthStateUnauthorized:
-			payload := MessageAuth{
-				MessageBase: MessageBase{
-					Type:    MessageTypeAuth,
-					Channel: 0,
-				},
-				Token: token,
-			}
-			if err := connection.WriteJSON(payload); err != nil {
-				return err
-			}
-			continue
-		case AuthStateAuthorized:
+		switch message["state"] {
+		case "AUTHORIZED":
 			return nil
+		case "UNAUTHORIZED":
+			payload := map[string]any{
+				"type":    "AUTH",
+				"channel": 0,
+				"token":   token,
+			}
+			err = connection.WriteJSON(payload)
+			if err != nil {
+				return
+			}
+			continue
 		}
 	}
-}
-
-func (iterator *DXLinkIterator) Next() bool {
-	item, ok := <-iterator.messageC
-	if !ok {
-		return false
-	}
-	iterator.message = item
-	return true
-}
-
-func (iterator *DXLinkIterator) Message() Message {
-	return iterator.message
-}
-
-func (iterator *DXLinkIterator) Err() error {
-	return iterator.err
 }
 
 func (iterator *DXLinkIterator) openFeed(connection *websocket.Conn) (err error) {
-	err = connection.WriteJSON(MessageChannelRequest{
-		MessageBase: MessageBase{
-			Type:    MessageTypeChannelRequest,
-			Channel: 3,
-		},
-		Service: "FEED",
-		Parameters: map[string]any{
+	err = connection.WriteJSON(map[string]any{
+		"type":    "CHANNEL_REQUEST",
+		"channel": 3,
+		"service": "FEED",
+		"parameters": map[string]any{
 			"contract": "AUTO",
 		},
 	})
 	if err != nil {
 		return
 	}
-	err = connection.WriteJSON(MessageFeedSetup{
-		MessageBase: MessageBase{
-			Type:    MessageTypeFeedSetup,
-			Channel: 3,
-		},
-		AcceptedAggregationPeriod: 0.1,
-		AcceptedDataFormat:        "COMPACT",
-		AcceptEventFields: map[string]any{
+	err = connection.WriteJSON(map[string]any{
+		"type":                      "FEED_SETUP",
+		"channel":                   3,
+		"acceptedAggregationPeriod": 0.1,
+		"acceptedDataFormat":        "COMPACT",
+		"acceptEventFields": map[string]any{
 			"Quote": []string{"eventType", "eventSymbol", "bidPrice", "askPrice", "bidSize", "askSize"},
 			"Trade": []string{"eventType", "eventSymbol", "price", "dayVolume", "size"},
 		},
@@ -182,30 +171,28 @@ func (iterator *DXLinkIterator) openFeed(connection *websocket.Conn) (err error)
 	if err != nil {
 		return
 	}
-	return connection.WriteJSON(MessageFeedSubscription{
-		MessageBase: MessageBase{
-			Type:    MessageTypeFeedSubscription,
-			Channel: 3,
-		},
-		Reset: true,
-		Add: []map[string]any{
+	return connection.WriteJSON(map[string]any{
+		"type":    "FEED_SUBSCRIPTION",
+		"channel": 3,
+		"reset":   true,
+		"add": []map[string]any{
 			{"type": "Quote", "symbol": iterator.symbol},
 			{"type": "Trade", "symbol": iterator.symbol},
 		},
 	})
 }
 
-func (iterator *DXLinkIterator) sendKeepAlives(ctx context.Context, connection *websocket.Conn, ticker *time.Ticker) {
+func (iterator *DXLinkIterator) keepConnectionAlive(ctx context.Context, connection *websocket.Conn) {
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			err := connection.WriteJSON(MessageKeepAlive{
-				MessageBase: MessageBase{
-					Type:    MessageTypeKeepAlive,
-					Channel: 0,
-				},
+			err := connection.WriteJSON(map[string]any{
+				"type":    "KEEPALIVE",
+				"channel": 0,
 			})
 			if err != nil {
 				if ctx.Err() == nil && iterator.err == nil {
@@ -217,78 +204,60 @@ func (iterator *DXLinkIterator) sendKeepAlives(ctx context.Context, connection *
 	}
 }
 
-func parseRawMessage(rawMessage map[string]any) (messages []Message, err error) {
+func parseRawMessage(rawMessage map[string]any) ([]*MessageEvent, bool) {
 	messageType := rawMessage["type"].(string)
 	if messageType != "FEED_DATA" {
-		return nil, fmt.Errorf("unsupported message type: %s", messageType)
+		return nil, false
 	}
 	data, ok := rawMessage["data"].([]any)
-	if !ok || len(data) == 0 {
-		return nil, fmt.Errorf("invalid dxlink feed data payload: missing or empty data array")
+	if !ok {
+		return nil, false
 	}
-	channel := int(numberValue(rawMessage["channel"]))
+	var messages []*MessageEvent
 	for _, entry := range data {
-		eventMap, ok := entry.(map[string]any)
-		if !ok {
-			continue
-		}
-		eventType, ok := eventMap["eventType"].(string)
-		if !ok {
-			continue
-		}
-		eventSymbol, ok := eventMap["eventSymbol"].(string)
-		if !ok {
-			continue
-		}
+		event := entry.(map[string]any)
+		eventType := MessageEventType(event["eventType"].(string))
+		eventSymbol := event["eventSymbol"].(string)
 		switch eventType {
-		case "Quote":
-			messages = append(messages, &MessageQuote{
-				MessageBase: MessageBase{
-					Type:    MessageTypeFeedData,
-					Channel: channel,
+		case MessageEventTypeQuote:
+			messages = append(messages, &MessageEvent{
+				Type: MessageEventTypeQuote,
+				Quote: &MessageEventQuote{
+					EventSymbol: eventSymbol,
+					BidPrice:    numberValue(event["bidPrice"]),
+					AskPrice:    numberValue(event["askPrice"]),
+					BidSize:     numberValue(event["bidSize"]),
+					AskSize:     numberValue(event["askSize"]),
 				},
-				EventType:   eventType,
-				EventSymbol: eventSymbol,
-				BidPrice:    numberValue(eventMap["bidPrice"]),
-				AskPrice:    numberValue(eventMap["askPrice"]),
-				BidSize:     numberValue(eventMap["bidSize"]),
-				AskSize:     numberValue(eventMap["askSize"]),
 			})
-
-		case "Trade":
-			messages = append(messages, &MessageTrade{
-				MessageBase: MessageBase{
-					Type:    MessageTypeFeedData,
-					Channel: channel,
+		case MessageEventTypeTrade:
+			messages = append(messages, &MessageEvent{
+				Type: MessageEventTypeTrade,
+				Trade: &MessageEventTrade{
+					EventSymbol: eventSymbol,
+					Price:       numberValue(event["price"]),
+					DayVolume:   optionalNumberValue(event["dayVolume"]),
+					Size:        optionalNumberValue(event["size"]),
 				},
-				EventType:   eventType,
-				EventSymbol: eventSymbol,
-				Price:       numberValue(eventMap["price"]),
-				DayVolume:   numberValue(eventMap["dayVolume"]),
-				Size:        numberValue(eventMap["size"]),
 			})
 		}
 	}
-	return
+	return messages, true
+}
+
+func optionalNumberValue(value any) *float64 {
+	v := numberValue(value)
+	if math.IsNaN(v) {
+		return nil
+	}
+	return &v
 }
 
 func numberValue(value any) float64 {
 	switch typedValue := value.(type) {
 	case float64:
 		return typedValue
-	case int:
-		return float64(typedValue)
-	case int64:
-		return float64(typedValue)
-	case string:
-		if typedValue == "NaN" {
-			return math.NaN()
-		}
-		var parsed float64
-		_, err := fmt.Sscanf(typedValue, "%f", &parsed)
-		if err == nil {
-			return parsed
-		}
+	default:
+		return math.NaN()
 	}
-	return 0
 }

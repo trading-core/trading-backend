@@ -43,6 +43,14 @@ func Validate(strategy Strategy) error {
 
 type EvaluateInput struct {
 	Price            float64
+	LastTradePrice   *float64
+	BidPrice         *float64
+	AskPrice         *float64
+	BidSize          *float64
+	AskSize          *float64
+	Spread           *float64
+	DayVolume        *float64
+	LastTradeSize    *float64
 	SessionOpenPrice float64
 	SessionHighPrice float64
 	SessionLowPrice  float64

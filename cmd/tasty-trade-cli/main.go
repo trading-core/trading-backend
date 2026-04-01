@@ -92,7 +92,8 @@ func (cli *TastyTradeCLI) StartStream(ctx context.Context) (err error) {
 	})
 	fmt.Printf("Subscribed to %s. Streaming market data...\n", cli.symbol)
 	for iterator.Next() {
-		fmt.Printf("%+v\n", iterator.Message())
+		message := iterator.MessageEvent()
+		fmt.Println(string(fatal.UnlessMarshal(message)))
 	}
 	return iterator.Err()
 }

@@ -1,6 +1,6 @@
-@echo off
-cd /d "%~dp0"
-set TRADING_API_SCHEME=http
-set TRADING_API_HOST=localhost:9000
-set TOKEN_SECRET=test-secret
-go run main.go
+#!/usr/bin/env bash
+set -a
+source ../../../trading-formation/backend/bot-service/.env
+set +a
+export ACCOUNT_SERVICE_HOST=localhost
+go run .

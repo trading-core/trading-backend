@@ -30,7 +30,6 @@ func NewEvaluateInput(snapshot MarketSnapshot, account AccountSnapshot) Evaluate
 		value := *snapshot.AskPrice - *snapshot.BidPrice
 		spread = &value
 	}
-
 	price := 0.0
 	switch {
 	case snapshot.LastTradePrice != nil:
@@ -42,7 +41,6 @@ func NewEvaluateInput(snapshot MarketSnapshot, account AccountSnapshot) Evaluate
 	case snapshot.AskPrice != nil:
 		price = *snapshot.AskPrice
 	}
-
 	return EvaluateInput{
 		Price:            price,
 		LastTradePrice:   snapshot.LastTradePrice,

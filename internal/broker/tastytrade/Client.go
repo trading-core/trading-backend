@@ -10,8 +10,26 @@ var ErrSymbolNotFound = fmt.Errorf("symbol not found")
 type Client interface {
 	ListAccounts(ctx context.Context) ([]*Accounts, error)
 	GetAccountBalance(ctx context.Context, accountID string) (*AccountBalance, error)
+	GetAccountPositions(ctx context.Context, accountID string) (*AccountPositionsOutput, error)
 	SearchSymbol(ctx context.Context, symbol string) (*Symbol, error)
 	GetAPIQuoteToken(ctx context.Context) (*GetAPIQuoteTokenOutput, error)
+	PlaceEquityOrder(ctx context.Context, input PlaceEquityOrderInput) (*PlaceEquityOrderOutput, error)
+	GetLiveOrders(ctx context.Context, accountID string) (*LiveOrdersOutput, error)
+}
+
+type AccountPositionsOutput struct {
+	Data AccountPositionsData `json:"data"`
+}
+
+type AccountPositionsData struct {
+	Items []AccountPosition `json:"items"`
+}
+
+type AccountPosition struct {
+	Symbol            string `json:"symbol"`
+	InstrumentType    string `json:"instrument-type"`
+	Quantity          any    `json:"quantity"`
+	QuantityDirection string `json:"quantity-direction"`
 }
 
 type Accounts struct {
@@ -146,6 +164,45 @@ type APIQuoteTokenData struct {
 	IssuedAt  string `json:"issued-at"`
 	Level     string `json:"level"`
 	Token     string `json:"token"`
+}
+
+type PlaceEquityOrderInput struct {
+	AccountID string
+	Symbol    string
+	Action    string // "Buy to Open" or "Sell to Close"
+	Quantity  float64
+}
+
+type PlaceEquityOrderOutput struct {
+	OrderID int
+	Status  string
+}
+
+type LiveOrdersOutput struct {
+	Data LiveOrdersData `json:"data"`
+}
+
+type LiveOrdersData struct {
+	Items []LiveOrder `json:"items"`
+}
+
+type LiveOrder struct {
+	ID     int            `json:"id"`
+	Status string         `json:"status"`
+	Legs   []LiveOrderLeg `json:"legs"`
+}
+
+// IsTerminal reports whether the order is in a terminal (no-further-update) state.
+func (order LiveOrder) IsTerminal() bool {
+	switch order.Status {
+	case "Filled", "Cancelled", "Expired", "Rejected", "Removed", "Partially Removed":
+		return true
+	}
+	return false
+}
+
+type LiveOrderLeg struct {
+	Symbol string `json:"symbol"`
 }
 
 type ClientFactory interface {

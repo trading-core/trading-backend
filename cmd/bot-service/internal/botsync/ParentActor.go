@@ -187,6 +187,7 @@ func (actor *ParentActor) stopTradeActor(ctx context.Context, botID string) (err
 	if !ok {
 		return
 	}
+	logger.Noticef("Stopping trading actor for bot %s", botID)
 	cancel()
 	delete(actor.cancelByBotID, botID)
 	return nil

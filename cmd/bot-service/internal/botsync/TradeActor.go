@@ -9,6 +9,7 @@ import (
 	"github.com/kduong/trading-backend/internal/broker"
 	"github.com/kduong/trading-backend/internal/eventsource"
 	"github.com/kduong/trading-backend/internal/fatal"
+	"github.com/kduong/trading-backend/internal/logger"
 )
 
 const accountSnapshotRefreshInterval = 1 * time.Second
@@ -25,6 +26,7 @@ type TradeActor struct {
 	accountSnapshot      tradingstrategy.AccountSnapshot
 	hasAccountSnapshot   bool
 	accountSnapshotError error
+	orderPlaced          bool // optimistic HasOpenOrder guard until broker reflects the order
 }
 
 type NewTradeActorInput struct {
@@ -60,12 +62,28 @@ func (actor *TradeActor) Run(ctx context.Context) {
 		message := iterator.Item()
 		snapshot := actor.marketState.Apply(message)
 		input := tradingstrategy.NewEvaluateInput(snapshot, accountSnapshot)
-		decision, err := actor.tradingStrategy.Evaluate(input)
-		if err != nil {
-			continue
-		}
+		decision := actor.tradingStrategy.Evaluate(input)
 		if decision.Action == tradingstrategy.ActionNone {
 			continue
+		}
+		var orderAction broker.OrderAction
+		if decision.Action == tradingstrategy.ActionBuy {
+			orderAction = broker.OrderActionBuy
+		} else {
+			orderAction = broker.OrderActionSell
+		}
+		_, err := actor.accountClient.PlaceOrder(ctx, broker.PlaceOrderInput{
+			Symbol:   actor.marketState.Symbol(),
+			Action:   orderAction,
+			Quantity: decision.Quantity,
+		})
+		if err != nil {
+			logger.Warnf("bot %s: failed to place %s order: %v", actor.botID, orderAction, err)
+		} else {
+			actor.mutex.Lock()
+			actor.accountSnapshot.HasOpenOrder = true
+			actor.orderPlaced = true
+			actor.mutex.Unlock()
 		}
 		payload := fatal.UnlessMarshal(EventFrame{
 			EventBase: eventsource.NewEventBase(EventTypeBotDecisionRecorded),
@@ -90,11 +108,20 @@ func (actor *TradeActor) loadAccountSnapshot(ctx context.Context, accountClient 
 	if err != nil {
 		return
 	}
+	symbol := actor.marketState.Symbol()
+	position, err := accountClient.GetEquityPosition(ctx, symbol)
+	if err != nil {
+		return
+	}
+	hasPendingOrder, err := accountClient.HasPendingOrder(ctx, symbol)
+	if err != nil {
+		return
+	}
 	snapshot = tradingstrategy.AccountSnapshot{
 		CashBalance:      balance.CashBalance,
 		BuyingPower:      balance.EquityBuyingPower,
-		PositionQuantity: 0,
-		HasOpenOrder:     false,
+		PositionQuantity: position.Quantity,
+		HasOpenOrder:     hasPendingOrder,
 	}
 	return
 }
@@ -107,6 +134,13 @@ func (actor *TradeActor) startAccountSnapshotRefresher(ctx context.Context) {
 		if err != nil {
 			actor.accountSnapshotError = err
 			return
+		}
+		// If the broker now shows a pending order, clear the optimistic flag.
+		// If not yet reflected but we placed one, keep HasOpenOrder true.
+		if actor.orderPlaced && !snapshot.HasOpenOrder {
+			snapshot.HasOpenOrder = true
+		} else {
+			actor.orderPlaced = false
 		}
 		actor.accountSnapshot = snapshot
 		actor.hasAccountSnapshot = true

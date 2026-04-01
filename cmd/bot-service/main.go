@@ -81,7 +81,8 @@ func main() {
 		ExposedHeaders:   []string{"Set-Cookie", "Allow", "Content-Length", "Accept-Ranges", "Content-Range", "Last-Modified"},
 		AllowCredentials: true,
 	})
-	http.ListenAndServe(":8080", c.Handler(router))
+	err = http.ListenAndServe(":8081", c.Handler(router))
+	fatal.OnError(err)
 }
 
 func loadTastyTradeConfiguration(credentialsByType map[string]auth.Credentials, brokerType string) (*url.URL, *auth.TastyTradeTokenManager) {

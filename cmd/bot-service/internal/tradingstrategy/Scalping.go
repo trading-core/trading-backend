@@ -23,6 +23,16 @@ var defaultScalpingConfig = ScalpingConfig{
 	SessionEnd:          15,
 }
 
+var usMarketLocation = loadUSMarketLocation()
+
+func loadUSMarketLocation() *time.Location {
+	location, err := time.LoadLocation("America/New_York")
+	if err != nil {
+		return time.Local
+	}
+	return location
+}
+
 type Scalping struct {
 	Config     ScalpingConfig
 	entryPrice float64
@@ -36,14 +46,12 @@ func (strategy *Scalping) Type() StrategyType {
 	return StrategyTypeScalping
 }
 
-func (strategy *Scalping) Evaluate(input EvaluateInput) (decision Decision, err error) {
+func (strategy *Scalping) Evaluate(input EvaluateInput) Decision {
 	if input.HasOpenOrder {
-		decision = Decision{Action: ActionNone, Reason: "waiting for open order to resolve"}
-		return
+		return Decision{Action: ActionNone, Reason: "waiting for open order to resolve"}
 	}
 	if input.Price <= 0 {
-		decision = Decision{Action: ActionNone, Reason: "price unavailable"}
-		return
+		return Decision{Action: ActionNone, Reason: "price unavailable"}
 	}
 	// --- Exit logic (evaluated before entry so we don't ignore an open position) ---
 	if input.PositionQuantity > 0 {
@@ -54,7 +62,7 @@ func (strategy *Scalping) Evaluate(input EvaluateInput) (decision Decision, err 
 				Action:   ActionSell,
 				Reason:   "take-profit target reached",
 				Quantity: input.PositionQuantity,
-			}, nil
+			}
 		}
 		// Stop-loss: price fell back below session open
 		if input.Price < input.SessionOpenPrice {
@@ -63,39 +71,36 @@ func (strategy *Scalping) Evaluate(input EvaluateInput) (decision Decision, err 
 				Action:   ActionSell,
 				Reason:   "price lost session open",
 				Quantity: input.PositionQuantity,
-			}, nil
+			}
 		}
-		return Decision{Action: ActionNone, Reason: "holding position"}, nil
+		return Decision{Action: ActionNone, Reason: "holding position"}
 	}
-
 	// --- Entry logic ---
 	buyingPower := input.BuyingPower
 	if buyingPower <= 0 {
 		buyingPower = input.CashBalance
 	}
 	if buyingPower <= 0 {
-		return Decision{Action: ActionNone, Reason: "no buying power available"}, nil
+		return Decision{Action: ActionNone, Reason: "no buying power available"}
 	}
-
-	// Time-of-day guard: only enter during configured session window
-	hour := input.Now.In(time.Local).Hour()
+	// Time-of-day guard: only enter during configured US equities session window.
+	hour := input.Now.In(usMarketLocation).Hour()
 	if hour < strategy.Config.SessionStart || hour >= strategy.Config.SessionEnd {
-		return Decision{Action: ActionNone, Reason: "outside trading session window"}, nil
+		return Decision{Action: ActionNone, Reason: "outside trading session window"}
 	}
-
 	// Breakout entry: price breaks above session high
 	if input.Price > input.SessionHighPrice {
 		maxCapital := buyingPower * strategy.Config.MaxPositionFraction
 		qty := math.Floor(maxCapital / input.Price)
 		if qty < 1 {
-			return Decision{Action: ActionNone, Reason: "insufficient buying power for one share"}, nil
+			return Decision{Action: ActionNone, Reason: "insufficient buying power for one share"}
 		}
 		strategy.entryPrice = input.Price
 		return Decision{
 			Action:   ActionBuy,
 			Reason:   "price broke above session high",
 			Quantity: qty,
-		}, nil
+		}
 	}
-	return Decision{Action: ActionNone, Reason: "no momentum breakout signal"}, nil
+	return Decision{Action: ActionNone, Reason: "no momentum breakout signal"}
 }

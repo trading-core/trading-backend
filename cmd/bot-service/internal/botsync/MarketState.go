@@ -34,26 +34,24 @@ func (state *MarketState) Apply(message *broker.MarketDataMessage) tradingstrate
 		now = message.ReceivedAt
 	}
 	state.resetSessionIfNeeded(now)
-	if message != nil {
-		if message.Symbol != "" {
-			state.symbol = message.Symbol
-		}
-		switch message.Type {
-		case broker.MarketDataTypeQuote:
-			if message.Quote != nil {
-				state.bidPrice = float64Ptr(message.Quote.BidPrice)
-				state.askPrice = float64Ptr(message.Quote.AskPrice)
-				state.bidSize = float64Ptr(message.Quote.BidSize)
-				state.askSize = float64Ptr(message.Quote.AskSize)
-			}
-		case broker.MarketDataTypeTrade:
-			if message.Trade != nil {
-				state.lastTradePrice = float64Ptr(message.Trade.Price)
-				state.dayVolume = cloneFloat64Ptr(message.Trade.DayVolume)
-				state.lastTradeSize = cloneFloat64Ptr(message.Trade.Size)
-				state.updateSessionRange(message.Trade.Price)
-			}
-		}
+	// Capture session range before any trade update so the strategy evaluates
+	// against the pre-tick high/low (prevents breakout condition from being
+	// immediately false on the very tick that sets a new session high).
+	snapshotSessionOpen := state.sessionOpenPrice
+	snapshotSessionHigh := state.sessionHighPrice
+	snapshotSessionLow := state.sessionLowPrice
+	state.symbol = message.Symbol
+	switch message.Type {
+	case broker.MarketDataTypeQuote:
+		state.bidPrice = float64Ptr(message.Quote.BidPrice)
+		state.askPrice = float64Ptr(message.Quote.AskPrice)
+		state.bidSize = float64Ptr(message.Quote.BidSize)
+		state.askSize = float64Ptr(message.Quote.AskSize)
+	case broker.MarketDataTypeTrade:
+		state.lastTradePrice = float64Ptr(message.Trade.Price)
+		state.dayVolume = cloneFloat64Ptr(message.Trade.DayVolume)
+		state.lastTradeSize = cloneFloat64Ptr(message.Trade.Size)
+		state.updateSessionRange(message.Trade.Price)
 	}
 	return tradingstrategy.MarketSnapshot{
 		Symbol:           state.symbol,
@@ -64,9 +62,9 @@ func (state *MarketState) Apply(message *broker.MarketDataMessage) tradingstrate
 		AskSize:          cloneFloat64Ptr(state.askSize),
 		DayVolume:        cloneFloat64Ptr(state.dayVolume),
 		LastTradeSize:    cloneFloat64Ptr(state.lastTradeSize),
-		SessionOpenPrice: state.sessionOpenPrice,
-		SessionHighPrice: state.sessionHighPrice,
-		SessionLowPrice:  state.sessionLowPrice,
+		SessionOpenPrice: snapshotSessionOpen,
+		SessionHighPrice: snapshotSessionHigh,
+		SessionLowPrice:  snapshotSessionLow,
 		Now:              now,
 	}
 }

@@ -2,11 +2,15 @@ package botsync
 
 import (
 	"context"
+	"sync"
+	"time"
 
 	"github.com/kduong/trading-backend/cmd/bot-service/internal/tradingstrategy"
 	"github.com/kduong/trading-backend/internal/broker"
 	"github.com/kduong/trading-backend/internal/fatal"
 )
+
+const accountSnapshotRefreshInterval = 1 * time.Second
 
 type TradeActor struct {
 	botID            string
@@ -14,6 +18,11 @@ type TradeActor struct {
 	tradingStrategy  tradingstrategy.Strategy
 	marketDataClient broker.MarketDataClient
 	marketState      *MarketState
+
+	mutex                sync.RWMutex
+	accountSnapshot      tradingstrategy.AccountSnapshot
+	hasAccountSnapshot   bool
+	accountSnapshotError error
 }
 
 type NewTradeActorInput struct {
@@ -35,12 +44,13 @@ func NewTradeActor(input NewTradeActorInput) *TradeActor {
 }
 
 func (actor *TradeActor) Run(ctx context.Context) {
+	actor.startAccountSnapshotRefresher(ctx)
 	iterator := actor.marketDataClient.Stream(ctx, broker.StreamMarketDataInput{
 		Symbol: actor.marketState.Symbol(),
 	})
 	for iterator.Next() {
-		accountSnapshot, err := actor.loadAccountSnapshot(ctx, actor.accountClient)
-		if err != nil {
+		accountSnapshot, ok := actor.getAccountSnapshot()
+		if !ok {
 			continue
 		}
 		item := iterator.Item()
@@ -55,7 +65,8 @@ func (actor *TradeActor) Run(ctx context.Context) {
 
 func (actor *TradeActor) ApplyMarketData(ctx context.Context, message *broker.MarketDataMessage, account tradingstrategy.AccountSnapshot) (tradingstrategy.Decision, error) {
 	snapshot := actor.marketState.Apply(message)
-	return actor.tradingStrategy.Evaluate(tradingstrategy.NewEvaluateInput(snapshot, account))
+	input := tradingstrategy.NewEvaluateInput(snapshot, account)
+	return actor.tradingStrategy.Evaluate(input)
 }
 
 func (actor *TradeActor) loadAccountSnapshot(ctx context.Context, accountClient broker.AccountClient) (snapshot tradingstrategy.AccountSnapshot, err error) {
@@ -70,6 +81,43 @@ func (actor *TradeActor) loadAccountSnapshot(ctx context.Context, accountClient 
 		HasOpenOrder:     false,
 	}
 	return
+}
+
+func (actor *TradeActor) startAccountSnapshotRefresher(ctx context.Context) {
+	refresh := func() {
+		snapshot, err := actor.loadAccountSnapshot(ctx, actor.accountClient)
+		actor.mutex.Lock()
+		defer actor.mutex.Unlock()
+		if err != nil {
+			actor.accountSnapshotError = err
+			return
+		}
+		actor.accountSnapshot = snapshot
+		actor.hasAccountSnapshot = true
+		actor.accountSnapshotError = nil
+	}
+	refresh()
+	go func() {
+		ticker := time.NewTicker(accountSnapshotRefreshInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				refresh()
+			}
+		}
+	}()
+}
+
+func (actor *TradeActor) getAccountSnapshot() (tradingstrategy.AccountSnapshot, bool) {
+	actor.mutex.RLock()
+	defer actor.mutex.RUnlock()
+	if !actor.hasAccountSnapshot {
+		return tradingstrategy.AccountSnapshot{}, false
+	}
+	return actor.accountSnapshot, true
 }
 
 func (actor *TradeActor) handleDecision(botID string, decision tradingstrategy.Decision) {

@@ -34,7 +34,6 @@ func (state *MarketState) Apply(message *broker.MarketDataMessage) tradingstrate
 		now = message.ReceivedAt
 	}
 	state.resetSessionIfNeeded(now)
-
 	if message != nil {
 		if message.Symbol != "" {
 			state.symbol = message.Symbol

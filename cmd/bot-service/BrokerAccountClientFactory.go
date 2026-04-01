@@ -1,0 +1,32 @@
+package main
+
+import (
+	"context"
+
+	"github.com/kduong/trading-backend/internal/broker"
+	"github.com/kduong/trading-backend/internal/broker/tastytrade"
+)
+
+type BrokerAccountClientFactory struct {
+	TastyTradeClientFactory        tastytrade.ClientFactory
+	TastyTradeSandboxClientFactory tastytrade.ClientFactory
+}
+
+func (factory *BrokerAccountClientFactory) Get(ctx context.Context, account *broker.Account) broker.AccountClient {
+	_ = ctx
+	switch account.Type {
+	case broker.AccountTypeTastyTrade:
+		return broker.NewTastyTradeAccountAdapter(broker.NewTastyTradeAccountAdapterInput{
+			AccountID: account.ID,
+			Client:    factory.TastyTradeClientFactory.Create(),
+		})
+	case broker.AccountTypeTastyTradeSandbox:
+		return broker.NewTastyTradeAccountAdapter(broker.NewTastyTradeAccountAdapterInput{
+			AccountID: account.ID,
+			Client:    factory.TastyTradeSandboxClientFactory.Create(),
+		})
+	default:
+		panic("Unsupported broker type: " + account.Type)
+	}
+	return nil
+}

@@ -4,26 +4,34 @@ import (
 	"context"
 
 	"github.com/kduong/trading-backend/cmd/bot-service/internal/botstore"
+	"github.com/kduong/trading-backend/cmd/bot-service/internal/tradingstrategy"
+	"github.com/kduong/trading-backend/internal/broker"
 	"github.com/kduong/trading-backend/internal/eventsource"
 	"github.com/kduong/trading-backend/internal/eventsource/subscription"
 	"github.com/kduong/trading-backend/internal/fatal"
 )
 
 type ParentActor struct {
-	log           eventsource.Log
-	tradeBotByID  map[string]*TradeBot
-	cancelByBotID map[string]context.CancelFunc
+	log                     eventsource.Log
+	accountClientFactory    broker.AccountClientFactory
+	marketDataClientFactory broker.MarketDataClientFactory
+	tradeBotByID            map[string]*TradeBot
+	cancelByBotID           map[string]context.CancelFunc
 }
 
-type NewActorInput struct {
-	Log eventsource.Log
+type NewParentActorInput struct {
+	Log                           eventsource.Log
+	BrokerAccountClientFactory    broker.AccountClientFactory
+	BrokerMarketDataClientFactory broker.MarketDataClientFactory
 }
 
-func NewParentActor(input NewActorInput) *ParentActor {
+func NewParentActor(input NewParentActorInput) *ParentActor {
 	return &ParentActor{
-		log:           input.Log,
-		tradeBotByID:  make(map[string]*TradeBot),
-		cancelByBotID: make(map[string]context.CancelFunc),
+		log:                     input.Log,
+		accountClientFactory:    input.BrokerAccountClientFactory,
+		marketDataClientFactory: input.BrokerMarketDataClientFactory,
+		tradeBotByID:            make(map[string]*TradeBot),
+		cancelByBotID:           make(map[string]context.CancelFunc),
 	}
 }
 
@@ -132,9 +140,34 @@ func (actor *ParentActor) applyBotStatusDeletedEvent(ctx context.Context, event 
 }
 
 func (actor *ParentActor) startTradeBot(ctx context.Context, botID string) (err error) {
+	bot, ok := actor.tradeBotByID[botID]
+	if !ok {
+		return nil
+	}
 	ctx, cancel := context.WithCancel(ctx)
 	actor.cancelByBotID[botID] = cancel
-	// TODO: form strategy, poll/stream market data, and send orders to execution service
+	if actor.accountClientFactory == nil || actor.marketDataClientFactory == nil {
+		return nil
+	}
+
+	strategy := tradingstrategy.New(bot.StrategyType)
+	if err = tradingstrategy.Validate(strategy); err != nil {
+		cancel()
+		delete(actor.cancelByBotID, botID)
+		return err
+	}
+
+	tradeActor := NewActor(NewTradeActorInput{
+		TradingStrategy: strategy,
+		Symbol:          bot.Symbol,
+	})
+	brokerAccount := &broker.Account{
+		Type: broker.AccountType(bot.BrokerType),
+		ID:   bot.BrokerID,
+	}
+	accountClient := actor.accountClientFactory.Get(ctx, brokerAccount)
+	marketDataClient := actor.marketDataClientFactory.Get(ctx, brokerAccount)
+	go actor.runTradeBot(ctx, botID, tradeActor, bot, accountClient, marketDataClient)
 
 	return nil
 }
@@ -145,5 +178,40 @@ func (actor *ParentActor) stopTradeBot(ctx context.Context, botID string) (err e
 		return
 	}
 	cancel()
+	delete(actor.cancelByBotID, botID)
 	return nil
+}
+
+func (actor *ParentActor) runTradeBot(ctx context.Context, botID string, tradeActor *Actor, bot *TradeBot, accountClient broker.AccountClient, marketDataClient broker.MarketDataClient) {
+	iterator := marketDataClient.Stream(ctx, broker.StreamMarketDataInput{Symbol: bot.Symbol})
+	for iterator.Next() {
+		accountSnapshot, err := loadAccountSnapshot(ctx, accountClient)
+		if err != nil {
+			continue
+		}
+		decision, err := tradeActor.ApplyMarketData(ctx, iterator.Item(), accountSnapshot)
+		if err != nil {
+			continue
+		}
+		actor.handleDecision(botID, decision)
+	}
+	_ = iterator.Err()
+}
+
+func loadAccountSnapshot(ctx context.Context, accountClient broker.AccountClient) (tradingstrategy.AccountSnapshot, error) {
+	balance, err := accountClient.GetBalance(ctx)
+	if err != nil {
+		return tradingstrategy.AccountSnapshot{}, err
+	}
+	return tradingstrategy.AccountSnapshot{
+		CashBalance:      balance.CashBalance,
+		BuyingPower:      balance.EquityBuyingPower,
+		PositionQuantity: 0,
+		HasOpenOrder:     false,
+	}, nil
+}
+
+func (actor *ParentActor) handleDecision(botID string, decision tradingstrategy.Decision) {
+	_ = botID
+	_ = decision
 }

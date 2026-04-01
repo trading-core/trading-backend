@@ -51,7 +51,7 @@ func (strategy *Scalping) Evaluate(input EvaluateInput) (decision Decision, err 
 		if strategy.entryPrice > 0 && input.Price >= strategy.entryPrice*(1+strategy.Config.TakeProfitPct) {
 			strategy.entryPrice = 0
 			return Decision{
-				Action:   ActionExit,
+				Action:   ActionSell,
 				Reason:   "take-profit target reached",
 				Quantity: input.PositionQuantity,
 			}, nil
@@ -60,7 +60,7 @@ func (strategy *Scalping) Evaluate(input EvaluateInput) (decision Decision, err 
 		if input.Price < input.SessionOpenPrice {
 			strategy.entryPrice = 0
 			return Decision{
-				Action:   ActionExit,
+				Action:   ActionSell,
 				Reason:   "price lost session open",
 				Quantity: input.PositionQuantity,
 			}, nil

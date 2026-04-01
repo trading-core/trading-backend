@@ -11,6 +11,7 @@ import (
 	"github.com/kduong/trading-backend/cmd/bot-service/internal/botstore"
 	"github.com/kduong/trading-backend/internal/auth"
 	"github.com/kduong/trading-backend/internal/contextx"
+	"github.com/kduong/trading-backend/internal/eventsource"
 	"github.com/kduong/trading-backend/internal/fatal"
 )
 
@@ -20,6 +21,7 @@ type Handler struct {
 	accountServiceClient   accountservice.Client
 	botStoreCommandHandler botstore.CommandHandler
 	botStoreQueryHandler   botstore.QueryHandler
+	botEventLogFactory     eventsource.LogFactory
 }
 
 type NewRouterInput struct {
@@ -27,6 +29,7 @@ type NewRouterInput struct {
 	AccountServiceClient   accountservice.Client
 	BotStoreCommandHandler botstore.CommandHandler
 	BotStoreQueryHandler   botstore.QueryHandler
+	BotEventLogFactory     eventsource.LogFactory
 }
 
 func NewRouter(input NewRouterInput) *mux.Router {
@@ -34,6 +37,7 @@ func NewRouter(input NewRouterInput) *mux.Router {
 		accountServiceClient:   input.AccountServiceClient,
 		botStoreCommandHandler: input.BotStoreCommandHandler,
 		botStoreQueryHandler:   input.BotStoreQueryHandler,
+		botEventLogFactory:     input.BotEventLogFactory,
 	}
 	router := mux.NewRouter().StrictSlash(true)
 	botV1Router := router.PathPrefix("/bots/v1").Subrouter()
@@ -41,6 +45,7 @@ func NewRouter(input NewRouterInput) *mux.Router {
 	botV1Router.HandleFunc("/bots", handler.CreateBot).Methods(http.MethodPost).Name("CreateBot")
 	botV1Router.HandleFunc("/bots", handler.ListBots).Methods(http.MethodGet).Name("ListBots")
 	botV1Router.HandleFunc("/bots/{bot_id}", handler.GetBot).Methods(http.MethodGet).Name("GetBot")
+	botV1Router.HandleFunc("/bots/{bot_id}/stream", handler.StreamBotEvents).Methods(http.MethodGet).Name("StreamBotEvents")
 	botV1Router.HandleFunc("/bots/{bot_id}", handler.UpdateBot).Methods(http.MethodPatch).Name("UpdateBot")
 	botV1Router.HandleFunc("/bots/{bot_id}", handler.DeleteBot).Methods(http.MethodDelete).Name("DeleteBot")
 	return router

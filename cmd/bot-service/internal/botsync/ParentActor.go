@@ -2,6 +2,7 @@ package botsync
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/kduong/trading-backend/cmd/bot-service/internal/botstore"
 	"github.com/kduong/trading-backend/cmd/bot-service/internal/tradingstrategy"
@@ -14,6 +15,7 @@ import (
 
 type ParentActor struct {
 	log                     eventsource.Log
+	botEventLogFactory      eventsource.LogFactory
 	accountClientFactory    broker.AccountClientFactory
 	marketDataClientFactory broker.MarketDataClientFactory
 	tradeBotByID            map[string]*TradeBot
@@ -22,6 +24,7 @@ type ParentActor struct {
 
 type NewParentActorInput struct {
 	Log                           eventsource.Log
+	BotEventLogFactory            eventsource.LogFactory
 	BrokerAccountClientFactory    broker.AccountClientFactory
 	BrokerMarketDataClientFactory broker.MarketDataClientFactory
 }
@@ -29,6 +32,7 @@ type NewParentActorInput struct {
 func NewParentActor(input NewParentActorInput) *ParentActor {
 	return &ParentActor{
 		log:                     input.Log,
+		botEventLogFactory:      input.BotEventLogFactory,
 		accountClientFactory:    input.BrokerAccountClientFactory,
 		marketDataClientFactory: input.BrokerMarketDataClientFactory,
 		tradeBotByID:            make(map[string]*TradeBot),
@@ -38,6 +42,7 @@ func NewParentActor(input NewParentActorInput) *ParentActor {
 
 type TradeBot struct {
 	ID                string
+	AccountID         string
 	BrokerID          string
 	BrokerType        string
 	Symbol            string
@@ -73,6 +78,7 @@ func (actor *ParentActor) applyCatchup(ctx context.Context, event *eventsource.E
 	case botstore.EventTypeBotCreated:
 		actor.tradeBotByID[frame.BotCreatedEvent.BotID] = &TradeBot{
 			ID:                frame.BotCreatedEvent.BotID,
+			AccountID:         frame.BotCreatedEvent.AccountID,
 			BrokerID:          frame.BotCreatedEvent.BrokerAccountID,
 			BrokerType:        frame.BotCreatedEvent.BrokerType,
 			Symbol:            frame.BotCreatedEvent.Symbol,
@@ -112,6 +118,7 @@ func (actor *ParentActor) Apply(ctx context.Context, event *eventsource.Event) (
 func (actor *ParentActor) applyBotCreatedEvent(ctx context.Context, event *botstore.BotCreatedEvent) (err error) {
 	actor.tradeBotByID[event.BotID] = &TradeBot{
 		ID:                event.BotID,
+		AccountID:         event.AccountID,
 		BrokerID:          event.BrokerAccountID,
 		BrokerType:        event.BrokerType,
 		Symbol:            event.Symbol,
@@ -161,10 +168,18 @@ func (actor *ParentActor) startTradeActor(ctx context.Context, botID string) (er
 		MarketState:      NewMarketState(bot.Symbol),
 		TradingStrategy:  strategy,
 		BotID:            botID,
+		Log:              actor.getLogForBot(botID, bot.AccountID),
 	})
 	logger.Noticef("Starting trading actor for bot %s", botID)
 	go tradeActor.Run(ctx)
 	return
+}
+
+func (actor *ParentActor) getLogForBot(botID string, accountID string) eventsource.Log {
+	channel := fmt.Sprintf("bot:%s:account:%s:events", botID, accountID)
+	log, err := actor.botEventLogFactory.Create(channel)
+	fatal.OnError(err)
+	return log
 }
 
 func (actor *ParentActor) stopTradeActor(ctx context.Context, botID string) (err error) {

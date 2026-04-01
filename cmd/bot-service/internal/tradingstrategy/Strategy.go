@@ -1,11 +1,9 @@
 package tradingstrategy
 
 import (
-	"context"
 	"errors"
+	"fmt"
 	"time"
-
-	"github.com/kduong/trading-backend/cmd/bot-service/internal/botstore"
 )
 
 var ErrUnknownStrategyType = errors.New("unknown strategy type")
@@ -19,8 +17,31 @@ const (
 	ActionExit Action = "exit"
 )
 
+type StrategyType string
+
+const (
+	StrategyTypeTrendTrading    StrategyType = "trend_trading"
+	StrategyTypeSwingTrading    StrategyType = "swing_trading"
+	StrategyTypeScalping        StrategyType = "scalping"
+	StrategyTypeBreakoutTrading StrategyType = "breakout_trading"
+)
+
+var ValidStrategyTypes = map[StrategyType]struct{}{
+	StrategyTypeTrendTrading:    {},
+	StrategyTypeSwingTrading:    {},
+	StrategyTypeScalping:        {},
+	StrategyTypeBreakoutTrading: {},
+}
+
+func Validate(strategy Strategy) error {
+	strategyType := strategy.Type()
+	if _, isValid := ValidStrategyTypes[strategyType]; !isValid {
+		return fmt.Errorf("%w: %s", ErrUnknownStrategyType, strategyType)
+	}
+	return nil
+}
+
 type EvaluateInput struct {
-	Bot              *botstore.Bot
 	Price            float64
 	SessionOpenPrice float64
 	SessionHighPrice float64
@@ -39,7 +60,15 @@ type Decision struct {
 }
 
 type Strategy interface {
-	Type() string
-	Validate(bot *botstore.Bot) error
-	Evaluate(ctx context.Context, input EvaluateInput) (Decision, error)
+	Type() StrategyType
+	Evaluate(input EvaluateInput) (Decision, error)
+}
+
+func New(strategyType string) Strategy {
+	switch strategyType {
+	case "scalping":
+		return NewScalping(defaultScalpingConfig)
+	default:
+		return new(Unknown)
+	}
 }

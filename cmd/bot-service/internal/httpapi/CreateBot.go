@@ -8,6 +8,7 @@ import (
 
 	"github.com/ansel1/merry"
 	"github.com/kduong/trading-backend/cmd/bot-service/internal/botstore"
+	"github.com/kduong/trading-backend/cmd/bot-service/internal/tradingstrategy"
 	"github.com/kduong/trading-backend/internal/contextx"
 	"github.com/kduong/trading-backend/internal/httputil"
 	uuid "github.com/satori/go.uuid"
@@ -18,6 +19,28 @@ type CreateBotInput struct {
 	Symbol            string  `json:"symbol"`
 	StrategyTradeType string  `json:"strategy_trade_type"`
 	AllocationPercent float64 `json:"allocation_percent"`
+}
+
+func (input *CreateBotInput) Validate() (err error) {
+	if input.AccountID == "" || input.Symbol == "" || input.StrategyTradeType == "" {
+		err = merry.New("account_id, symbol, and strategy_trade_type are required").WithHTTPCode(http.StatusBadRequest)
+		return
+	}
+	strategy := tradingstrategy.New(input.StrategyTradeType)
+	err = tradingstrategy.Validate(strategy)
+	if err != nil {
+		err = merry.Wrap(err).WithHTTPCode(http.StatusBadRequest)
+		return
+	}
+	if math.IsNaN(input.AllocationPercent) || math.IsInf(input.AllocationPercent, 0) {
+		err = merry.New("allocation_percent must be a valid number").WithHTTPCode(http.StatusBadRequest)
+		return
+	}
+	if input.AllocationPercent <= 0 || input.AllocationPercent > MaxActiveAllocationPercent {
+		err = merry.New("allocation_percent must be greater than 0 and less than or equal to 80").WithHTTPCode(http.StatusBadRequest)
+		return
+	}
+	return
 }
 
 func (handler *Handler) CreateBot(responseWriter http.ResponseWriter, request *http.Request) {
@@ -35,16 +58,8 @@ func (handler *Handler) CreateBot(responseWriter http.ResponseWriter, request *h
 		err = merry.Wrap(err).WithHTTPCode(http.StatusBadRequest)
 		return
 	}
-	if input.AccountID == "" || input.Symbol == "" || input.StrategyTradeType == "" {
-		err = merry.New("account_id, symbol, and strategy_trade_type are required").WithHTTPCode(http.StatusBadRequest)
-		return
-	}
-	if math.IsNaN(input.AllocationPercent) || math.IsInf(input.AllocationPercent, 0) {
-		err = merry.New("allocation_percent must be a valid number").WithHTTPCode(http.StatusBadRequest)
-		return
-	}
-	if input.AllocationPercent <= 0 || input.AllocationPercent > MaxActiveAllocationPercent {
-		err = merry.New("allocation_percent must be greater than 0 and less than or equal to 80").WithHTTPCode(http.StatusBadRequest)
+	err = input.Validate()
+	if err != nil {
 		return
 	}
 	ctx = ContextWithAccessTokenFromRequestHeader(ctx, request)

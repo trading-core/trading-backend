@@ -55,7 +55,6 @@ func (state *MarketState) Apply(message *broker.MarketDataMessage) tradingstrate
 			}
 		}
 	}
-
 	return tradingstrategy.MarketSnapshot{
 		Symbol:           state.symbol,
 		LastTradePrice:   cloneFloat64Ptr(state.lastTradePrice),

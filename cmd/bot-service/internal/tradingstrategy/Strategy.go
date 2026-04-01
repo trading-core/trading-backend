@@ -14,7 +14,6 @@ const (
 	ActionNone Action = "none"
 	ActionBuy  Action = "buy"
 	ActionSell Action = "sell"
-	ActionExit Action = "exit"
 )
 
 type StrategyType string

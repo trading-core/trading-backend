@@ -7,6 +7,7 @@ import (
 
 	"github.com/kduong/trading-backend/cmd/bot-service/internal/tradingstrategy"
 	"github.com/kduong/trading-backend/internal/broker"
+	"github.com/kduong/trading-backend/internal/eventsource"
 	"github.com/kduong/trading-backend/internal/fatal"
 )
 
@@ -18,6 +19,7 @@ type TradeActor struct {
 	tradingStrategy  tradingstrategy.Strategy
 	marketDataClient broker.MarketDataClient
 	marketState      *MarketState
+	log              eventsource.Log
 
 	mutex                sync.RWMutex
 	accountSnapshot      tradingstrategy.AccountSnapshot
@@ -31,6 +33,7 @@ type NewTradeActorInput struct {
 	MarketState      *MarketState
 	TradingStrategy  tradingstrategy.Strategy
 	BotID            string
+	Log              eventsource.Log
 }
 
 func NewTradeActor(input NewTradeActorInput) *TradeActor {
@@ -40,6 +43,7 @@ func NewTradeActor(input NewTradeActorInput) *TradeActor {
 		tradingStrategy:  input.TradingStrategy,
 		marketState:      input.MarketState,
 		botID:            input.BotID,
+		log:              input.Log,
 	}
 }
 
@@ -53,20 +57,32 @@ func (actor *TradeActor) Run(ctx context.Context) {
 		if !ok {
 			continue
 		}
-		item := iterator.Item()
-		decision, err := actor.ApplyMarketData(ctx, item, accountSnapshot)
+		message := iterator.Item()
+		snapshot := actor.marketState.Apply(message)
+		input := tradingstrategy.NewEvaluateInput(snapshot, accountSnapshot)
+		decision, err := actor.tradingStrategy.Evaluate(input)
 		if err != nil {
 			continue
 		}
-		actor.handleDecision(actor.botID, decision)
+		if decision.Action == tradingstrategy.ActionNone {
+			continue
+		}
+		payload := fatal.UnlessMarshal(EventFrame{
+			EventBase: eventsource.NewEventBase(EventTypeBotDecisionRecorded),
+			BotDecisionRecordedEvent: &BotDecisionRecordedEvent{
+				BotID:        actor.botID,
+				Symbol:       actor.marketState.Symbol(),
+				StrategyType: string(actor.tradingStrategy.Type()),
+				Action:       string(decision.Action),
+				Reason:       decision.Reason,
+				Quantity:     decision.Quantity,
+				Price:        input.Price,
+			},
+		})
+		_, err = actor.log.Append(payload)
+		fatal.OnError(err)
 	}
 	fatal.OnError(iterator.Err())
-}
-
-func (actor *TradeActor) ApplyMarketData(ctx context.Context, message *broker.MarketDataMessage, account tradingstrategy.AccountSnapshot) (tradingstrategy.Decision, error) {
-	snapshot := actor.marketState.Apply(message)
-	input := tradingstrategy.NewEvaluateInput(snapshot, account)
-	return actor.tradingStrategy.Evaluate(input)
 }
 
 func (actor *TradeActor) loadAccountSnapshot(ctx context.Context, accountClient broker.AccountClient) (snapshot tradingstrategy.AccountSnapshot, err error) {
@@ -118,8 +134,4 @@ func (actor *TradeActor) getAccountSnapshot() (tradingstrategy.AccountSnapshot, 
 		return tradingstrategy.AccountSnapshot{}, false
 	}
 	return actor.accountSnapshot, true
-}
-
-func (actor *TradeActor) handleDecision(botID string, decision tradingstrategy.Decision) {
-
 }

@@ -27,7 +27,8 @@ func main() {
 	tastyTradeAPIURL, tastyTradeTokenManager := loadTastyTradeConfiguration(credentialsByType, "tastytrade")
 	tastyTradeSandboxAPIURL, tastyTradeSandboxTokenManager := loadTastyTradeConfiguration(credentialsByType, "tastytrade_sandbox")
 	botSyncActor := botsync.NewParentActor(botsync.NewParentActorInput{
-		Log: log,
+		Log:                log,
+		BotEventLogFactory: logFactory,
 		BrokerAccountClientFactory: &BrokerAccountClientFactory{
 			TastyTradeClientFactory: &tastytrade.HTTPClientFactory{
 				APIURL:         tastyTradeAPIURL,
@@ -61,6 +62,7 @@ func main() {
 	router := httpapi.NewRouter(httpapi.NewRouterInput{
 		AuthMiddleware:       auth.MiddlewareFromEnv(),
 		AccountServiceClient: accountservice.ClientFromEnv(),
+		BotEventLogFactory:   logFactory,
 		BotStoreCommandHandler: botstore.NewCommandHandlerThreadSafeDecorator(botstore.NewCommandHandlerThreadSafeDecoratorInput{
 			Decorated: botstore.NewEventSourcedCommandHandler(botstore.NewEventSourcedCommandHandlerInput{
 				Log: log,

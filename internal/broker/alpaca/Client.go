@@ -12,6 +12,7 @@ type Client interface {
 	GetTopStockMovers(ctx context.Context, input GetTopStockMoversInput) (output *GetTopStockMoversOutput, err error)
 	GetStockNews(ctx context.Context, input GetStockNewsInput) (output *GetStockNewsOutput, err error)
 	GetStockSnapshot(ctx context.Context, input GetStockSnapshotInput) (output *GetStockSnapshotOutput, err error)
+	GetStockBars(ctx context.Context, input GetStockBarsInput) (output *GetStockBarsOutput, err error)
 }
 
 type RankBy string
@@ -87,6 +88,24 @@ type StockImage struct {
 
 type GetStockSnapshotInput struct {
 	Symbol string
+}
+
+type GetStockBarsInput struct {
+	Symbol    string
+	Timeframe string
+	Limit     int
+	Feed      string
+	Start     string
+	End       string
+}
+
+type GetStockBarsOutput struct {
+	Bars []StockBar `json:"bars"`
+}
+
+type StockBar struct {
+	Time  string  `json:"time"`
+	Close float64 `json:"close"`
 }
 
 type GetStockSnapshotOutput struct {

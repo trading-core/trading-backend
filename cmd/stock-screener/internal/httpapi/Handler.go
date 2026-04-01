@@ -32,6 +32,7 @@ func NewRouter(input NewRouterInput) *mux.Router {
 	stockScreenerV1Router.HandleFunc("/movers", handler.GetTopStockMovers).Methods(http.MethodGet).Name("GetTopStockMovers")
 	stockScreenerV1Router.HandleFunc("/news", handler.GetStockNews).Methods(http.MethodGet).Name("GetStockNews")
 	stockScreenerV1Router.HandleFunc("/sentiments/fear-greed", handler.GetFearGreedIndex).Methods(http.MethodGet).Name("GetFearGreedIndex")
+	stockScreenerV1Router.HandleFunc("/stocks/{symbol}/bars", handler.GetStockBars).Methods(http.MethodGet).Name("GetStockBars")
 	stockScreenerV1Router.HandleFunc("/stocks/{symbol}/snapshot", handler.GetStockSnapshot).Methods(http.MethodGet).Name("GetStockSnapshot")
 	return router
 }

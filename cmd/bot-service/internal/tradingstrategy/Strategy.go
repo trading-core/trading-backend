@@ -68,7 +68,7 @@ type Decision struct {
 
 type Strategy interface {
 	Type() StrategyType
-	Evaluate(input EvaluateInput) (Decision, error)
+	Evaluate(input EvaluateInput) Decision
 }
 
 func New(strategyType string) Strategy {

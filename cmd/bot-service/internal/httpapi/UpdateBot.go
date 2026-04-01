@@ -81,7 +81,7 @@ func (handler *Handler) ensureAllocationPolicy(ctx context.Context, request *htt
 		if botItem.Status != botstore.BotStatusRunning {
 			continue
 		}
-		activeAllocationPercent += bot.AllocationPercent
+		activeAllocationPercent += botItem.AllocationPercent
 	}
 	if activeAllocationPercent+bot.AllocationPercent > MaxActiveAllocationPercent {
 		err = merry.New("active bot allocation exceeds 80% for this account").WithHTTPCode(http.StatusBadRequest)

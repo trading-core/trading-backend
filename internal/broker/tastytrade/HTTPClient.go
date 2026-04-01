@@ -1,6 +1,7 @@
 package tastytrade
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -90,6 +91,35 @@ func (client *HTTPClient) GetAccountBalance(ctx context.Context, accountID strin
 	return
 }
 
+func (client *HTTPClient) GetAccountPositions(ctx context.Context, accountID string) (output *AccountPositionsOutput, err error) {
+	target := url.URL{
+		Scheme: client.apiURL.Scheme,
+		Host:   client.apiURL.Host,
+		Path:   fmt.Sprintf("/accounts/%s/positions", accountID),
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, target.String(), nil)
+	if err != nil {
+		panic(err)
+	}
+	accessToken, err := client.getAccessToken(ctx)
+	if err != nil {
+		return
+	}
+	request.Header.Set("Authorization", "Bearer "+accessToken)
+	request.Header.Set("Accept", "application/json")
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		return
+	}
+	defer httputil.DrainAndClose(response.Body)
+	if response.StatusCode != http.StatusOK {
+		err = httputil.ExtractResponseError(response)
+		return
+	}
+	err = json.NewDecoder(response.Body).Decode(&output)
+	return
+}
+
 type SearchSymbolsResponse struct {
 	Data SearchSymbolsData `json:"data"`
 }
@@ -135,6 +165,113 @@ func (client *HTTPClient) GetAPIQuoteToken(ctx context.Context) (output *GetAPIQ
 		Scheme: client.apiURL.Scheme,
 		Host:   client.apiURL.Host,
 		Path:   "/api-quote-tokens",
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, target.String(), nil)
+	if err != nil {
+		panic(err)
+	}
+	accessToken, err := client.getAccessToken(ctx)
+	if err != nil {
+		return
+	}
+	request.Header.Set("Authorization", "Bearer "+accessToken)
+	request.Header.Set("Accept", "application/json")
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		return
+	}
+	defer httputil.DrainAndClose(response.Body)
+	if response.StatusCode != http.StatusOK {
+		err = httputil.ExtractResponseError(response)
+		return
+	}
+	err = json.NewDecoder(response.Body).Decode(&output)
+	return
+}
+
+type orderLeg struct {
+	Action         string  `json:"action"`
+	InstrumentType string  `json:"instrument-type"`
+	Symbol         string  `json:"symbol"`
+	Quantity       float64 `json:"quantity"`
+}
+
+type orderRequest struct {
+	OrderType   string     `json:"order-type"`
+	TimeInForce string     `json:"time-in-force"`
+	Legs        []orderLeg `json:"legs"`
+}
+
+type order struct {
+	ID     int    `json:"id"`
+	Status string `json:"status"`
+}
+
+type orderData struct {
+	Order order `json:"order"`
+}
+
+type orderResponse struct {
+	Data orderData `json:"data"`
+}
+
+func (client *HTTPClient) PlaceEquityOrder(ctx context.Context, input PlaceEquityOrderInput) (output *PlaceEquityOrderOutput, err error) {
+	target := url.URL{
+		Scheme: client.apiURL.Scheme,
+		Host:   client.apiURL.Host,
+		Path:   fmt.Sprintf("/accounts/%s/orders", input.AccountID),
+	}
+	body := orderRequest{
+		OrderType:   "Market",
+		TimeInForce: "Day",
+		Legs: []orderLeg{{
+			Action:         input.Action,
+			InstrumentType: "Equity",
+			Symbol:         input.Symbol,
+			Quantity:       input.Quantity,
+		}},
+	}
+	bodyBytes, err := json.Marshal(body)
+	if err != nil {
+		return
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, target.String(), bytes.NewReader(bodyBytes))
+	if err != nil {
+		panic(err)
+	}
+	accessToken, err := client.getAccessToken(ctx)
+	if err != nil {
+		return
+	}
+	request.Header.Set("Authorization", "Bearer "+accessToken)
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Accept", "application/json")
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		return
+	}
+	defer httputil.DrainAndClose(response.Body)
+	if response.StatusCode != http.StatusCreated && response.StatusCode != http.StatusOK {
+		err = httputil.ExtractResponseError(response)
+		return
+	}
+	var resp orderResponse
+	err = json.NewDecoder(response.Body).Decode(&resp)
+	if err != nil {
+		return
+	}
+	output = &PlaceEquityOrderOutput{
+		OrderID: resp.Data.Order.ID,
+		Status:  resp.Data.Order.Status,
+	}
+	return
+}
+
+func (client *HTTPClient) GetLiveOrders(ctx context.Context, accountID string) (output *LiveOrdersOutput, err error) {
+	target := url.URL{
+		Scheme: client.apiURL.Scheme,
+		Host:   client.apiURL.Host,
+		Path:   fmt.Sprintf("/accounts/%s/orders/live", accountID),
 	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, target.String(), nil)
 	if err != nil {

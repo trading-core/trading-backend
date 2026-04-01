@@ -2,6 +2,7 @@
 - name: Render bot-service .env
   vars:
     service_environment:
+      BROKER_CREDENTIALS_B64_JSON: "{{ broker_credentials_b64_json }}"
       TOKEN_SECRET: "{{ token_secret }}"
       ACCOUNT_SERVICE_CLIENT_IMPLEMENTATION: "HTTP"
       ACCOUNT_SERVICE_SCHEME: "http"

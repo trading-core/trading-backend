@@ -27,5 +27,5 @@ require (
 	github.com/smarty/assertions v1.15.0 // indirect
 	github.com/yuin/gopher-lua v1.1.1 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
-	golang.org/x/sys v0.6.0 // indirect
+	golang.org/x/sys v0.30.0 // indirect
 )

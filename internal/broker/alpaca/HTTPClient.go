@@ -121,6 +121,15 @@ func (client *HTTPClient) GetStockSnapshot(ctx context.Context, input GetStockSn
 	return
 }
 
+type GetStockBarsResponseBody struct {
+	Bars []StockBarResponseBody `json:"bars"`
+}
+
+type StockBarResponseBody struct {
+	Time  string  `json:"t"`
+	Close float64 `json:"c"`
+}
+
 func (client *HTTPClient) GetStockBars(ctx context.Context, input GetStockBarsInput) (output *GetStockBarsOutput, err error) {
 	target := url.URL{
 		Scheme: client.baseURL.Scheme,
@@ -145,13 +154,11 @@ func (client *HTTPClient) GetStockBars(ctx context.Context, input GetStockBarsIn
 		query.Set("feed", input.Feed)
 	}
 	target.RawQuery = query.Encode()
-
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, target.String(), nil)
 	if err != nil {
 		panic(err)
 	}
 	client.authorizeRequest(request)
-
 	response, err := client.Do(request)
 	if err != nil {
 		return
@@ -161,25 +168,20 @@ func (client *HTTPClient) GetStockBars(ctx context.Context, input GetStockBarsIn
 		err = httputil.ExtractResponseError(response)
 		return
 	}
-
-	var decoded struct {
-		Bars []struct {
-			Time  string  `json:"t"`
-			Close float64 `json:"c"`
-		} `json:"bars"`
-	}
-	if err = json.NewDecoder(response.Body).Decode(&decoded); err != nil {
+	var responseBody GetStockBarsResponseBody
+	if err = json.NewDecoder(response.Body).Decode(&responseBody); err != nil {
 		return
 	}
-
-	bars := make([]StockBar, 0, len(decoded.Bars))
-	for _, bar := range decoded.Bars {
+	bars := make([]StockBar, 0, len(responseBody.Bars))
+	for _, bar := range responseBody.Bars {
 		bars = append(bars, StockBar{
 			Time:  bar.Time,
 			Close: bar.Close,
 		})
 	}
-	output = &GetStockBarsOutput{Bars: bars}
+	output = &GetStockBarsOutput{
+		Bars: bars,
+	}
 	return
 }
 

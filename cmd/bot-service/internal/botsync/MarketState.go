@@ -3,8 +3,8 @@ package botsync
 import (
 	"time"
 
-	"github.com/kduong/trading-backend/cmd/bot-service/internal/tradingstrategy"
 	"github.com/kduong/trading-backend/internal/broker"
+	"github.com/kduong/trading-backend/internal/tradingstrategy"
 )
 
 type MarketState struct {

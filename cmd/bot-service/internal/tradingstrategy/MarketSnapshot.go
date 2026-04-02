@@ -2,6 +2,10 @@ package tradingstrategy
 
 import "time"
 
+// MarketSnapshot is the normalized view of the latest market state for a symbol.
+//
+// Pointer fields are optional because a given market data tick may not include
+// every quote or trade attribute.
 type MarketSnapshot struct {
 	Symbol           string
 	LastTradePrice   *float64
@@ -17,6 +21,7 @@ type MarketSnapshot struct {
 	Now              time.Time
 }
 
+// AccountSnapshot contains the account state relevant to trading decisions.
 type AccountSnapshot struct {
 	CashBalance      float64
 	BuyingPower      float64
@@ -24,6 +29,12 @@ type AccountSnapshot struct {
 	HasOpenOrder     bool
 }
 
+// NewEvaluateInput combines market and account snapshots into the single input
+// consumed by strategy evaluation.
+//
+// Price is derived from the best available market signal in this order:
+// last trade, mid price, bid, then ask. Spread is only set when both bid and
+// ask are present.
 func NewEvaluateInput(snapshot MarketSnapshot, account AccountSnapshot) EvaluateInput {
 	var spread *float64
 	if snapshot.BidPrice != nil && snapshot.AskPrice != nil {

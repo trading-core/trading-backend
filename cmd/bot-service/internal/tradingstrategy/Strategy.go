@@ -1,12 +1,23 @@
 package tradingstrategy
 
 import (
-	"errors"
 	"fmt"
 	"time"
+
+	"github.com/kduong/trading-backend/internal/fatal"
 )
 
-var ErrUnknownStrategyType = errors.New("unknown strategy type")
+// Regular Trading Hours: 9:30 a.m. – 4:00 p.m. ET (Monday-Friday).
+// Pre-Market Session: 4:00 a.m. – 9:30 a.m. ET.
+// After-Hours Session: 4:00 p.m. – 8:00 p.m. ET.
+
+var USMarketLocation = loadUSMarketLocation()
+
+func loadUSMarketLocation() *time.Location {
+	location, err := time.LoadLocation("America/New_York")
+	fatal.OnError(err)
+	return location
+}
 
 type Action string
 
@@ -32,14 +43,19 @@ var ValidStrategyTypes = map[StrategyType]struct{}{
 	StrategyTypeBreakoutTrading: {},
 }
 
-func Validate(strategy Strategy) error {
-	strategyType := strategy.Type()
-	if _, isValid := ValidStrategyTypes[strategyType]; !isValid {
-		return fmt.Errorf("%w: %s", ErrUnknownStrategyType, strategyType)
+func ValidateType(strategyType string) error {
+	v := StrategyType(strategyType)
+	if _, isValid := ValidStrategyTypes[v]; !isValid {
+		return fmt.Errorf("unknown strategy type: %s", strategyType)
 	}
 	return nil
 }
 
+// EvaluateInput is the full decision context passed to a trading strategy.
+//
+// Price is the preferred executable/reference price derived from the market
+// snapshot, while the pointer fields preserve whether specific quote or trade
+// values were actually present on the incoming data.
 type EvaluateInput struct {
 	Price            float64
 	LastTradePrice   *float64
@@ -74,8 +90,8 @@ type Strategy interface {
 func New(strategyType string) Strategy {
 	switch strategyType {
 	case "scalping":
-		return NewScalping(defaultScalpingConfig)
+		return NewScalping()
 	default:
-		return new(Unknown)
+		return new(Noop)
 	}
 }

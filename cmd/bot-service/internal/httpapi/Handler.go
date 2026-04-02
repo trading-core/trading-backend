@@ -9,6 +9,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/kduong/trading-backend/cmd/account-service/pkg/accountservice"
 	"github.com/kduong/trading-backend/cmd/bot-service/internal/botstore"
+	"github.com/kduong/trading-backend/cmd/bot-service/internal/symbolvalidator"
 	"github.com/kduong/trading-backend/internal/auth"
 	"github.com/kduong/trading-backend/internal/contextx"
 	"github.com/kduong/trading-backend/internal/eventsource"
@@ -19,25 +20,35 @@ const MaxActiveAllocationPercent = 80.0
 
 type Handler struct {
 	accountServiceClient   accountservice.Client
+	symbolValidator        symbolvalidator.SymbolValidator
 	botStoreCommandHandler botstore.CommandHandler
 	botStoreQueryHandler   botstore.QueryHandler
 	botEventLogFactory     eventsource.LogFactory
+	botChannelFunc         func(botID string) string
 }
 
 type NewRouterInput struct {
 	AuthMiddleware         *auth.Middleware
 	AccountServiceClient   accountservice.Client
+	SymbolValidator        symbolvalidator.SymbolValidator
 	BotStoreCommandHandler botstore.CommandHandler
 	BotStoreQueryHandler   botstore.QueryHandler
 	BotEventLogFactory     eventsource.LogFactory
+	BotChannelFunc         func(botID string) string
 }
 
 func NewRouter(input NewRouterInput) *mux.Router {
+	symbolValidator := input.SymbolValidator
+	if symbolValidator == nil {
+		symbolValidator = symbolvalidator.NoopSymbolValidator{}
+	}
 	handler := &Handler{
 		accountServiceClient:   input.AccountServiceClient,
+		symbolValidator:        symbolValidator,
 		botStoreCommandHandler: input.BotStoreCommandHandler,
 		botStoreQueryHandler:   input.BotStoreQueryHandler,
 		botEventLogFactory:     input.BotEventLogFactory,
+		botChannelFunc:         input.BotChannelFunc,
 	}
 	router := mux.NewRouter().StrictSlash(true)
 	botV1Router := router.PathPrefix("/bots/v1").Subrouter()

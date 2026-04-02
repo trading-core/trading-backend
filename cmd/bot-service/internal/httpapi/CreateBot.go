@@ -2,17 +2,22 @@ package httpapi
 
 import (
 	"encoding/json"
+	"errors"
 	"math"
 	"net/http"
+	"regexp"
 	"time"
 
 	"github.com/ansel1/merry"
 	"github.com/kduong/trading-backend/cmd/bot-service/internal/botstore"
+	"github.com/kduong/trading-backend/cmd/bot-service/internal/symbolvalidator"
 	"github.com/kduong/trading-backend/cmd/bot-service/internal/tradingstrategy"
 	"github.com/kduong/trading-backend/internal/contextx"
 	"github.com/kduong/trading-backend/internal/httputil"
 	uuid "github.com/satori/go.uuid"
 )
+
+var symbolPattern = regexp.MustCompile(`^[A-Z][A-Z0-9.-]{0,14}$`)
 
 type CreateBotInput struct {
 	AccountID         string  `json:"account_id"`
@@ -26,8 +31,11 @@ func (input *CreateBotInput) Validate() (err error) {
 		err = merry.New("account_id, symbol, and strategy_trade_type are required").WithHTTPCode(http.StatusBadRequest)
 		return
 	}
-	strategy := tradingstrategy.New(input.StrategyTradeType)
-	err = tradingstrategy.Validate(strategy)
+	if !symbolPattern.MatchString(input.Symbol) {
+		err = merry.New("symbol must be 1-15 chars using A-Z, 0-9, '.', or '-'").WithHTTPCode(http.StatusBadRequest)
+		return
+	}
+	err = tradingstrategy.ValidateType(input.StrategyTradeType)
 	if err != nil {
 		err = merry.Wrap(err).WithHTTPCode(http.StatusBadRequest)
 		return
@@ -70,6 +78,22 @@ func (handler *Handler) CreateBot(responseWriter http.ResponseWriter, request *h
 	}
 	if !account.BrokerLinked {
 		err = merry.New("account is not linked to a broker").WithHTTPCode(http.StatusBadRequest)
+		return
+	}
+	if account.Broker == nil {
+		err = merry.New("account broker details are missing").WithHTTPCode(http.StatusBadRequest)
+		return
+	}
+	err = handler.symbolValidator.Validate(ctx, account.Broker.Type, input.Symbol)
+	if err != nil {
+		switch {
+		case errors.Is(err, symbolvalidator.ErrSymbolNotTradableForBroker):
+			err = merry.New("symbol is not tradable for this account broker").WithHTTPCode(http.StatusBadRequest)
+		case errors.Is(err, symbolvalidator.ErrUnsupportedBrokerForSymbolValidation):
+			err = merry.New("account broker is not supported for symbol validation").WithHTTPCode(http.StatusBadRequest)
+		default:
+			err = merry.Wrap(err).WithHTTPCode(http.StatusBadGateway)
+		}
 		return
 	}
 	bot := &botstore.Bot{

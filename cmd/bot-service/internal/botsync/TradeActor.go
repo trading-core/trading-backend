@@ -22,11 +22,10 @@ type TradeActor struct {
 	marketState      *MarketState
 	log              eventsource.Log
 
-	mutex                sync.RWMutex
-	accountSnapshot      tradingstrategy.AccountSnapshot
-	hasAccountSnapshot   bool
-	accountSnapshotError error
-	orderPlaced          bool // optimistic HasOpenOrder guard until broker reflects the order
+	mutex              sync.RWMutex
+	accountSnapshot    tradingstrategy.AccountSnapshot
+	hasAccountSnapshot bool
+	orderPlaced        bool // optimistic HasOpenOrder guard until broker reflects the order
 }
 
 type NewTradeActorInput struct {
@@ -132,7 +131,7 @@ func (actor *TradeActor) startAccountSnapshotRefresher(ctx context.Context) {
 		actor.mutex.Lock()
 		defer actor.mutex.Unlock()
 		if err != nil {
-			actor.accountSnapshotError = err
+			logger.Warnf("bot %s: failed to refresh account snapshot: %v", actor.botID, err)
 			return
 		}
 		// If the broker now shows a pending order, clear the optimistic flag.
@@ -144,7 +143,6 @@ func (actor *TradeActor) startAccountSnapshotRefresher(ctx context.Context) {
 		}
 		actor.accountSnapshot = snapshot
 		actor.hasAccountSnapshot = true
-		actor.accountSnapshotError = nil
 	}
 	refresh()
 	go func() {

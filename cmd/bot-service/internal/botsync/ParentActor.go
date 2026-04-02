@@ -2,7 +2,6 @@ package botsync
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/kduong/trading-backend/cmd/bot-service/internal/botstore"
 	"github.com/kduong/trading-backend/cmd/bot-service/internal/tradingstrategy"
@@ -14,8 +13,10 @@ import (
 )
 
 type ParentActor struct {
-	log                     eventsource.Log
-	botEventLogFactory      eventsource.LogFactory
+	log                eventsource.Log
+	botEventLogFactory eventsource.LogFactory
+	botChannelFunc     func(botID string) string
+
 	accountClientFactory    broker.AccountClientFactory
 	marketDataClientFactory broker.MarketDataClientFactory
 	tradeBotByID            map[string]*TradeBot
@@ -25,6 +26,7 @@ type ParentActor struct {
 type NewParentActorInput struct {
 	Log                           eventsource.Log
 	BotEventLogFactory            eventsource.LogFactory
+	BotChannelFunc                func(botID string) string
 	BrokerAccountClientFactory    broker.AccountClientFactory
 	BrokerMarketDataClientFactory broker.MarketDataClientFactory
 }
@@ -33,6 +35,7 @@ func NewParentActor(input NewParentActorInput) *ParentActor {
 	return &ParentActor{
 		log:                     input.Log,
 		botEventLogFactory:      input.BotEventLogFactory,
+		botChannelFunc:          input.BotChannelFunc,
 		accountClientFactory:    input.BrokerAccountClientFactory,
 		marketDataClientFactory: input.BrokerMarketDataClientFactory,
 		tradeBotByID:            make(map[string]*TradeBot),
@@ -149,37 +152,35 @@ func (actor *ParentActor) applyBotStatusDeletedEvent(ctx context.Context, event 
 }
 
 func (actor *ParentActor) startTradeActor(ctx context.Context, botID string) (err error) {
+	if _, isRunning := actor.cancelByBotID[botID]; isRunning {
+		logger.Noticef("Trading actor for bot %s is already running; no-op start", botID)
+		return nil
+	}
 	bot, ok := actor.tradeBotByID[botID]
 	if !ok {
 		return
 	}
 	strategy := tradingstrategy.New(bot.StrategyType)
-	err = tradingstrategy.Validate(strategy)
-	fatal.OnError(err)
 	ctx, cancel := context.WithCancel(ctx)
 	actor.cancelByBotID[botID] = cancel
 	brokerAccount := &broker.Account{
 		Type: broker.AccountType(bot.BrokerType),
 		ID:   bot.BrokerID,
 	}
+	channel := actor.botChannelFunc(botID)
+	log, err := actor.botEventLogFactory.Create(channel)
+	fatal.OnError(err)
 	tradeActor := NewTradeActor(NewTradeActorInput{
 		AccountClient:    actor.accountClientFactory.Get(ctx, brokerAccount),
 		MarketDataClient: actor.marketDataClientFactory.Get(ctx, brokerAccount),
 		MarketState:      NewMarketState(bot.Symbol),
 		TradingStrategy:  strategy,
 		BotID:            botID,
-		Log:              actor.getLogForBot(botID, bot.AccountID),
+		Log:              log,
 	})
 	logger.Noticef("Starting trading actor for bot %s", botID)
 	go tradeActor.Run(ctx)
 	return
-}
-
-func (actor *ParentActor) getLogForBot(botID string, accountID string) eventsource.Log {
-	channel := fmt.Sprintf("bot:%s:account:%s:events", botID, accountID)
-	log, err := actor.botEventLogFactory.Create(channel)
-	fatal.OnError(err)
-	return log
 }
 
 func (actor *ParentActor) stopTradeActor(ctx context.Context, botID string) (err error) {

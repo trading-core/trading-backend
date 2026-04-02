@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/url"
 
@@ -23,12 +24,26 @@ func main() {
 	fatal.OnError(err)
 	log, err := logFactory.Create("bot:events")
 	fatal.OnError(err)
+	botChannelFunc := func(botID string) string {
+		return fmt.Sprintf("bot:%s:events", botID)
+	}
 	credentialsByType := auth.CredentialsByTypeFromEnv()
 	tastyTradeAPIURL, tastyTradeTokenManager := loadTastyTradeConfiguration(credentialsByType, "tastytrade")
 	tastyTradeSandboxAPIURL, tastyTradeSandboxTokenManager := loadTastyTradeConfiguration(credentialsByType, "tastytrade_sandbox")
+	symbolValidator := NewBrokerSymbolValidator(NewBrokerSymbolValidatorInput{
+		TastyTradeClientFactory: &tastytrade.HTTPClientFactory{
+			APIURL:         tastyTradeAPIURL,
+			GetAccessToken: tastyTradeTokenManager.GetAccessToken,
+		},
+		TastyTradeSandboxClientFactory: &tastytrade.HTTPClientFactory{
+			APIURL:         tastyTradeSandboxAPIURL,
+			GetAccessToken: tastyTradeSandboxTokenManager.GetAccessToken,
+		},
+	})
 	botSyncActor := botsync.NewParentActor(botsync.NewParentActorInput{
 		Log:                log,
 		BotEventLogFactory: logFactory,
+		BotChannelFunc:     botChannelFunc,
 		BrokerAccountClientFactory: &BrokerAccountClientFactory{
 			TastyTradeClientFactory: &tastytrade.HTTPClientFactory{
 				APIURL:         tastyTradeAPIURL,
@@ -62,7 +77,9 @@ func main() {
 	router := httpapi.NewRouter(httpapi.NewRouterInput{
 		AuthMiddleware:       auth.MiddlewareFromEnv(),
 		AccountServiceClient: accountservice.ClientFromEnv(),
+		SymbolValidator:      symbolValidator,
 		BotEventLogFactory:   logFactory,
+		BotChannelFunc:       botChannelFunc,
 		BotStoreCommandHandler: botstore.NewCommandHandlerThreadSafeDecorator(botstore.NewCommandHandlerThreadSafeDecoratorInput{
 			Decorated: botstore.NewEventSourcedCommandHandler(botstore.NewEventSourcedCommandHandlerInput{
 				Log: log,

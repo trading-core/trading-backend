@@ -24,11 +24,11 @@ func (handler *Handler) StreamBotEvents(responseWriter http.ResponseWriter, requ
 	ctx := request.Context()
 	vars := mux.Vars(request)
 	botID := vars["bot_id"]
-	bot, err := handler.botStoreQueryHandler.Get(ctx, botID)
+	_, err = handler.botStoreQueryHandler.Get(ctx, botID)
 	if err != nil {
 		return
 	}
-	channel := fmt.Sprintf("bot:%s:account:%s:events", botID, bot.AccountID)
+	channel := handler.botChannelFunc(botID)
 	log, err := handler.botEventLogFactory.Create(channel)
 	fatal.OnError(err)
 	flusher, ok := responseWriter.(http.Flusher)

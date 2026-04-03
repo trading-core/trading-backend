@@ -7,19 +7,24 @@ import (
 	"github.com/kduong/trading-backend/internal/tradingstrategy"
 )
 
+type sessionRange struct {
+	date  string
+	open  float64
+	high  float64
+	low   float64
+	ready bool
+}
+
 type MarketState struct {
-	symbol           string
-	sessionDate      string
-	lastTradePrice   *float64
-	bidPrice         *float64
-	askPrice         *float64
-	bidSize          *float64
-	askSize          *float64
-	dayVolume        *float64
-	lastTradeSize    *float64
-	sessionOpenPrice float64
-	sessionHighPrice float64
-	sessionLowPrice  float64
+	symbol         string
+	session        sessionRange
+	lastTradePrice *float64
+	bidPrice       *float64
+	askPrice       *float64
+	bidSize        *float64
+	askSize        *float64
+	dayVolume      *float64
+	lastTradeSize  *float64
 }
 
 func NewMarketState(symbol string) *MarketState {
@@ -37,9 +42,9 @@ func (state *MarketState) Apply(message *broker.MarketDataMessage) tradingstrate
 	// Capture session range before any trade update so the strategy evaluates
 	// against the pre-tick high/low (prevents breakout condition from being
 	// immediately false on the very tick that sets a new session high).
-	snapshotSessionOpen := state.sessionOpenPrice
-	snapshotSessionHigh := state.sessionHighPrice
-	snapshotSessionLow := state.sessionLowPrice
+	snapshotSessionOpen := state.session.open
+	snapshotSessionHigh := state.session.high
+	snapshotSessionLow := state.session.low
 	state.symbol = message.Symbol
 	switch message.Type {
 	case broker.MarketDataTypeQuote:
@@ -70,31 +75,29 @@ func (state *MarketState) Apply(message *broker.MarketDataMessage) tradingstrate
 }
 
 func (state *MarketState) resetSessionIfNeeded(now time.Time) {
-	date := now.Format("2006-01-02")
-	if state.sessionDate == date {
+	date := now.In(tradingstrategy.USMarketLocation).Format("2006-01-02")
+	if state.session.date == date {
 		return
 	}
-	state.sessionDate = date
-	state.sessionOpenPrice = 0
-	state.sessionHighPrice = 0
-	state.sessionLowPrice = 0
+	state.session = sessionRange{date: date}
 	state.dayVolume = nil
 	state.lastTradeSize = nil
 	state.lastTradePrice = nil
 }
 
 func (state *MarketState) updateSessionRange(price float64) {
-	if state.sessionOpenPrice == 0 {
-		state.sessionOpenPrice = price
-		state.sessionHighPrice = price
-		state.sessionLowPrice = price
+	if !state.session.ready {
+		state.session.open = price
+		state.session.high = price
+		state.session.low = price
+		state.session.ready = true
 		return
 	}
-	if price > state.sessionHighPrice {
-		state.sessionHighPrice = price
+	if price > state.session.high {
+		state.session.high = price
 	}
-	if state.sessionLowPrice == 0 || price < state.sessionLowPrice {
-		state.sessionLowPrice = price
+	if price < state.session.low {
+		state.session.low = price
 	}
 }
 

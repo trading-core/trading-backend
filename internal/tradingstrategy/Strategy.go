@@ -73,6 +73,7 @@ type EvaluateInput struct {
 	BuyingPower      float64
 	PositionQuantity float64
 	HasOpenOrder     bool
+	EntryPrice       float64
 	Now              time.Time
 }
 

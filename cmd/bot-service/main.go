@@ -9,6 +9,7 @@ import (
 	"github.com/kduong/trading-backend/cmd/account-service/pkg/accountservice"
 	"github.com/kduong/trading-backend/cmd/bot-service/internal/botstore"
 	"github.com/kduong/trading-backend/cmd/bot-service/internal/botsync"
+	"github.com/kduong/trading-backend/cmd/bot-service/internal/brokerfactory"
 	"github.com/kduong/trading-backend/cmd/bot-service/internal/httpapi"
 	"github.com/kduong/trading-backend/internal/auth"
 	"github.com/kduong/trading-backend/internal/broker/tastytrade"
@@ -30,39 +31,29 @@ func main() {
 	credentialsByType := auth.CredentialsByTypeFromEnv()
 	tastyTradeAPIURL, tastyTradeTokenManager := loadTastyTradeConfiguration(credentialsByType, "tastytrade")
 	tastyTradeSandboxAPIURL, tastyTradeSandboxTokenManager := loadTastyTradeConfiguration(credentialsByType, "tastytrade_sandbox")
-	symbolValidator := NewBrokerSymbolValidator(NewBrokerSymbolValidatorInput{
-		TastyTradeClientFactory: &tastytrade.HTTPClientFactory{
-			APIURL:         tastyTradeAPIURL,
-			GetAccessToken: tastyTradeTokenManager.GetAccessToken,
-		},
-		TastyTradeSandboxClientFactory: &tastytrade.HTTPClientFactory{
-			APIURL:         tastyTradeSandboxAPIURL,
-			GetAccessToken: tastyTradeSandboxTokenManager.GetAccessToken,
-		},
+	tastyTradeClientFactory := &tastytrade.HTTPClientFactory{
+		APIURL:         tastyTradeAPIURL,
+		GetAccessToken: tastyTradeTokenManager.GetAccessToken,
+	}
+	tastyTradeSandboxClientFactory := &tastytrade.HTTPClientFactory{
+		APIURL:         tastyTradeSandboxAPIURL,
+		GetAccessToken: tastyTradeSandboxTokenManager.GetAccessToken,
+	}
+	symbolValidator := brokerfactory.NewSymbolValidator(brokerfactory.NewSymbolValidatorInput{
+		TastyTradeClientFactory:        tastyTradeClientFactory,
+		TastyTradeSandboxClientFactory: tastyTradeSandboxClientFactory,
 	})
 	botSyncActor := botsync.NewParentActor(botsync.NewParentActorInput{
 		Log:                log,
 		BotEventLogFactory: logFactory,
 		BotChannelFunc:     botChannelFunc,
-		BrokerAccountClientFactory: &BrokerAccountClientFactory{
-			TastyTradeClientFactory: &tastytrade.HTTPClientFactory{
-				APIURL:         tastyTradeAPIURL,
-				GetAccessToken: tastyTradeTokenManager.GetAccessToken,
-			},
-			TastyTradeSandboxClientFactory: &tastytrade.HTTPClientFactory{
-				APIURL:         tastyTradeSandboxAPIURL,
-				GetAccessToken: tastyTradeSandboxTokenManager.GetAccessToken,
-			},
+		BrokerAccountClientFactory: &brokerfactory.AccountClientFactory{
+			TastyTradeClientFactory:        tastyTradeClientFactory,
+			TastyTradeSandboxClientFactory: tastyTradeSandboxClientFactory,
 		},
-		BrokerMarketDataClientFactory: &BrokerMarketDataClientFactory{
-			TastyTradeClientFactory: &tastytrade.HTTPClientFactory{
-				APIURL:         tastyTradeAPIURL,
-				GetAccessToken: tastyTradeTokenManager.GetAccessToken,
-			},
-			TastyTradeSandboxClientFactory: &tastytrade.HTTPClientFactory{
-				APIURL:         tastyTradeSandboxAPIURL,
-				GetAccessToken: tastyTradeSandboxTokenManager.GetAccessToken,
-			},
+		BrokerMarketDataClientFactory: &brokerfactory.MarketDataClientFactory{
+			TastyTradeClientFactory:        tastyTradeClientFactory,
+			TastyTradeSandboxClientFactory: tastyTradeSandboxClientFactory,
 		},
 	})
 	go func() {

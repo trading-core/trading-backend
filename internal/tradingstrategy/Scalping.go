@@ -14,14 +14,13 @@ type Scalping struct {
 	TakeProfitPct       float64
 	SessionStart        int // hour 0-23
 	SessionEnd          int // hour 0-23, exclusive
-	entryPrice          float64
 }
 
 func NewScalping() *Scalping {
 	return &Scalping{
 		MaxPositionFraction: 0.1,
 		TakeProfitPct:       0.005,
-		SessionStart:        9,
+		SessionStart:        10,
 		SessionEnd:          15,
 	}
 }
@@ -40,17 +39,15 @@ func (strategy *Scalping) Evaluate(input EvaluateInput) Decision {
 	// --- Exit logic (evaluated before entry so we don't ignore an open position) ---
 	if input.PositionQuantity > 0 {
 		// Take-profit: price reached target above entry
-		if strategy.entryPrice > 0 && input.Price >= strategy.entryPrice*(1+strategy.TakeProfitPct) {
-			strategy.entryPrice = 0
+		if input.EntryPrice > 0 && input.Price >= input.EntryPrice*(1+strategy.TakeProfitPct) {
 			return Decision{
 				Action:   ActionSell,
 				Reason:   "take-profit target reached",
 				Quantity: input.PositionQuantity,
 			}
 		}
-		// Stop-loss: price fell back below session open
-		if input.Price < input.SessionOpenPrice {
-			strategy.entryPrice = 0
+		// Stop-loss: price fell back below session open (only when session has traded)
+		if input.SessionOpenPrice > 0 && input.Price < input.SessionOpenPrice {
 			return Decision{
 				Action:   ActionSell,
 				Reason:   "price lost session open",
@@ -72,14 +69,15 @@ func (strategy *Scalping) Evaluate(input EvaluateInput) Decision {
 	if hour < strategy.SessionStart || hour >= strategy.SessionEnd {
 		return Decision{Action: ActionNone, Reason: "outside trading session window"}
 	}
-	// Breakout entry: price breaks above session high
-	if input.Price > input.SessionHighPrice {
+	// Breakout entry: price breaks above session high.
+	// Guard: session must have established a range (SessionHighPrice > 0)
+	// to avoid false breakout on the very first trade of the day.
+	if input.SessionHighPrice > 0 && input.Price > input.SessionHighPrice {
 		maxCapital := buyingPower * strategy.MaxPositionFraction
 		qty := math.Floor(maxCapital / input.Price)
 		if qty < 1 {
 			return Decision{Action: ActionNone, Reason: "insufficient buying power for one share"}
 		}
-		strategy.entryPrice = input.Price
 		return Decision{
 			Action:   ActionBuy,
 			Reason:   "price broke above session high",

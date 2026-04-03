@@ -33,6 +33,9 @@ type RenderInput struct {
 	TotalReturn float64
 	Prices      []PricePoint
 	Decisions   []DecisionMarker
+	BollUpper   []IndicatorPoint
+	BollMiddle  []IndicatorPoint
+	BollLower   []IndicatorPoint
 	Timezone    *time.Location
 }
 
@@ -144,6 +147,9 @@ func Render(input RenderInput, outputPath string) error {
 		labelColor = color.RGBA{R: 70, G: 70, B: 70, A: 255}
 		titleColor = color.RGBA{R: 20, G: 20, B: 20, A: 255}
 		priceColor = color.RGBA{R: 35, G: 120, B: 230, A: 255}
+		bollUp     = color.RGBA{R: 184, G: 90, B: 24, A: 255}
+		bollMid    = color.RGBA{R: 95, G: 95, B: 95, A: 255}
+		bollLow    = color.RGBA{R: 24, G: 144, B: 104, A: 255}
 		buyColor   = color.RGBA{R: 25, G: 170, B: 70, A: 255}
 		sellColor  = color.RGBA{R: 220, G: 40, B: 40, A: 255}
 		sepColor   = color.RGBA{R: 180, G: 180, B: 180, A: 255}
@@ -212,6 +218,11 @@ func Render(input RenderInput, outputPath string) error {
 		drawLine(img, x1, y1+1, x2, y2+1, priceColor)
 	}
 
+	// Overlay Bollinger bands on the price panel.
+	drawIndicatorLine(img, input.BollUpper, closestIndex, xToPixel, yToPixel, bollUp)
+	drawIndicatorLine(img, input.BollMiddle, closestIndex, xToPixel, yToPixel, bollMid)
+	drawIndicatorLine(img, input.BollLower, closestIndex, xToPixel, yToPixel, bollLow)
+
 	for _, d := range decisions {
 		idx := closestIndex(d.At.Unix())
 		x := xToPixel(idx)
@@ -229,6 +240,12 @@ func Render(input RenderInput, outputPath string) error {
 	drawText(img, "BUY", lx+20, ly+2, labelColor)
 	drawRing(img, lx+8, ly+28, 5, sellColor)
 	drawText(img, "SELL", lx+20, ly+22, labelColor)
+	drawLine(img, lx, ly+44, lx+16, ly+44, bollUp)
+	drawText(img, "B-U", lx+20, ly+38, labelColor)
+	drawLine(img, lx, ly+58, lx+16, ly+58, bollMid)
+	drawText(img, "B-M", lx+20, ly+52, labelColor)
+	drawLine(img, lx, ly+72, lx+16, ly+72, bollLow)
+	drawText(img, "B-L", lx+20, ly+66, labelColor)
 
 	outputDir := filepath.Dir(outputPath)
 	if outputDir != "." && outputDir != "" {

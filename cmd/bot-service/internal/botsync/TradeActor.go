@@ -3,6 +3,7 @@ package botsync
 import (
 	"context"
 	"encoding/json"
+	"math"
 	"sync"
 	"time"
 
@@ -38,9 +39,11 @@ type TradeActor struct {
 	mutex              sync.RWMutex
 	accountSnapshot    tradingstrategy.AccountSnapshot
 	hasAccountSnapshot bool
-	entryPrice         float64   // persisted via decision events in the bot's event log
-	orderGuardTTL      int       // countdown refreshes for optimistic HasOpenOrder
-	orderFailedUntil   time.Time // suppress new orders until this time
+	entryPrice         float64    // persisted via decision events in the bot's event log
+	highSinceEntry     float64    // highest price observed since entry (trailing stop)
+	lastStopLossAt     *time.Time // time of last trailing-stop exit (re-entry cooldown)
+	orderGuardTTL      int        // countdown refreshes for optimistic HasOpenOrder
+	orderFailedUntil   time.Time  // suppress new orders until this time
 }
 
 type NewTradeActorInput struct {
@@ -52,6 +55,8 @@ type NewTradeActorInput struct {
 	MACDFastPeriod   int
 	MACDSlowPeriod   int
 	MACDSignalPeriod int
+	BollingerPeriod  int
+	BollingerStdDev  float64
 	BotID            string
 	Log              eventsource.Log
 }
@@ -62,7 +67,7 @@ func NewTradeActor(input NewTradeActorInput) *TradeActor {
 		marketDataClient: input.MarketDataClient,
 		tradingStrategy:  input.TradingStrategy,
 		marketState:      input.MarketState,
-		indicators:       newIndicatorState(input.RSIPeriod, input.MACDFastPeriod, input.MACDSlowPeriod, input.MACDSignalPeriod),
+		indicators:       newIndicatorState(input.RSIPeriod, input.MACDFastPeriod, input.MACDSlowPeriod, input.MACDSignalPeriod, input.BollingerPeriod, input.BollingerStdDev),
 		botID:            input.BotID,
 		log:              input.Log,
 	}
@@ -86,10 +91,20 @@ func (actor *TradeActor) Run(ctx context.Context) {
 		snapshot := actor.marketState.Apply(message)
 		accountSnapshot.EntryPrice = actor.entryPrice
 		input := tradingstrategy.NewEvaluateInput(snapshot, accountSnapshot)
-		rsi, macd, macdSignal := actor.indicators.Update(input.Price)
+		rsi, macd, macdSignal, bollUpper, bollMiddle, bollLower, bollWidthPct := actor.indicators.Update(input.Price)
 		input.RSI = rsi
 		input.MACD = macd
 		input.MACDSignal = macdSignal
+		input.BollUpper = bollUpper
+		input.BollMiddle = bollMiddle
+		input.BollLower = bollLower
+		input.BollWidthPct = bollWidthPct
+		// Track trailing high while in position.
+		if accountSnapshot.PositionQuantity > 0 && input.Price > actor.highSinceEntry {
+			actor.highSinceEntry = input.Price
+		}
+		input.HighSinceEntry = actor.highSinceEntry
+		input.LastStopLossAt = actor.lastStopLossAt
 		decision := actor.tradingStrategy.Evaluate(input)
 		if decision.Action == tradingstrategy.ActionNone {
 			continue
@@ -120,8 +135,14 @@ func (actor *TradeActor) Run(ctx context.Context) {
 		actor.orderGuardTTL = orderPlacedTTL
 		if decision.Action == tradingstrategy.ActionBuy {
 			actor.entryPrice = input.Price
+			actor.highSinceEntry = input.Price
 		} else if decision.Action == tradingstrategy.ActionSell {
 			actor.entryPrice = 0
+			actor.highSinceEntry = 0
+			if decision.Reason == "trailing stop triggered" {
+				now := time.Now()
+				actor.lastStopLossAt = &now
+			}
 		}
 		actor.mutex.Unlock()
 		payload := fatal.UnlessMarshal(EventFrame{
@@ -147,6 +168,8 @@ type indicatorState struct {
 	macdFastPeriod int
 	macdSlowPeriod int
 	macdSignal     int
+	bollPeriod     int
+	bollStdDev     float64
 
 	priceSamples int
 	prevClose    *float64
@@ -164,9 +187,13 @@ type indicatorState struct {
 	signalEMA    float64
 	signalReady  bool
 	hasEMAValues bool
+
+	bollWindow []float64
+	bollSum    float64
+	bollSqSum  float64
 }
 
-func newIndicatorState(rsiPeriod int, macdFastPeriod int, macdSlowPeriod int, macdSignal int) *indicatorState {
+func newIndicatorState(rsiPeriod int, macdFastPeriod int, macdSlowPeriod int, macdSignal int, bollPeriod int, bollStdDev float64) *indicatorState {
 	if rsiPeriod < 2 {
 		rsiPeriod = 14
 	}
@@ -179,17 +206,25 @@ func newIndicatorState(rsiPeriod int, macdFastPeriod int, macdSlowPeriod int, ma
 	if macdSignal < 2 {
 		macdSignal = 9
 	}
+	if bollPeriod < 2 {
+		bollPeriod = 20
+	}
+	if bollStdDev <= 0 {
+		bollStdDev = 2.0
+	}
 	return &indicatorState{
 		rsiPeriod:      rsiPeriod,
 		macdFastPeriod: macdFastPeriod,
 		macdSlowPeriod: macdSlowPeriod,
 		macdSignal:     macdSignal,
+		bollPeriod:     bollPeriod,
+		bollStdDev:     bollStdDev,
 	}
 }
 
-func (state *indicatorState) Update(price float64) (rsi *float64, macd *float64, macdSignal *float64) {
+func (state *indicatorState) Update(price float64) (rsi *float64, macd *float64, macdSignal *float64, bollUpper *float64, bollMiddle *float64, bollLower *float64, bollWidthPct *float64) {
 	if price <= 0 {
-		return nil, nil, nil
+		return nil, nil, nil, nil, nil, nil, nil
 	}
 	state.priceSamples++
 
@@ -254,9 +289,38 @@ func (state *indicatorState) Update(price float64) (rsi *float64, macd *float64,
 			rsi = &rsiValue
 		}
 	}
+
+	state.bollWindow = append(state.bollWindow, price)
+	state.bollSum += price
+	state.bollSqSum += price * price
+	if len(state.bollWindow) > state.bollPeriod {
+		old := state.bollWindow[0]
+		state.bollWindow = state.bollWindow[1:]
+		state.bollSum -= old
+		state.bollSqSum -= old * old
+	}
+	if len(state.bollWindow) == state.bollPeriod {
+		mean := state.bollSum / float64(state.bollPeriod)
+		variance := (state.bollSqSum / float64(state.bollPeriod)) - (mean * mean)
+		if variance < 0 {
+			variance = 0
+		}
+		stddev := math.Sqrt(variance)
+		upper := mean + (state.bollStdDev * stddev)
+		lower := mean - (state.bollStdDev * stddev)
+		mid := mean
+		width := 0.0
+		if mid != 0 {
+			width = (upper - lower) / mid
+		}
+		bollUpper = &upper
+		bollMiddle = &mid
+		bollLower = &lower
+		bollWidthPct = &width
+	}
 	closeCopy := price
 	state.prevClose = &closeCopy
-	return rsi, macd, macdSignal
+	return rsi, macd, macdSignal, bollUpper, bollMiddle, bollLower, bollWidthPct
 }
 
 func rsiFromAverages(avgGain, avgLoss float64) float64 {

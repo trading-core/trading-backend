@@ -46,22 +46,38 @@ func main() {
 		TastyTradeSandboxClientFactory: tastyTradeSandboxClientFactory,
 	})
 	scalpingParams := tradingstrategy.ScalpingParams{
-		MaxPositionFraction: config.EnvFloat64("BOT_SCALPING_MAX_POSITION_FRACTION", 0),
-		TakeProfitPct:       config.EnvFloat64("BOT_SCALPING_TAKE_PROFIT_PCT", 0),
-		SessionStart:        config.EnvInt("BOT_SCALPING_SESSION_START", 0),
-		SessionEnd:          config.EnvInt("BOT_SCALPING_SESSION_END", 0),
-		MinRSI:              config.EnvFloat64("BOT_SCALPING_MIN_RSI", 55),
-		RequireMACDSignal:   config.EnvBool("BOT_SCALPING_REQUIRE_MACD_ABOVE_SIGNAL", true),
+		MaxPositionFraction:      config.EnvFloat64("BOT_SCALPING_MAX_POSITION_FRACTION", 0),
+		TakeProfitPct:            config.EnvFloat64("BOT_SCALPING_TAKE_PROFIT_PCT", 0),
+		StopLossPct:              config.EnvFloat64("BOT_SCALPING_STOP_LOSS_PCT", 0),
+		SessionStart:             config.EnvInt("BOT_SCALPING_SESSION_START", 0),
+		SessionEnd:               config.EnvInt("BOT_SCALPING_SESSION_END", 0),
+		MinRSI:                   config.EnvFloat64("BOT_SCALPING_MIN_RSI", 55),
+		RequireMACDSignal:        config.EnvBool("BOT_SCALPING_REQUIRE_MACD_ABOVE_SIGNAL", true),
+		RequireBollingerBreakout: config.EnvBool("BOT_SCALPING_REQUIRE_BOLLINGER_BREAKOUT", false),
+		MinBollingerWidthPct:     config.EnvFloat64("BOT_SCALPING_MIN_BOLLINGER_WIDTH_PCT", 0),
+		RequireBollingerSqueeze:  config.EnvBool("BOT_SCALPING_REQUIRE_BOLLINGER_SQUEEZE", false),
+		MaxBollingerWidthPct:     config.EnvFloat64("BOT_SCALPING_MAX_BOLLINGER_WIDTH_PCT", 0),
+		ReentryCooldownMinutes:   config.EnvInt("BOT_SCALPING_REENTRY_COOLDOWN_MINUTES", 0),
+		UseVolatilityTP:          config.EnvBool("BOT_SCALPING_USE_VOLATILITY_TP", false),
+		VolatilityTPMultiplier:   config.EnvFloat64("BOT_SCALPING_VOLATILITY_TP_MULTIPLIER", 0),
+		RiskPerTradePct:          config.EnvFloat64("BOT_SCALPING_RISK_PER_TRADE_PCT", 0),
 	}
 	fatal.Unless(scalpingParams.MinRSI >= 0 && scalpingParams.MinRSI <= 100, "BOT_SCALPING_MIN_RSI must be in [0,100]")
+	fatal.Unless(scalpingParams.MinBollingerWidthPct >= 0, "BOT_SCALPING_MIN_BOLLINGER_WIDTH_PCT must be non-negative")
+	fatal.Unless(scalpingParams.StopLossPct >= 0, "BOT_SCALPING_STOP_LOSS_PCT must be non-negative")
+	fatal.Unless(scalpingParams.RiskPerTradePct >= 0, "BOT_SCALPING_RISK_PER_TRADE_PCT must be non-negative")
 	rsiPeriod := config.EnvInt("BOT_RSI_PERIOD", 14)
 	macdFastPeriod := config.EnvInt("BOT_MACD_FAST_PERIOD", 12)
 	macdSlowPeriod := config.EnvInt("BOT_MACD_SLOW_PERIOD", 26)
 	macdSignalPeriod := config.EnvInt("BOT_MACD_SIGNAL_PERIOD", 9)
+	bollingerPeriod := config.EnvInt("BOT_BOLLINGER_PERIOD", 20)
+	bollingerStdDev := config.EnvFloat64("BOT_BOLLINGER_STDDEV", 2.0)
 	fatal.Unless(rsiPeriod >= 2, "BOT_RSI_PERIOD must be at least 2")
 	fatal.Unless(macdFastPeriod >= 2, "BOT_MACD_FAST_PERIOD must be at least 2")
 	fatal.Unless(macdSlowPeriod > macdFastPeriod, "BOT_MACD_SLOW_PERIOD must be greater than BOT_MACD_FAST_PERIOD")
 	fatal.Unless(macdSignalPeriod >= 2, "BOT_MACD_SIGNAL_PERIOD must be at least 2")
+	fatal.Unless(bollingerPeriod >= 2, "BOT_BOLLINGER_PERIOD must be at least 2")
+	fatal.Unless(bollingerStdDev > 0, "BOT_BOLLINGER_STDDEV must be greater than zero")
 	botSyncActor := botsync.NewParentActor(botsync.NewParentActorInput{
 		Log:                log,
 		BotEventLogFactory: logFactory,
@@ -71,6 +87,8 @@ func main() {
 		MACDFastPeriod:     macdFastPeriod,
 		MACDSlowPeriod:     macdSlowPeriod,
 		MACDSignalPeriod:   macdSignalPeriod,
+		BollingerPeriod:    bollingerPeriod,
+		BollingerStdDev:    bollingerStdDev,
 		BrokerAccountClientFactory: &brokerfactory.AccountClientFactory{
 			TastyTradeClientFactory:        tastyTradeClientFactory,
 			TastyTradeSandboxClientFactory: tastyTradeSandboxClientFactory,

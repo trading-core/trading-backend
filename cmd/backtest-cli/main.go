@@ -71,20 +71,36 @@ func main() {
 	macdFastPeriod := config.EnvInt("BACKTEST_MACD_FAST_PERIOD", 12)
 	macdSlowPeriod := config.EnvInt("BACKTEST_MACD_SLOW_PERIOD", 26)
 	macdSignalPeriod := config.EnvInt("BACKTEST_MACD_SIGNAL_PERIOD", 9)
+	bollingerPeriod := config.EnvInt("BACKTEST_BOLLINGER_PERIOD", 20)
+	bollingerStdDev := config.EnvFloat64("BACKTEST_BOLLINGER_STDDEV", 2.0)
 	fatal.Unless(macdFastPeriod >= 2, "BACKTEST_MACD_FAST_PERIOD must be at least 2")
 	fatal.Unless(macdSlowPeriod > macdFastPeriod, "BACKTEST_MACD_SLOW_PERIOD must be greater than BACKTEST_MACD_FAST_PERIOD")
 	fatal.Unless(macdSignalPeriod >= 2, "BACKTEST_MACD_SIGNAL_PERIOD must be at least 2")
+	fatal.Unless(bollingerPeriod >= 2, "BACKTEST_BOLLINGER_PERIOD must be at least 2")
+	fatal.Unless(bollingerStdDev > 0, "BACKTEST_BOLLINGER_STDDEV must be greater than zero")
 	err := tradingstrategy.ValidateType(strategyName)
 	fatal.OnError(err)
 	strategyParams := tradingstrategy.ScalpingParams{
-		MaxPositionFraction: config.EnvFloat64("BACKTEST_MAX_POSITION_FRACTION", 0),
-		TakeProfitPct:       config.EnvFloat64("BACKTEST_TAKE_PROFIT_PCT", 0),
-		SessionStart:        config.EnvInt("BACKTEST_SESSION_START", 0),
-		SessionEnd:          config.EnvInt("BACKTEST_SESSION_END", 0),
-		MinRSI:              config.EnvFloat64("BACKTEST_SCALPING_MIN_RSI", 55),
-		RequireMACDSignal:   config.EnvBool("BACKTEST_SCALPING_REQUIRE_MACD_ABOVE_SIGNAL", true),
+		MaxPositionFraction:      config.EnvFloat64("BACKTEST_MAX_POSITION_FRACTION", 0),
+		TakeProfitPct:            config.EnvFloat64("BACKTEST_TAKE_PROFIT_PCT", 0),
+		StopLossPct:              config.EnvFloat64("BACKTEST_SCALPING_STOP_LOSS_PCT", 0),
+		SessionStart:             config.EnvInt("BACKTEST_SESSION_START", 0),
+		SessionEnd:               config.EnvInt("BACKTEST_SESSION_END", 0),
+		MinRSI:                   config.EnvFloat64("BACKTEST_SCALPING_MIN_RSI", 55),
+		RequireMACDSignal:        config.EnvBool("BACKTEST_SCALPING_REQUIRE_MACD_ABOVE_SIGNAL", true),
+		RequireBollingerBreakout: config.EnvBool("BACKTEST_SCALPING_REQUIRE_BOLLINGER_BREAKOUT", false),
+		MinBollingerWidthPct:     config.EnvFloat64("BACKTEST_SCALPING_MIN_BOLLINGER_WIDTH_PCT", 0),
+		RequireBollingerSqueeze:  config.EnvBool("BACKTEST_SCALPING_REQUIRE_BOLLINGER_SQUEEZE", false),
+		MaxBollingerWidthPct:     config.EnvFloat64("BACKTEST_SCALPING_MAX_BOLLINGER_WIDTH_PCT", 0),
+		ReentryCooldownMinutes:   config.EnvInt("BACKTEST_SCALPING_REENTRY_COOLDOWN_MINUTES", 0),
+		UseVolatilityTP:          config.EnvBool("BACKTEST_SCALPING_USE_VOLATILITY_TP", false),
+		VolatilityTPMultiplier:   config.EnvFloat64("BACKTEST_SCALPING_VOLATILITY_TP_MULTIPLIER", 0),
+		RiskPerTradePct:          config.EnvFloat64("BACKTEST_SCALPING_RISK_PER_TRADE_PCT", 0),
 	}
 	fatal.Unless(strategyParams.MinRSI >= 0 && strategyParams.MinRSI <= 100, "BACKTEST_SCALPING_MIN_RSI must be in [0,100]")
+	fatal.Unless(strategyParams.MinBollingerWidthPct >= 0, "BACKTEST_SCALPING_MIN_BOLLINGER_WIDTH_PCT must be non-negative")
+	fatal.Unless(strategyParams.StopLossPct >= 0, "BACKTEST_SCALPING_STOP_LOSS_PCT must be non-negative")
+	fatal.Unless(strategyParams.RiskPerTradePct >= 0, "BACKTEST_SCALPING_RISK_PER_TRADE_PCT must be non-negative")
 	sweep := config.EnvBool("BACKTEST_SWEEP", false)
 
 	var (
@@ -141,18 +157,42 @@ func main() {
 	fatal.OnError(err)
 
 	if sweep {
-		runSweep(symbol, strategyName, strategyParams, float64(cash), prices, events, fillLatency, bidAskSpreadPct, rsiPeriod, macdFastPeriod, macdSlowPeriod, macdSignalPeriod, outputDir)
+		runSweep(symbol, strategyName, strategyParams, float64(cash), prices, events, fillLatency, bidAskSpreadPct, rsiPeriod, macdFastPeriod, macdSlowPeriod, macdSignalPeriod, bollingerPeriod, bollingerStdDev, outputDir)
 		return
 	}
 
-	backTestResult := runBacktest(symbol, strategyName, strategyParams, float64(cash), prices, events, fillLatency, bidAskSpreadPct, rsiPeriod, macdFastPeriod, macdSlowPeriod, macdSignalPeriod)
+	backTestResult := runBacktest(symbol, strategyName, strategyParams, float64(cash), prices, events, fillLatency, bidAskSpreadPct, rsiPeriod, macdFastPeriod, macdSlowPeriod, macdSignalPeriod, bollingerPeriod, bollingerStdDev)
 	plotStart := backTestResult.Prices[0].At
 	plotEnd := backTestResult.Prices[len(backTestResult.Prices)-1].At
 	rsiSeries := computeRSI(indicatorPrices, rsiPeriod)
 	macdSeries, macdSignalSeries := computeMACD(indicatorPrices, macdFastPeriod, macdSlowPeriod, macdSignalPeriod)
+	bollUpperSeries, bollMiddleSeries, bollLowerSeries := computeBollingerBands(indicatorPrices, bollingerPeriod, bollingerStdDev)
 	rsiForPlot := filterIndicatorSeriesToRange(rsiSeries, plotStart, plotEnd)
 	macdForPlot := filterIndicatorSeriesToRange(macdSeries, plotStart, plotEnd)
 	macdSignalForPlot := filterIndicatorSeriesToRange(macdSignalSeries, plotStart, plotEnd)
+	bollUpperForPlot := filterIndicatorSeriesToRange(bollUpperSeries, plotStart, plotEnd)
+	bollMiddleForPlot := filterIndicatorSeriesToRange(bollMiddleSeries, plotStart, plotEnd)
+	bollLowerForPlot := filterIndicatorSeriesToRange(bollLowerSeries, plotStart, plotEnd)
+	outputCombinedPNG := fmt.Sprintf("%s/backtest-with-indicators.png", outputDir)
+	err = chart.RenderCombined(chart.RenderCombinedInput{
+		Symbol:      backTestResult.Symbol,
+		Strategy:    backTestResult.Strategy,
+		TotalReturn: backTestResult.TotalReturn,
+		Prices:      chartPrices(backTestResult.Prices),
+		Decisions:   chartDecisions(backTestResult.Decisions),
+		BollUpper:   chartIndicatorPoints(bollUpperForPlot),
+		BollMiddle:  chartIndicatorPoints(bollMiddleForPlot),
+		BollLower:   chartIndicatorPoints(bollLowerForPlot),
+		RSI:         chartIndicatorPoints(rsiForPlot),
+		MACD:        chartIndicatorPoints(macdForPlot),
+		MACDSignal:  chartIndicatorPoints(macdSignalForPlot),
+		RSIPeriod:   rsiPeriod,
+		MACDFast:    macdFastPeriod,
+		MACDSlow:    macdSlowPeriod,
+		MACDSignalN: macdSignalPeriod,
+		Timezone:    tradingstrategy.USMarketLocation,
+	}, outputCombinedPNG)
+	fatal.OnError(err)
 	outputPNG := fmt.Sprintf("%s/backtest.png", outputDir)
 	err = chart.Render(chart.RenderInput{
 		Symbol:      backTestResult.Symbol,
@@ -160,6 +200,9 @@ func main() {
 		TotalReturn: backTestResult.TotalReturn,
 		Prices:      chartPrices(backTestResult.Prices),
 		Decisions:   chartDecisions(backTestResult.Decisions),
+		BollUpper:   chartIndicatorPoints(bollUpperForPlot),
+		BollMiddle:  chartIndicatorPoints(bollMiddleForPlot),
+		BollLower:   chartIndicatorPoints(bollLowerForPlot),
 		Timezone:    tradingstrategy.USMarketLocation,
 	}, outputPNG)
 	fatal.OnError(err)
@@ -186,11 +229,12 @@ func main() {
 	fmt.Printf("Ending cash: %.2f\n", backTestResult.EndingCash)
 	fmt.Printf("Ending value: %.2f\n", backTestResult.EndingValue)
 	fmt.Printf("Total return: %.2f%%\n", backTestResult.TotalReturn*100)
+	fmt.Printf("Combined image: %s\n", outputCombinedPNG)
 	fmt.Printf("Output image: %s\n", outputPNG)
 	fmt.Printf("Indicators image: %s\n", outputIndicatorsPNG)
 }
 
-func runSweep(symbol string, strategyName string, baseParams tradingstrategy.ScalpingParams, startingCash float64, prices []replay.PricePoint, events []replay.Event, fillLatency time.Duration, bidAskSpreadPct float64, rsiPeriod int, macdFastPeriod int, macdSlowPeriod int, macdSignalPeriod int, outputDir string) {
+func runSweep(symbol string, strategyName string, baseParams tradingstrategy.ScalpingParams, startingCash float64, prices []replay.PricePoint, events []replay.Event, fillLatency time.Duration, bidAskSpreadPct float64, rsiPeriod int, macdFastPeriod int, macdSlowPeriod int, macdSignalPeriod int, bollingerPeriod int, bollingerStdDev float64, outputDir string) {
 	// Practical TP ladder from 1.5% up to 20%.
 	takeProfitValues := []float64{0.015, 0.02, 0.03, 0.05, 0.075, 0.10, 0.125, 0.15, 0.175, 0.20}
 	positionValues := []float64{0.05, 0.10, 0.15, 0.20, 0.25, 0.30}
@@ -241,7 +285,7 @@ func runSweep(symbol string, strategyName string, baseParams tradingstrategy.Sca
 						var winWindows, totalTrades, windows int
 						for i := 0; i+ws <= len(days); i++ {
 							windowEvents, windowPrices := mergeWindow(days[i : i+ws])
-							res := runBacktest(symbol, strategyName, params, startingCash, windowPrices, windowEvents, fillLatency, bidAskSpreadPct, rsiPeriod, macdFastPeriod, macdSlowPeriod, macdSignalPeriod)
+							res := runBacktest(symbol, strategyName, params, startingCash, windowPrices, windowEvents, fillLatency, bidAskSpreadPct, rsiPeriod, macdFastPeriod, macdSlowPeriod, macdSignalPeriod, bollingerPeriod, bollingerStdDev)
 							totalReturn += res.TotalReturn
 							totalTrades += len(res.Decisions)
 							if res.TotalReturn > 0 {
@@ -357,10 +401,11 @@ func splitByTradingDay(events []replay.Event, prices []replay.PricePoint) []trad
 	return days
 }
 
-func runBacktest(symbol string, strategyName string, params tradingstrategy.ScalpingParams, startingCash float64, prices []replay.PricePoint, events []replay.Event, fillLatency time.Duration, bidAskSpreadPct float64, rsiPeriod int, macdFastPeriod int, macdSlowPeriod int, macdSignalPeriod int) result {
+func runBacktest(symbol string, strategyName string, params tradingstrategy.ScalpingParams, startingCash float64, prices []replay.PricePoint, events []replay.Event, fillLatency time.Duration, bidAskSpreadPct float64, rsiPeriod int, macdFastPeriod int, macdSlowPeriod int, macdSignalPeriod int, bollingerPeriod int, bollingerStdDev float64) result {
 	strategy := tradingstrategy.NewWithParams(strategyName, params)
 	rsiSeries := computeRSI(prices, rsiPeriod)
 	macdSeries, macdSignalSeries := computeMACD(prices, macdFastPeriod, macdSlowPeriod, macdSignalPeriod)
+	bollUpperSeries, bollMiddleSeries, bollLowerSeries := computeBollingerBands(prices, bollingerPeriod, bollingerStdDev)
 	rsiByTs := make(map[int64]float64, len(rsiSeries))
 	for _, p := range rsiSeries {
 		rsiByTs[p.At.Unix()] = p.Value
@@ -373,6 +418,18 @@ func runBacktest(symbol string, strategyName string, params tradingstrategy.Scal
 	for _, p := range macdSignalSeries {
 		macdSignalByTs[p.At.Unix()] = p.Value
 	}
+	bollUpperByTs := make(map[int64]float64, len(bollUpperSeries))
+	for _, p := range bollUpperSeries {
+		bollUpperByTs[p.At.Unix()] = p.Value
+	}
+	bollMiddleByTs := make(map[int64]float64, len(bollMiddleSeries))
+	for _, p := range bollMiddleSeries {
+		bollMiddleByTs[p.At.Unix()] = p.Value
+	}
+	bollLowerByTs := make(map[int64]float64, len(bollLowerSeries))
+	for _, p := range bollLowerSeries {
+		bollLowerByTs[p.At.Unix()] = p.Value
+	}
 	account := tradingstrategy.AccountSnapshot{
 		CashBalance:      startingCash,
 		BuyingPower:      startingCash,
@@ -382,9 +439,11 @@ func runBacktest(symbol string, strategyName string, params tradingstrategy.Scal
 	replayState := replay.NewState(symbol)
 
 	var (
-		decisions    []decisionPoint
-		pending      *pendingOrder
-		lastSnapshot tradingstrategy.MarketSnapshot
+		decisions      []decisionPoint
+		pending        *pendingOrder
+		lastSnapshot   tradingstrategy.MarketSnapshot
+		highSinceEntry float64
+		lastStopLossAt *time.Time
 	)
 
 	for _, event := range events {
@@ -392,11 +451,28 @@ func runBacktest(symbol string, strategyName string, params tradingstrategy.Scal
 		lastSnapshot = snapshot
 
 		if pending != nil && !event.At.Before(pending.FillAt) {
+			prevPos := account.PositionQuantity
+			wasStop := pending.Reason == "trailing stop triggered"
 			applyPendingFill(pending, snapshot, event, &account, &decisions, bidAskSpreadPct)
+			if account.PositionQuantity > prevPos {
+				highSinceEntry = account.EntryPrice
+			} else if account.PositionQuantity < prevPos {
+				highSinceEntry = 0
+				if wasStop {
+					t := event.At
+					lastStopLossAt = &t
+				}
+			}
 			pending = nil
 		}
 
 		input := tradingstrategy.NewEvaluateInput(snapshot, account)
+		// Track trailing high while in position.
+		if account.PositionQuantity > 0 && input.Price > highSinceEntry {
+			highSinceEntry = input.Price
+		}
+		input.HighSinceEntry = highSinceEntry
+		input.LastStopLossAt = lastStopLossAt
 		if v, ok := rsiByTs[event.At.Unix()]; ok {
 			value := v
 			input.RSI = &value
@@ -408,6 +484,22 @@ func runBacktest(symbol string, strategyName string, params tradingstrategy.Scal
 		if v, ok := macdSignalByTs[event.At.Unix()]; ok {
 			value := v
 			input.MACDSignal = &value
+		}
+		if v, ok := bollUpperByTs[event.At.Unix()]; ok {
+			value := v
+			input.BollUpper = &value
+		}
+		if v, ok := bollMiddleByTs[event.At.Unix()]; ok {
+			value := v
+			input.BollMiddle = &value
+		}
+		if v, ok := bollLowerByTs[event.At.Unix()]; ok {
+			value := v
+			input.BollLower = &value
+		}
+		if input.BollUpper != nil && input.BollMiddle != nil && input.BollLower != nil && *input.BollMiddle != 0 {
+			value := (*input.BollUpper - *input.BollLower) / *input.BollMiddle
+			input.BollWidthPct = &value
 		}
 		decision := strategy.Evaluate(input)
 
@@ -441,7 +533,18 @@ func runBacktest(symbol string, strategyName string, params tradingstrategy.Scal
 		}
 		account.HasOpenOrder = true
 		if !event.At.Before(pending.FillAt) {
+			prevPos := account.PositionQuantity
+			wasStop := pending.Reason == "trailing stop triggered"
 			applyPendingFill(pending, snapshot, event, &account, &decisions, bidAskSpreadPct)
+			if account.PositionQuantity > prevPos {
+				highSinceEntry = account.EntryPrice
+			} else if account.PositionQuantity < prevPos {
+				highSinceEntry = 0
+				if wasStop {
+					t := event.At
+					lastStopLossAt = &t
+				}
+			}
 			pending = nil
 		}
 	}
@@ -729,6 +832,41 @@ func computeMACD(prices []replay.PricePoint, fastPeriod int, slowPeriod int, sig
 		signalSeries = append(signalSeries, indicatorPoint{At: p.At, Value: signalEMA})
 	}
 	return macdSeries, signalSeries
+}
+
+func computeBollingerBands(prices []replay.PricePoint, period int, stdDevMultiplier float64) ([]indicatorPoint, []indicatorPoint, []indicatorPoint) {
+	if len(prices) < period || period < 2 || stdDevMultiplier <= 0 {
+		return nil, nil, nil
+	}
+	upper := make([]indicatorPoint, 0, len(prices)-period+1)
+	middle := make([]indicatorPoint, 0, len(prices)-period+1)
+	lower := make([]indicatorPoint, 0, len(prices)-period+1)
+	windowSum := 0.0
+	windowSqSum := 0.0
+	for i := 0; i < len(prices); i++ {
+		close := prices[i].Close
+		windowSum += close
+		windowSqSum += close * close
+		if i >= period {
+			out := prices[i-period].Close
+			windowSum -= out
+			windowSqSum -= out * out
+		}
+		if i < period-1 {
+			continue
+		}
+		mean := windowSum / float64(period)
+		variance := (windowSqSum / float64(period)) - (mean * mean)
+		if variance < 0 {
+			variance = 0
+		}
+		stddev := math.Sqrt(variance)
+		at := prices[i].At
+		middle = append(middle, indicatorPoint{At: at, Value: mean})
+		upper = append(upper, indicatorPoint{At: at, Value: mean + (stdDevMultiplier * stddev)})
+		lower = append(lower, indicatorPoint{At: at, Value: mean - (stdDevMultiplier * stddev)})
+	}
+	return upper, middle, lower
 }
 
 func filterIndicatorSeriesToRange(points []indicatorPoint, start time.Time, end time.Time) []indicatorPoint {

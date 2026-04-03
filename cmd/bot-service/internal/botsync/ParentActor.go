@@ -21,6 +21,8 @@ type ParentActor struct {
 	macdFastPeriod     int
 	macdSlowPeriod     int
 	macdSignalPeriod   int
+	bollingerPeriod    int
+	bollingerStdDev    float64
 
 	accountClientFactory    broker.AccountClientFactory
 	marketDataClientFactory broker.MarketDataClientFactory
@@ -39,6 +41,8 @@ type NewParentActorInput struct {
 	MACDFastPeriod                int
 	MACDSlowPeriod                int
 	MACDSignalPeriod              int
+	BollingerPeriod               int
+	BollingerStdDev               float64
 }
 
 func NewParentActor(input NewParentActorInput) *ParentActor {
@@ -51,6 +55,8 @@ func NewParentActor(input NewParentActorInput) *ParentActor {
 		macdFastPeriod:          input.MACDFastPeriod,
 		macdSlowPeriod:          input.MACDSlowPeriod,
 		macdSignalPeriod:        input.MACDSignalPeriod,
+		bollingerPeriod:         input.BollingerPeriod,
+		bollingerStdDev:         input.BollingerStdDev,
 		accountClientFactory:    input.BrokerAccountClientFactory,
 		marketDataClientFactory: input.BrokerMarketDataClientFactory,
 		tradeBotByID:            make(map[string]*TradeBot),
@@ -177,19 +183,30 @@ func (actor *ParentActor) startTradeActor(ctx context.Context, botID string) (er
 	}
 	strategy := tradingstrategy.NewWithParams(bot.StrategyType, actor.scalpingParams)
 	logger.Noticef(
-		"bot %s strategy config: type=%s maxPosition=%.4f takeProfit=%.4f sessionStart=%d sessionEnd=%d minRSI=%.2f requireMACDAboveSignal=%t rsiPeriod=%d macdFast=%d macdSlow=%d macdSignal=%d",
+		"bot %s strategy config: type=%s maxPosition=%.4f takeProfit=%.4f stopLoss=%.4f sessionStart=%d sessionEnd=%d minRSI=%.2f requireMACDAboveSignal=%t requireBollingerBreakout=%t minBollingerWidthPct=%.4f requireBollingerSqueeze=%t maxBollingerWidthPct=%.4f reentryCooldownMin=%d useVolatilityTP=%t volatilityTPMult=%.4f riskPerTradePct=%.4f rsiPeriod=%d macdFast=%d macdSlow=%d macdSignal=%d bollPeriod=%d bollStdDev=%.2f",
 		botID,
 		bot.StrategyType,
 		actor.scalpingParams.MaxPositionFraction,
 		actor.scalpingParams.TakeProfitPct,
+		actor.scalpingParams.StopLossPct,
 		actor.scalpingParams.SessionStart,
 		actor.scalpingParams.SessionEnd,
 		actor.scalpingParams.MinRSI,
 		actor.scalpingParams.RequireMACDSignal,
+		actor.scalpingParams.RequireBollingerBreakout,
+		actor.scalpingParams.MinBollingerWidthPct,
+		actor.scalpingParams.RequireBollingerSqueeze,
+		actor.scalpingParams.MaxBollingerWidthPct,
+		actor.scalpingParams.ReentryCooldownMinutes,
+		actor.scalpingParams.UseVolatilityTP,
+		actor.scalpingParams.VolatilityTPMultiplier,
+		actor.scalpingParams.RiskPerTradePct,
 		actor.rsiPeriod,
 		actor.macdFastPeriod,
 		actor.macdSlowPeriod,
 		actor.macdSignalPeriod,
+		actor.bollingerPeriod,
+		actor.bollingerStdDev,
 	)
 	ctx, cancel := context.WithCancel(ctx)
 	actor.cancelByBotID[botID] = cancel
@@ -209,6 +226,8 @@ func (actor *ParentActor) startTradeActor(ctx context.Context, botID string) (er
 		MACDFastPeriod:   actor.macdFastPeriod,
 		MACDSlowPeriod:   actor.macdSlowPeriod,
 		MACDSignalPeriod: actor.macdSignalPeriod,
+		BollingerPeriod:  actor.bollingerPeriod,
+		BollingerStdDev:  actor.bollingerStdDev,
 		BotID:            botID,
 		Log:              log,
 	})

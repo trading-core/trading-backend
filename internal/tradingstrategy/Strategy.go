@@ -61,6 +61,10 @@ type EvaluateInput struct {
 	RSI              *float64
 	MACD             *float64
 	MACDSignal       *float64
+	BollUpper        *float64
+	BollMiddle       *float64
+	BollLower        *float64
+	BollWidthPct     *float64
 	LastTradePrice   *float64
 	BidPrice         *float64
 	AskPrice         *float64
@@ -77,6 +81,8 @@ type EvaluateInput struct {
 	PositionQuantity float64
 	HasOpenOrder     bool
 	EntryPrice       float64
+	HighSinceEntry   float64
+	LastStopLossAt   *time.Time
 	Now              time.Time
 }
 
@@ -94,12 +100,21 @@ type Strategy interface {
 // ScalpingParams allows callers to override default Scalping parameters.
 // Zero-valued fields are ignored and defaults are used instead.
 type ScalpingParams struct {
-	MaxPositionFraction float64
-	TakeProfitPct       float64
-	SessionStart        int
-	SessionEnd          int
-	MinRSI              float64
-	RequireMACDSignal   bool
+	MaxPositionFraction      float64
+	TakeProfitPct            float64
+	StopLossPct              float64
+	SessionStart             int
+	SessionEnd               int
+	MinRSI                   float64
+	RequireMACDSignal        bool
+	RequireBollingerBreakout bool
+	MinBollingerWidthPct     float64
+	RequireBollingerSqueeze  bool
+	MaxBollingerWidthPct     float64
+	ReentryCooldownMinutes   int
+	UseVolatilityTP          bool
+	VolatilityTPMultiplier   float64
+	RiskPerTradePct          float64
 }
 
 func New(strategyType string) Strategy {
@@ -125,7 +140,28 @@ func NewWithParams(strategyType string, params ScalpingParams) Strategy {
 		if params.MinRSI > 0 {
 			s.MinRSI = params.MinRSI
 		}
+		if params.StopLossPct > 0 {
+			s.StopLossPct = params.StopLossPct
+		}
 		s.RequireMACDSignal = params.RequireMACDSignal
+		s.RequireBollingerBreakout = params.RequireBollingerBreakout
+		if params.MinBollingerWidthPct > 0 {
+			s.MinBollingerWidthPct = params.MinBollingerWidthPct
+		}
+		s.RequireBollingerSqueeze = params.RequireBollingerSqueeze
+		if params.MaxBollingerWidthPct > 0 {
+			s.MaxBollingerWidthPct = params.MaxBollingerWidthPct
+		}
+		if params.ReentryCooldownMinutes > 0 {
+			s.ReentryCooldownMinutes = params.ReentryCooldownMinutes
+		}
+		s.UseVolatilityTP = params.UseVolatilityTP
+		if params.VolatilityTPMultiplier > 0 {
+			s.VolatilityTPMultiplier = params.VolatilityTPMultiplier
+		}
+		if params.RiskPerTradePct > 0 {
+			s.RiskPerTradePct = params.RiskPerTradePct
+		}
 		return s
 	default:
 		return new(Noop)

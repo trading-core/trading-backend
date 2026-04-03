@@ -13,6 +13,7 @@ import (
 // Positions are force-closed when the hour reaches SessionEnd.
 
 type Scalping struct {
+	EntryMode                string // "breakout" or "pullback"
 	MaxPositionFraction      float64
 	TakeProfitPct            float64
 	StopLossPct              float64
@@ -32,12 +33,13 @@ type Scalping struct {
 
 func NewScalping() *Scalping {
 	return &Scalping{
+		EntryMode:                "pullback",
 		MaxPositionFraction:      0.1,
 		TakeProfitPct:            0.005,
 		StopLossPct:              0.02,
 		SessionStart:             10,
 		SessionEnd:               15,
-		MinRSI:                   55,
+		MinRSI:                   40,
 		RequireMACDSignal:        true,
 		RequireBollingerBreakout: false,
 		MinBollingerWidthPct:     0,
@@ -181,35 +183,53 @@ func (strategy *Scalping) Evaluate(input EvaluateInput) Decision {
 		}
 	}
 
-	// Breakout entry: price breaks above session high.
-	// Guard: session must have established a range (SessionHighPrice > 0)
-	// to avoid false breakout on the very first trade of the day.
-	if input.SessionHighPrice > 0 && input.Price > input.SessionHighPrice {
-		var qty float64
-		if strategy.RiskPerTradePct > 0 && strategy.StopLossPct > 0 {
-			// Risk-based position sizing: size so that a full stop-loss
-			// costs at most RiskPerTradePct of buying power.
-			riskAmount := buyingPower * strategy.RiskPerTradePct
-			stopDistance := input.Price * strategy.StopLossPct
-			qty = math.Floor(riskAmount / stopDistance)
-			// Cap at MaxPositionFraction to avoid oversized positions on tight stops.
-			maxQty := math.Floor(buyingPower * strategy.MaxPositionFraction / input.Price)
-			if qty > maxQty {
-				qty = maxQty
-			}
-		} else {
-			maxCapital := buyingPower * strategy.MaxPositionFraction
-			qty = math.Floor(maxCapital / input.Price)
+	// --- Entry trigger (mode-dependent) ---
+	entryTriggered := false
+
+	switch strategy.EntryMode {
+	case "pullback":
+		// Pullback entry: buy when price dips to or below the Bollinger middle
+		// band while RSI/MACD still confirm upward momentum. This enters at
+		// mean-reversion support rather than chasing breakouts at resistance.
+		if input.BollMiddle == nil {
+			return Decision{Action: ActionNone, Reason: "bollinger middle unavailable for pullback"}
 		}
-		if qty < 1 {
-			return Decision{Action: ActionNone, Reason: "insufficient buying power for one share"}
+		if input.Price <= *input.BollMiddle {
+			entryTriggered = true
 		}
-		return Decision{
-			Action:   ActionBuy,
-			Reason:   "price broke above session high",
-			Quantity: qty,
+
+	default: // "breakout"
+		// Breakout entry: price breaks above session high.
+		// Guard: session must have established a range (SessionHighPrice > 0)
+		// to avoid false breakout on the very first trade of the day.
+		if input.SessionHighPrice > 0 && input.Price > input.SessionHighPrice {
+			entryTriggered = true
 		}
 	}
 
-	return Decision{Action: ActionNone, Reason: "no momentum breakout signal"}
+	if !entryTriggered {
+		return Decision{Action: ActionNone, Reason: "no entry signal"}
+	}
+
+	var qty float64
+	if strategy.RiskPerTradePct > 0 && strategy.StopLossPct > 0 {
+		riskAmount := buyingPower * strategy.RiskPerTradePct
+		stopDistance := input.Price * strategy.StopLossPct
+		qty = math.Floor(riskAmount / stopDistance)
+		maxQty := math.Floor(buyingPower * strategy.MaxPositionFraction / input.Price)
+		if qty > maxQty {
+			qty = maxQty
+		}
+	} else {
+		maxCapital := buyingPower * strategy.MaxPositionFraction
+		qty = math.Floor(maxCapital / input.Price)
+	}
+	if qty < 1 {
+		return Decision{Action: ActionNone, Reason: "insufficient buying power for one share"}
+	}
+	return Decision{
+		Action:   ActionBuy,
+		Reason:   "entry signal: " + strategy.EntryMode,
+		Quantity: qty,
+	}
 }

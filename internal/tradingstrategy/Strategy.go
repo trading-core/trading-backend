@@ -100,6 +100,7 @@ type Strategy interface {
 // ScalpingParams allows callers to override default Scalping parameters.
 // Zero-valued fields are ignored and defaults are used instead.
 type ScalpingParams struct {
+	EntryMode                string
 	MaxPositionFraction      float64
 	TakeProfitPct            float64
 	StopLossPct              float64
@@ -125,6 +126,9 @@ func NewWithParams(strategyType string, params ScalpingParams) Strategy {
 	switch strategyType {
 	case "scalping":
 		s := NewScalping()
+		if params.EntryMode != "" {
+			s.EntryMode = params.EntryMode
+		}
 		if params.MaxPositionFraction > 0 {
 			s.MaxPositionFraction = params.MaxPositionFraction
 		}

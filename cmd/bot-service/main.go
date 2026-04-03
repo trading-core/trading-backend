@@ -46,12 +46,13 @@ func main() {
 		TastyTradeSandboxClientFactory: tastyTradeSandboxClientFactory,
 	})
 	scalpingParams := tradingstrategy.ScalpingParams{
+		EntryMode:                config.EnvString("BOT_SCALPING_ENTRY_MODE", ""),
 		MaxPositionFraction:      config.EnvFloat64("BOT_SCALPING_MAX_POSITION_FRACTION", 0),
 		TakeProfitPct:            config.EnvFloat64("BOT_SCALPING_TAKE_PROFIT_PCT", 0),
 		StopLossPct:              config.EnvFloat64("BOT_SCALPING_STOP_LOSS_PCT", 0),
 		SessionStart:             config.EnvInt("BOT_SCALPING_SESSION_START", 0),
 		SessionEnd:               config.EnvInt("BOT_SCALPING_SESSION_END", 0),
-		MinRSI:                   config.EnvFloat64("BOT_SCALPING_MIN_RSI", 55),
+		MinRSI:                   config.EnvFloat64("BOT_SCALPING_MIN_RSI", 40),
 		RequireMACDSignal:        config.EnvBool("BOT_SCALPING_REQUIRE_MACD_ABOVE_SIGNAL", true),
 		RequireBollingerBreakout: config.EnvBool("BOT_SCALPING_REQUIRE_BOLLINGER_BREAKOUT", false),
 		MinBollingerWidthPct:     config.EnvFloat64("BOT_SCALPING_MIN_BOLLINGER_WIDTH_PCT", 0),

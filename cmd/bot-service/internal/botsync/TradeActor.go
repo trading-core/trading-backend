@@ -33,6 +33,7 @@ type TradeActor struct {
 	marketDataClient broker.MarketDataClient
 	marketState      *MarketState
 	log              eventsource.Log
+	indicators       *indicatorState
 
 	mutex              sync.RWMutex
 	accountSnapshot    tradingstrategy.AccountSnapshot
@@ -47,6 +48,10 @@ type NewTradeActorInput struct {
 	MarketDataClient broker.MarketDataClient
 	MarketState      *MarketState
 	TradingStrategy  tradingstrategy.Strategy
+	RSIPeriod        int
+	MACDFastPeriod   int
+	MACDSlowPeriod   int
+	MACDSignalPeriod int
 	BotID            string
 	Log              eventsource.Log
 }
@@ -57,6 +62,7 @@ func NewTradeActor(input NewTradeActorInput) *TradeActor {
 		marketDataClient: input.MarketDataClient,
 		tradingStrategy:  input.TradingStrategy,
 		marketState:      input.MarketState,
+		indicators:       newIndicatorState(input.RSIPeriod, input.MACDFastPeriod, input.MACDSlowPeriod, input.MACDSignalPeriod),
 		botID:            input.BotID,
 		log:              input.Log,
 	}
@@ -80,6 +86,10 @@ func (actor *TradeActor) Run(ctx context.Context) {
 		snapshot := actor.marketState.Apply(message)
 		accountSnapshot.EntryPrice = actor.entryPrice
 		input := tradingstrategy.NewEvaluateInput(snapshot, accountSnapshot)
+		rsi, macd, macdSignal := actor.indicators.Update(input.Price)
+		input.RSI = rsi
+		input.MACD = macd
+		input.MACDSignal = macdSignal
 		decision := actor.tradingStrategy.Evaluate(input)
 		if decision.Action == tradingstrategy.ActionNone {
 			continue
@@ -130,6 +140,131 @@ func (actor *TradeActor) Run(ctx context.Context) {
 		fatal.OnError(err)
 	}
 	fatal.OnError(iterator.Err())
+}
+
+type indicatorState struct {
+	rsiPeriod      int
+	macdFastPeriod int
+	macdSlowPeriod int
+	macdSignal     int
+
+	priceSamples int
+	prevClose    *float64
+
+	gainSum      float64
+	lossSum      float64
+	rsiSeedCount int
+	rsiReady     bool
+	avgGain      float64
+	avgLoss      float64
+
+	fastEMA      float64
+	slowEMA      float64
+	macdSeed     []float64
+	signalEMA    float64
+	signalReady  bool
+	hasEMAValues bool
+}
+
+func newIndicatorState(rsiPeriod int, macdFastPeriod int, macdSlowPeriod int, macdSignal int) *indicatorState {
+	if rsiPeriod < 2 {
+		rsiPeriod = 14
+	}
+	if macdFastPeriod < 2 {
+		macdFastPeriod = 12
+	}
+	if macdSlowPeriod <= macdFastPeriod {
+		macdSlowPeriod = 26
+	}
+	if macdSignal < 2 {
+		macdSignal = 9
+	}
+	return &indicatorState{
+		rsiPeriod:      rsiPeriod,
+		macdFastPeriod: macdFastPeriod,
+		macdSlowPeriod: macdSlowPeriod,
+		macdSignal:     macdSignal,
+	}
+}
+
+func (state *indicatorState) Update(price float64) (rsi *float64, macd *float64, macdSignal *float64) {
+	if price <= 0 {
+		return nil, nil, nil
+	}
+	state.priceSamples++
+
+	if !state.hasEMAValues {
+		state.fastEMA = price
+		state.slowEMA = price
+		state.hasEMAValues = true
+	} else {
+		fastK := 2.0 / (float64(state.macdFastPeriod) + 1)
+		slowK := 2.0 / (float64(state.macdSlowPeriod) + 1)
+		state.fastEMA = ((price - state.fastEMA) * fastK) + state.fastEMA
+		state.slowEMA = ((price - state.slowEMA) * slowK) + state.slowEMA
+	}
+	macdValue := state.fastEMA - state.slowEMA
+	if state.priceSamples >= state.macdSlowPeriod {
+		v := macdValue
+		macd = &v
+		if !state.signalReady {
+			state.macdSeed = append(state.macdSeed, macdValue)
+			if len(state.macdSeed) >= state.macdSignal {
+				sum := 0.0
+				for _, sample := range state.macdSeed {
+					sum += sample
+				}
+				state.signalEMA = sum / float64(len(state.macdSeed))
+				state.signalReady = true
+			}
+		} else {
+			signalK := 2.0 / (float64(state.macdSignal) + 1)
+			state.signalEMA = ((macdValue - state.signalEMA) * signalK) + state.signalEMA
+		}
+		if state.signalReady {
+			v := state.signalEMA
+			macdSignal = &v
+		}
+	}
+
+	if state.prevClose != nil {
+		delta := price - *state.prevClose
+		gain := 0.0
+		loss := 0.0
+		if delta > 0 {
+			gain = delta
+		} else {
+			loss = -delta
+		}
+		if !state.rsiReady {
+			state.gainSum += gain
+			state.lossSum += loss
+			state.rsiSeedCount++
+			if state.rsiSeedCount >= state.rsiPeriod {
+				state.avgGain = state.gainSum / float64(state.rsiPeriod)
+				state.avgLoss = state.lossSum / float64(state.rsiPeriod)
+				state.rsiReady = true
+				rsiValue := rsiFromAverages(state.avgGain, state.avgLoss)
+				rsi = &rsiValue
+			}
+		} else {
+			state.avgGain = ((state.avgGain * float64(state.rsiPeriod-1)) + gain) / float64(state.rsiPeriod)
+			state.avgLoss = ((state.avgLoss * float64(state.rsiPeriod-1)) + loss) / float64(state.rsiPeriod)
+			rsiValue := rsiFromAverages(state.avgGain, state.avgLoss)
+			rsi = &rsiValue
+		}
+	}
+	closeCopy := price
+	state.prevClose = &closeCopy
+	return rsi, macd, macdSignal
+}
+
+func rsiFromAverages(avgGain, avgLoss float64) float64 {
+	if avgLoss == 0 {
+		return 100
+	}
+	rs := avgGain / avgLoss
+	return 100 - (100 / (1 + rs))
 }
 
 func (actor *TradeActor) loadAccountSnapshot(ctx context.Context, accountClient broker.AccountClient) (snapshot tradingstrategy.AccountSnapshot, err error) {

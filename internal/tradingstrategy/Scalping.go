@@ -14,6 +14,8 @@ type Scalping struct {
 	TakeProfitPct       float64
 	SessionStart        int // hour 0-23
 	SessionEnd          int // hour 0-23, exclusive
+	MinRSI              float64
+	RequireMACDSignal   bool
 }
 
 func NewScalping() *Scalping {
@@ -22,6 +24,8 @@ func NewScalping() *Scalping {
 		TakeProfitPct:       0.005,
 		SessionStart:        10,
 		SessionEnd:          15,
+		MinRSI:              55,
+		RequireMACDSignal:   true,
 	}
 }
 
@@ -68,6 +72,20 @@ func (strategy *Scalping) Evaluate(input EvaluateInput) Decision {
 	hour := input.Now.In(USMarketLocation).Hour()
 	if hour < strategy.SessionStart || hour >= strategy.SessionEnd {
 		return Decision{Action: ActionNone, Reason: "outside trading session window"}
+	}
+	if input.RSI == nil {
+		return Decision{Action: ActionNone, Reason: "rsi unavailable"}
+	}
+	if *input.RSI < strategy.MinRSI {
+		return Decision{Action: ActionNone, Reason: "rsi below threshold"}
+	}
+	if strategy.RequireMACDSignal {
+		if input.MACD == nil || input.MACDSignal == nil {
+			return Decision{Action: ActionNone, Reason: "macd unavailable"}
+		}
+		if *input.MACD <= *input.MACDSignal {
+			return Decision{Action: ActionNone, Reason: "macd below signal"}
+		}
 	}
 	// Breakout entry: price breaks above session high.
 	// Guard: session must have established a range (SessionHighPrice > 0)

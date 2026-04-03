@@ -16,6 +16,11 @@ type ParentActor struct {
 	log                eventsource.Log
 	botEventLogFactory eventsource.LogFactory
 	botChannelFunc     func(botID string) string
+	scalpingParams     tradingstrategy.ScalpingParams
+	rsiPeriod          int
+	macdFastPeriod     int
+	macdSlowPeriod     int
+	macdSignalPeriod   int
 
 	accountClientFactory    broker.AccountClientFactory
 	marketDataClientFactory broker.MarketDataClientFactory
@@ -29,6 +34,11 @@ type NewParentActorInput struct {
 	BotChannelFunc                func(botID string) string
 	BrokerAccountClientFactory    broker.AccountClientFactory
 	BrokerMarketDataClientFactory broker.MarketDataClientFactory
+	ScalpingParams                tradingstrategy.ScalpingParams
+	RSIPeriod                     int
+	MACDFastPeriod                int
+	MACDSlowPeriod                int
+	MACDSignalPeriod              int
 }
 
 func NewParentActor(input NewParentActorInput) *ParentActor {
@@ -36,6 +46,11 @@ func NewParentActor(input NewParentActorInput) *ParentActor {
 		log:                     input.Log,
 		botEventLogFactory:      input.BotEventLogFactory,
 		botChannelFunc:          input.BotChannelFunc,
+		scalpingParams:          input.ScalpingParams,
+		rsiPeriod:               input.RSIPeriod,
+		macdFastPeriod:          input.MACDFastPeriod,
+		macdSlowPeriod:          input.MACDSlowPeriod,
+		macdSignalPeriod:        input.MACDSignalPeriod,
 		accountClientFactory:    input.BrokerAccountClientFactory,
 		marketDataClientFactory: input.BrokerMarketDataClientFactory,
 		tradeBotByID:            make(map[string]*TradeBot),
@@ -160,7 +175,22 @@ func (actor *ParentActor) startTradeActor(ctx context.Context, botID string) (er
 	if !ok {
 		return
 	}
-	strategy := tradingstrategy.New(bot.StrategyType)
+	strategy := tradingstrategy.NewWithParams(bot.StrategyType, actor.scalpingParams)
+	logger.Noticef(
+		"bot %s strategy config: type=%s maxPosition=%.4f takeProfit=%.4f sessionStart=%d sessionEnd=%d minRSI=%.2f requireMACDAboveSignal=%t rsiPeriod=%d macdFast=%d macdSlow=%d macdSignal=%d",
+		botID,
+		bot.StrategyType,
+		actor.scalpingParams.MaxPositionFraction,
+		actor.scalpingParams.TakeProfitPct,
+		actor.scalpingParams.SessionStart,
+		actor.scalpingParams.SessionEnd,
+		actor.scalpingParams.MinRSI,
+		actor.scalpingParams.RequireMACDSignal,
+		actor.rsiPeriod,
+		actor.macdFastPeriod,
+		actor.macdSlowPeriod,
+		actor.macdSignalPeriod,
+	)
 	ctx, cancel := context.WithCancel(ctx)
 	actor.cancelByBotID[botID] = cancel
 	brokerAccount := &broker.Account{
@@ -175,6 +205,10 @@ func (actor *ParentActor) startTradeActor(ctx context.Context, botID string) (er
 		MarketDataClient: actor.marketDataClientFactory.Get(ctx, brokerAccount),
 		MarketState:      NewMarketState(bot.Symbol),
 		TradingStrategy:  strategy,
+		RSIPeriod:        actor.rsiPeriod,
+		MACDFastPeriod:   actor.macdFastPeriod,
+		MACDSlowPeriod:   actor.macdSlowPeriod,
+		MACDSignalPeriod: actor.macdSignalPeriod,
 		BotID:            botID,
 		Log:              log,
 	})

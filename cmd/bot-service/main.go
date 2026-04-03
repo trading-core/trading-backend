@@ -13,9 +13,11 @@ import (
 	"github.com/kduong/trading-backend/cmd/bot-service/internal/httpapi"
 	"github.com/kduong/trading-backend/internal/auth"
 	"github.com/kduong/trading-backend/internal/broker/tastytrade"
+	"github.com/kduong/trading-backend/internal/config"
 	"github.com/kduong/trading-backend/internal/eventsource"
 	"github.com/kduong/trading-backend/internal/eventsource/subscription"
 	"github.com/kduong/trading-backend/internal/fatal"
+	"github.com/kduong/trading-backend/internal/tradingstrategy"
 	"github.com/rs/cors"
 )
 
@@ -43,10 +45,32 @@ func main() {
 		TastyTradeClientFactory:        tastyTradeClientFactory,
 		TastyTradeSandboxClientFactory: tastyTradeSandboxClientFactory,
 	})
+	scalpingParams := tradingstrategy.ScalpingParams{
+		MaxPositionFraction: config.EnvFloat64("BOT_SCALPING_MAX_POSITION_FRACTION", 0),
+		TakeProfitPct:       config.EnvFloat64("BOT_SCALPING_TAKE_PROFIT_PCT", 0),
+		SessionStart:        config.EnvInt("BOT_SCALPING_SESSION_START", 0),
+		SessionEnd:          config.EnvInt("BOT_SCALPING_SESSION_END", 0),
+		MinRSI:              config.EnvFloat64("BOT_SCALPING_MIN_RSI", 55),
+		RequireMACDSignal:   config.EnvBool("BOT_SCALPING_REQUIRE_MACD_ABOVE_SIGNAL", true),
+	}
+	fatal.Unless(scalpingParams.MinRSI >= 0 && scalpingParams.MinRSI <= 100, "BOT_SCALPING_MIN_RSI must be in [0,100]")
+	rsiPeriod := config.EnvInt("BOT_RSI_PERIOD", 14)
+	macdFastPeriod := config.EnvInt("BOT_MACD_FAST_PERIOD", 12)
+	macdSlowPeriod := config.EnvInt("BOT_MACD_SLOW_PERIOD", 26)
+	macdSignalPeriod := config.EnvInt("BOT_MACD_SIGNAL_PERIOD", 9)
+	fatal.Unless(rsiPeriod >= 2, "BOT_RSI_PERIOD must be at least 2")
+	fatal.Unless(macdFastPeriod >= 2, "BOT_MACD_FAST_PERIOD must be at least 2")
+	fatal.Unless(macdSlowPeriod > macdFastPeriod, "BOT_MACD_SLOW_PERIOD must be greater than BOT_MACD_FAST_PERIOD")
+	fatal.Unless(macdSignalPeriod >= 2, "BOT_MACD_SIGNAL_PERIOD must be at least 2")
 	botSyncActor := botsync.NewParentActor(botsync.NewParentActorInput{
 		Log:                log,
 		BotEventLogFactory: logFactory,
 		BotChannelFunc:     botChannelFunc,
+		ScalpingParams:     scalpingParams,
+		RSIPeriod:          rsiPeriod,
+		MACDFastPeriod:     macdFastPeriod,
+		MACDSlowPeriod:     macdSlowPeriod,
+		MACDSignalPeriod:   macdSignalPeriod,
 		BrokerAccountClientFactory: &brokerfactory.AccountClientFactory{
 			TastyTradeClientFactory:        tastyTradeClientFactory,
 			TastyTradeSandboxClientFactory: tastyTradeSandboxClientFactory,

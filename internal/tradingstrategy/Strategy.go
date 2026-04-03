@@ -58,6 +58,9 @@ func ValidateType(strategyType string) error {
 // values were actually present on the incoming data.
 type EvaluateInput struct {
 	Price            float64
+	RSI              *float64
+	MACD             *float64
+	MACDSignal       *float64
 	LastTradePrice   *float64
 	BidPrice         *float64
 	AskPrice         *float64
@@ -95,6 +98,8 @@ type ScalpingParams struct {
 	TakeProfitPct       float64
 	SessionStart        int
 	SessionEnd          int
+	MinRSI              float64
+	RequireMACDSignal   bool
 }
 
 func New(strategyType string) Strategy {
@@ -117,6 +122,10 @@ func NewWithParams(strategyType string, params ScalpingParams) Strategy {
 		if params.SessionEnd > 0 {
 			s.SessionEnd = params.SessionEnd
 		}
+		if params.MinRSI > 0 {
+			s.MinRSI = params.MinRSI
+		}
+		s.RequireMACDSignal = params.RequireMACDSignal
 		return s
 	default:
 		return new(Noop)

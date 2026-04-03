@@ -64,6 +64,16 @@ func main() {
 	fatal.Unless(fillLatencyMS >= 0, "BACKTEST_FILL_LATENCY_MS must be non-negative")
 	bidAskSpreadPct := config.EnvFloat64("BACKTEST_BID_ASK_SPREAD_PCT", 0)
 	fatal.Unless(bidAskSpreadPct >= 0, "BACKTEST_BID_ASK_SPREAD_PCT must be non-negative")
+	indicatorWarmupBars := config.EnvInt("BACKTEST_INDICATOR_WARMUP_BARS", 200)
+	fatal.Unless(indicatorWarmupBars >= 0, "BACKTEST_INDICATOR_WARMUP_BARS must be non-negative")
+	rsiPeriod := config.EnvInt("BACKTEST_RSI_PERIOD", 14)
+	fatal.Unless(rsiPeriod >= 2, "BACKTEST_RSI_PERIOD must be at least 2")
+	macdFastPeriod := config.EnvInt("BACKTEST_MACD_FAST_PERIOD", 12)
+	macdSlowPeriod := config.EnvInt("BACKTEST_MACD_SLOW_PERIOD", 26)
+	macdSignalPeriod := config.EnvInt("BACKTEST_MACD_SIGNAL_PERIOD", 9)
+	fatal.Unless(macdFastPeriod >= 2, "BACKTEST_MACD_FAST_PERIOD must be at least 2")
+	fatal.Unless(macdSlowPeriod > macdFastPeriod, "BACKTEST_MACD_SLOW_PERIOD must be greater than BACKTEST_MACD_FAST_PERIOD")
+	fatal.Unless(macdSignalPeriod >= 2, "BACKTEST_MACD_SIGNAL_PERIOD must be at least 2")
 	err := tradingstrategy.ValidateType(strategyName)
 	fatal.OnError(err)
 	strategyParams := tradingstrategy.ScalpingParams{
@@ -71,12 +81,16 @@ func main() {
 		TakeProfitPct:       config.EnvFloat64("BACKTEST_TAKE_PROFIT_PCT", 0),
 		SessionStart:        config.EnvInt("BACKTEST_SESSION_START", 0),
 		SessionEnd:          config.EnvInt("BACKTEST_SESSION_END", 0),
+		MinRSI:              config.EnvFloat64("BACKTEST_SCALPING_MIN_RSI", 55),
+		RequireMACDSignal:   config.EnvBool("BACKTEST_SCALPING_REQUIRE_MACD_ABOVE_SIGNAL", true),
 	}
+	fatal.Unless(strategyParams.MinRSI >= 0 && strategyParams.MinRSI <= 100, "BACKTEST_SCALPING_MIN_RSI must be in [0,100]")
 	sweep := config.EnvBool("BACKTEST_SWEEP", false)
 
 	var (
-		prices []replay.PricePoint
-		events []replay.Event
+		prices          []replay.PricePoint
+		indicatorPrices []replay.PricePoint
+		events          []replay.Event
 	)
 	if replayEventsFile != "" {
 		events, err = replay.LoadEventsFromFile(replayEventsFile, symbol)
@@ -84,6 +98,7 @@ func main() {
 		fatal.Unlessf(len(events) > 0, "replay file returned no events (path=%s symbol=%s)", replayEventsFile, symbol)
 		prices = replay.PriceSeries(events)
 		fatal.Unlessf(len(prices) > 0, "replay file returned no plottable prices (path=%s symbol=%s)", replayEventsFile, symbol)
+		indicatorPrices = prices
 	} else {
 		prices, err = loadCandlesFromAlpaca(ctx, loadCandlesFromAlpacaInput{
 			Symbol:    symbol,
@@ -95,6 +110,27 @@ func main() {
 		})
 		fatal.OnError(err)
 		fatal.Unlessf(len(prices) > 0, "alpaca returned no candle rows (symbol=%s timeframe=%s start=%q end=%q feed=%s limit=%d)", symbol, alpacaTF, alpacaStart, alpacaEnd, alpacaFeed, AlpacaStockBarLimit)
+		indicatorPrices = prices
+		if indicatorWarmupBars > 0 && alpacaStart != "" {
+			warmupStart, warmupErr := computeIndicatorWarmupStart(alpacaStart, alpacaTF, indicatorWarmupBars)
+			if warmupErr != nil {
+				fmt.Fprintf(os.Stderr, "warning: indicator warmup disabled (%v)\n", warmupErr)
+			} else {
+				warmupPrices, loadErr := loadCandlesFromAlpaca(ctx, loadCandlesFromAlpacaInput{
+					Symbol:    symbol,
+					Timeframe: alpacaTF,
+					Limit:     AlpacaStockBarLimit,
+					Start:     warmupStart,
+					End:       alpacaEnd,
+					Feed:      alpacaFeed,
+				})
+				if loadErr != nil {
+					fmt.Fprintf(os.Stderr, "warning: indicator warmup fetch failed (%v)\n", loadErr)
+				} else if len(warmupPrices) > len(prices) {
+					indicatorPrices = warmupPrices
+				}
+			}
+		}
 		events = replay.EventsFromCandles(symbol, prices)
 	}
 
@@ -105,11 +141,18 @@ func main() {
 	fatal.OnError(err)
 
 	if sweep {
-		runSweep(symbol, strategyName, float64(cash), prices, events, fillLatency, bidAskSpreadPct, outputDir)
+		runSweep(symbol, strategyName, strategyParams, float64(cash), prices, events, fillLatency, bidAskSpreadPct, rsiPeriod, macdFastPeriod, macdSlowPeriod, macdSignalPeriod, outputDir)
 		return
 	}
 
-	backTestResult := runBacktest(symbol, strategyName, strategyParams, float64(cash), prices, events, fillLatency, bidAskSpreadPct)
+	backTestResult := runBacktest(symbol, strategyName, strategyParams, float64(cash), prices, events, fillLatency, bidAskSpreadPct, rsiPeriod, macdFastPeriod, macdSlowPeriod, macdSignalPeriod)
+	plotStart := backTestResult.Prices[0].At
+	plotEnd := backTestResult.Prices[len(backTestResult.Prices)-1].At
+	rsiSeries := computeRSI(indicatorPrices, rsiPeriod)
+	macdSeries, macdSignalSeries := computeMACD(indicatorPrices, macdFastPeriod, macdSlowPeriod, macdSignalPeriod)
+	rsiForPlot := filterIndicatorSeriesToRange(rsiSeries, plotStart, plotEnd)
+	macdForPlot := filterIndicatorSeriesToRange(macdSeries, plotStart, plotEnd)
+	macdSignalForPlot := filterIndicatorSeriesToRange(macdSignalSeries, plotStart, plotEnd)
 	outputPNG := fmt.Sprintf("%s/backtest.png", outputDir)
 	err = chart.Render(chart.RenderInput{
 		Symbol:      backTestResult.Symbol,
@@ -120,6 +163,21 @@ func main() {
 		Timezone:    tradingstrategy.USMarketLocation,
 	}, outputPNG)
 	fatal.OnError(err)
+	outputIndicatorsPNG := fmt.Sprintf("%s/indicators.png", outputDir)
+	err = chart.RenderIndicators(chart.RenderIndicatorsInput{
+		Symbol:      backTestResult.Symbol,
+		Strategy:    backTestResult.Strategy,
+		Timeline:    chartTimes(backTestResult.Prices),
+		RSI:         chartIndicatorPoints(rsiForPlot),
+		MACD:        chartIndicatorPoints(macdForPlot),
+		MACDSignal:  chartIndicatorPoints(macdSignalForPlot),
+		RSIPeriod:   rsiPeriod,
+		MACDFast:    macdFastPeriod,
+		MACDSlow:    macdSlowPeriod,
+		MACDSignalN: macdSignalPeriod,
+		Timezone:    tradingstrategy.USMarketLocation,
+	}, outputIndicatorsPNG)
+	fatal.OnError(err)
 
 	fmt.Printf("Backtest complete for %s (%s)\n", backTestResult.Symbol, backTestResult.Strategy)
 	fmt.Printf("Rows: %d\n", len(backTestResult.Prices))
@@ -129,9 +187,10 @@ func main() {
 	fmt.Printf("Ending value: %.2f\n", backTestResult.EndingValue)
 	fmt.Printf("Total return: %.2f%%\n", backTestResult.TotalReturn*100)
 	fmt.Printf("Output image: %s\n", outputPNG)
+	fmt.Printf("Indicators image: %s\n", outputIndicatorsPNG)
 }
 
-func runSweep(symbol string, strategyName string, startingCash float64, prices []replay.PricePoint, events []replay.Event, fillLatency time.Duration, bidAskSpreadPct float64, outputDir string) {
+func runSweep(symbol string, strategyName string, baseParams tradingstrategy.ScalpingParams, startingCash float64, prices []replay.PricePoint, events []replay.Event, fillLatency time.Duration, bidAskSpreadPct float64, rsiPeriod int, macdFastPeriod int, macdSlowPeriod int, macdSignalPeriod int, outputDir string) {
 	// Practical TP ladder from 1.5% up to 20%.
 	takeProfitValues := []float64{0.015, 0.02, 0.03, 0.05, 0.075, 0.10, 0.125, 0.15, 0.175, 0.20}
 	positionValues := []float64{0.05, 0.10, 0.15, 0.20, 0.25, 0.30}
@@ -173,17 +232,16 @@ func runSweep(symbol string, strategyName string, startingCash float64, prices [
 				for _, se := range sessionEndValues {
 					for _, ws := range windowSizes {
 						run++
-						params := tradingstrategy.ScalpingParams{
-							TakeProfitPct:       tp,
-							MaxPositionFraction: pos,
-							SessionStart:        ss,
-							SessionEnd:          se,
-						}
+						params := baseParams
+						params.TakeProfitPct = tp
+						params.MaxPositionFraction = pos
+						params.SessionStart = ss
+						params.SessionEnd = se
 						var totalReturn float64
 						var winWindows, totalTrades, windows int
 						for i := 0; i+ws <= len(days); i++ {
 							windowEvents, windowPrices := mergeWindow(days[i : i+ws])
-							res := runBacktest(symbol, strategyName, params, startingCash, windowPrices, windowEvents, fillLatency, bidAskSpreadPct)
+							res := runBacktest(symbol, strategyName, params, startingCash, windowPrices, windowEvents, fillLatency, bidAskSpreadPct, rsiPeriod, macdFastPeriod, macdSlowPeriod, macdSignalPeriod)
 							totalReturn += res.TotalReturn
 							totalTrades += len(res.Decisions)
 							if res.TotalReturn > 0 {
@@ -299,8 +357,22 @@ func splitByTradingDay(events []replay.Event, prices []replay.PricePoint) []trad
 	return days
 }
 
-func runBacktest(symbol string, strategyName string, params tradingstrategy.ScalpingParams, startingCash float64, prices []replay.PricePoint, events []replay.Event, fillLatency time.Duration, bidAskSpreadPct float64) result {
+func runBacktest(symbol string, strategyName string, params tradingstrategy.ScalpingParams, startingCash float64, prices []replay.PricePoint, events []replay.Event, fillLatency time.Duration, bidAskSpreadPct float64, rsiPeriod int, macdFastPeriod int, macdSlowPeriod int, macdSignalPeriod int) result {
 	strategy := tradingstrategy.NewWithParams(strategyName, params)
+	rsiSeries := computeRSI(prices, rsiPeriod)
+	macdSeries, macdSignalSeries := computeMACD(prices, macdFastPeriod, macdSlowPeriod, macdSignalPeriod)
+	rsiByTs := make(map[int64]float64, len(rsiSeries))
+	for _, p := range rsiSeries {
+		rsiByTs[p.At.Unix()] = p.Value
+	}
+	macdByTs := make(map[int64]float64, len(macdSeries))
+	for _, p := range macdSeries {
+		macdByTs[p.At.Unix()] = p.Value
+	}
+	macdSignalByTs := make(map[int64]float64, len(macdSignalSeries))
+	for _, p := range macdSignalSeries {
+		macdSignalByTs[p.At.Unix()] = p.Value
+	}
 	account := tradingstrategy.AccountSnapshot{
 		CashBalance:      startingCash,
 		BuyingPower:      startingCash,
@@ -325,6 +397,18 @@ func runBacktest(symbol string, strategyName string, params tradingstrategy.Scal
 		}
 
 		input := tradingstrategy.NewEvaluateInput(snapshot, account)
+		if v, ok := rsiByTs[event.At.Unix()]; ok {
+			value := v
+			input.RSI = &value
+		}
+		if v, ok := macdByTs[event.At.Unix()]; ok {
+			value := v
+			input.MACD = &value
+		}
+		if v, ok := macdSignalByTs[event.At.Unix()]; ok {
+			value := v
+			input.MACDSignal = &value
+		}
 		decision := strategy.Evaluate(input)
 
 		if decision.Action == tradingstrategy.ActionNone {
@@ -534,6 +618,144 @@ func parseTimestamp(value string) (time.Time, error) {
 		return time.Unix(unixSeconds, 0).UTC(), nil
 	}
 	return time.Time{}, fmt.Errorf("unsupported time format: %s", clean)
+}
+
+type indicatorPoint struct {
+	At    time.Time
+	Value float64
+}
+
+func computeIndicatorWarmupStart(startRFC3339 string, timeframe string, warmupBars int) (string, error) {
+	if warmupBars <= 0 {
+		return startRFC3339, nil
+	}
+	startAt, err := parseTimestamp(startRFC3339)
+	if err != nil {
+		return "", fmt.Errorf("invalid BACKTEST_ALPACA_START: %w", err)
+	}
+	barSize, err := timeframeToDuration(timeframe)
+	if err != nil {
+		return "", err
+	}
+	warmupDuration := time.Duration(warmupBars) * barSize
+	return startAt.Add(-warmupDuration).Format(time.RFC3339), nil
+}
+
+func timeframeToDuration(timeframe string) (time.Duration, error) {
+	clean := strings.TrimSpace(strings.ToLower(timeframe))
+	switch clean {
+	case "1min", "1m":
+		return time.Minute, nil
+	case "5min", "5m":
+		return 5 * time.Minute, nil
+	case "15min", "15m":
+		return 15 * time.Minute, nil
+	case "1hour", "1h":
+		return time.Hour, nil
+	case "1day", "1d":
+		return 24 * time.Hour, nil
+	default:
+		return 0, fmt.Errorf("unsupported timeframe for warmup: %s", timeframe)
+	}
+}
+
+func computeRSI(prices []replay.PricePoint, period int) []indicatorPoint {
+	if len(prices) <= period || period < 2 {
+		return nil
+	}
+	var gainSum, lossSum float64
+	for i := 1; i <= period; i++ {
+		delta := prices[i].Close - prices[i-1].Close
+		if delta > 0 {
+			gainSum += delta
+		} else {
+			lossSum -= delta
+		}
+	}
+	avgGain := gainSum / float64(period)
+	avgLoss := lossSum / float64(period)
+	out := make([]indicatorPoint, 0, len(prices)-period)
+	out = append(out, indicatorPoint{At: prices[period].At, Value: rsiFromAverages(avgGain, avgLoss)})
+	for i := period + 1; i < len(prices); i++ {
+		delta := prices[i].Close - prices[i-1].Close
+		gain := 0.0
+		loss := 0.0
+		if delta > 0 {
+			gain = delta
+		} else {
+			loss = -delta
+		}
+		avgGain = ((avgGain * float64(period-1)) + gain) / float64(period)
+		avgLoss = ((avgLoss * float64(period-1)) + loss) / float64(period)
+		out = append(out, indicatorPoint{At: prices[i].At, Value: rsiFromAverages(avgGain, avgLoss)})
+	}
+	return out
+}
+
+func rsiFromAverages(avgGain, avgLoss float64) float64 {
+	if avgLoss == 0 {
+		return 100
+	}
+	rs := avgGain / avgLoss
+	return 100 - (100 / (1 + rs))
+}
+
+func computeMACD(prices []replay.PricePoint, fastPeriod int, slowPeriod int, signalPeriod int) ([]indicatorPoint, []indicatorPoint) {
+	if len(prices) == 0 || fastPeriod < 2 || slowPeriod < 2 || signalPeriod < 2 || slowPeriod <= fastPeriod {
+		return nil, nil
+	}
+	fastK := 2.0 / (float64(fastPeriod) + 1)
+	slowK := 2.0 / (float64(slowPeriod) + 1)
+	signalK := 2.0 / (float64(signalPeriod) + 1)
+	fastEMA := prices[0].Close
+	slowEMA := prices[0].Close
+	macdSeries := make([]indicatorPoint, 0, len(prices))
+	signalSeries := make([]indicatorPoint, 0, len(prices))
+	var signalEMA float64
+	hasSignal := false
+	for i, p := range prices {
+		if i > 0 {
+			fastEMA = ((p.Close - fastEMA) * fastK) + fastEMA
+			slowEMA = ((p.Close - slowEMA) * slowK) + slowEMA
+		}
+		macd := fastEMA - slowEMA
+		macdSeries = append(macdSeries, indicatorPoint{At: p.At, Value: macd})
+		if !hasSignal {
+			signalEMA = macd
+			hasSignal = true
+		} else {
+			signalEMA = ((macd - signalEMA) * signalK) + signalEMA
+		}
+		signalSeries = append(signalSeries, indicatorPoint{At: p.At, Value: signalEMA})
+	}
+	return macdSeries, signalSeries
+}
+
+func filterIndicatorSeriesToRange(points []indicatorPoint, start time.Time, end time.Time) []indicatorPoint {
+	out := make([]indicatorPoint, 0, len(points))
+	for _, p := range points {
+		if p.At.Before(start) || p.At.After(end) {
+			continue
+		}
+		out = append(out, p)
+	}
+	return out
+}
+
+func chartTimes(prices []replay.PricePoint) []time.Time {
+	out := make([]time.Time, len(prices))
+	for i, p := range prices {
+		out[i] = p.At
+	}
+	return out
+}
+
+func chartIndicatorPoints(points []indicatorPoint) []chart.IndicatorPoint {
+	out := make([]chart.IndicatorPoint, len(points))
+	for i, p := range points {
+		out[i] = chart.IndicatorPoint{At: p.At, Value: p.Value}
+	}
+	return out
 }
 
 func chartPrices(prices []replay.PricePoint) []chart.PricePoint {

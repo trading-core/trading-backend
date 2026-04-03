@@ -144,9 +144,9 @@ func EnvFloat64(key string, dflt float64) float64 {
 	if s == "" {
 		return dflt
 	}
-	i, err := strconv.ParseFloat(s, 64)
+	f, err := strconv.ParseFloat(s, 64)
 	if err != nil {
 		logger.Fatalf("Value from environment is not a 64-bit floating point number: key %s value %s", key, s)
 	}
-	return i
+	return f
 }

@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"encoding/csv"
 	"errors"
 	"fmt"
 	"math"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -17,6 +19,8 @@ import (
 	"github.com/kduong/trading-backend/internal/fatal"
 	"github.com/kduong/trading-backend/internal/tradingstrategy"
 )
+
+const AlpacaStockBarLimit = 10000
 
 type decisionPoint struct {
 	At       time.Time
@@ -47,10 +51,8 @@ type pendingOrder struct {
 
 func main() {
 	ctx := context.Background()
-	cash := config.EnvInt("BACKTEST_CASH", 10000)
+	cash := config.EnvInt("BACKTEST_CASH", 20000)
 	fatal.Unless(cash >= 0, "BACKTEST_CASH must be greater than zero")
-	alpacaLimit := config.EnvInt("BACKTEST_ALPACA_LIMIT", 1000)
-	fatal.Unless(alpacaLimit >= 0, "BACKTEST_ALPACA_LIMIT must be greater than zero")
 	symbol := config.EnvString("BACKTEST_SYMBOL", "AAPL")
 	strategyName := config.EnvString("BACKTEST_STRATEGY", "scalping")
 	alpacaTF := config.EnvString("BACKTEST_ALPACA_TIMEFRAME", "1Min")
@@ -60,9 +62,17 @@ func main() {
 	replayEventsFile := config.EnvString("BACKTEST_REPLAY_EVENTS_FILE", "")
 	fillLatencyMS := config.EnvInt("BACKTEST_FILL_LATENCY_MS", 0)
 	fatal.Unless(fillLatencyMS >= 0, "BACKTEST_FILL_LATENCY_MS must be non-negative")
-	outputPNG := config.EnvString("BACKTEST_OUTPUT", "backtest.png")
+	bidAskSpreadPct := config.EnvFloat64("BACKTEST_BID_ASK_SPREAD_PCT", 0)
+	fatal.Unless(bidAskSpreadPct >= 0, "BACKTEST_BID_ASK_SPREAD_PCT must be non-negative")
 	err := tradingstrategy.ValidateType(strategyName)
 	fatal.OnError(err)
+	strategyParams := tradingstrategy.ScalpingParams{
+		MaxPositionFraction: config.EnvFloat64("BACKTEST_MAX_POSITION_FRACTION", 0),
+		TakeProfitPct:       config.EnvFloat64("BACKTEST_TAKE_PROFIT_PCT", 0),
+		SessionStart:        config.EnvInt("BACKTEST_SESSION_START", 0),
+		SessionEnd:          config.EnvInt("BACKTEST_SESSION_END", 0),
+	}
+	sweep := config.EnvBool("BACKTEST_SWEEP", false)
 
 	var (
 		prices []replay.PricePoint
@@ -78,39 +88,219 @@ func main() {
 		prices, err = loadCandlesFromAlpaca(ctx, loadCandlesFromAlpacaInput{
 			Symbol:    symbol,
 			Timeframe: alpacaTF,
-			Limit:     alpacaLimit,
+			Limit:     AlpacaStockBarLimit,
 			Start:     alpacaStart,
 			End:       alpacaEnd,
 			Feed:      alpacaFeed,
 		})
 		fatal.OnError(err)
-		fatal.Unlessf(len(prices) > 0, "alpaca returned no candle rows (symbol=%s timeframe=%s start=%q end=%q feed=%s limit=%d)", symbol, alpacaTF, alpacaStart, alpacaEnd, alpacaFeed, alpacaLimit)
+		fatal.Unlessf(len(prices) > 0, "alpaca returned no candle rows (symbol=%s timeframe=%s start=%q end=%q feed=%s limit=%d)", symbol, alpacaTF, alpacaStart, alpacaEnd, alpacaFeed, AlpacaStockBarLimit)
 		events = replay.EventsFromCandles(symbol, prices)
 	}
 
-	res := runBacktest(symbol, strategyName, float64(cash), prices, events, time.Duration(fillLatencyMS)*time.Millisecond)
+	fillLatency := time.Duration(fillLatencyMS) * time.Millisecond
+
+	outputDir := fmt.Sprintf("./tmp/%s", symbol)
+	err = os.MkdirAll(outputDir, 0o755)
+	fatal.OnError(err)
+
+	if sweep {
+		runSweep(symbol, strategyName, float64(cash), prices, events, fillLatency, bidAskSpreadPct, outputDir)
+		return
+	}
+
+	backTestResult := runBacktest(symbol, strategyName, strategyParams, float64(cash), prices, events, fillLatency, bidAskSpreadPct)
+	outputPNG := fmt.Sprintf("%s/backtest.png", outputDir)
 	err = chart.Render(chart.RenderInput{
-		Symbol:      res.Symbol,
-		Strategy:    res.Strategy,
-		TotalReturn: res.TotalReturn,
-		Prices:      chartPrices(res.Prices),
-		Decisions:   chartDecisions(res.Decisions),
+		Symbol:      backTestResult.Symbol,
+		Strategy:    backTestResult.Strategy,
+		TotalReturn: backTestResult.TotalReturn,
+		Prices:      chartPrices(backTestResult.Prices),
+		Decisions:   chartDecisions(backTestResult.Decisions),
 		Timezone:    tradingstrategy.USMarketLocation,
 	}, outputPNG)
 	fatal.OnError(err)
 
-	fmt.Printf("Backtest complete for %s (%s)\n", res.Symbol, res.Strategy)
-	fmt.Printf("Rows: %d\n", len(res.Prices))
-	fmt.Printf("Decisions: %d\n", len(res.Decisions))
-	fmt.Printf("Starting cash: %.2f\n", res.StartingCash)
-	fmt.Printf("Ending cash: %.2f\n", res.EndingCash)
-	fmt.Printf("Ending value: %.2f\n", res.EndingValue)
-	fmt.Printf("Total return: %.2f%%\n", res.TotalReturn*100)
+	fmt.Printf("Backtest complete for %s (%s)\n", backTestResult.Symbol, backTestResult.Strategy)
+	fmt.Printf("Rows: %d\n", len(backTestResult.Prices))
+	fmt.Printf("Decisions: %d\n", len(backTestResult.Decisions))
+	fmt.Printf("Starting cash: %.2f\n", backTestResult.StartingCash)
+	fmt.Printf("Ending cash: %.2f\n", backTestResult.EndingCash)
+	fmt.Printf("Ending value: %.2f\n", backTestResult.EndingValue)
+	fmt.Printf("Total return: %.2f%%\n", backTestResult.TotalReturn*100)
 	fmt.Printf("Output image: %s\n", outputPNG)
 }
 
-func runBacktest(symbol string, strategyName string, startingCash float64, prices []replay.PricePoint, events []replay.Event, fillLatency time.Duration) result {
-	strategy := tradingstrategy.New(strategyName)
+func runSweep(symbol string, strategyName string, startingCash float64, prices []replay.PricePoint, events []replay.Event, fillLatency time.Duration, bidAskSpreadPct float64, outputDir string) {
+	// Practical TP ladder from 1.5% up to 20%.
+	takeProfitValues := []float64{0.015, 0.02, 0.03, 0.05, 0.075, 0.10, 0.125, 0.15, 0.175, 0.20}
+	positionValues := []float64{0.05, 0.10, 0.15, 0.20, 0.25, 0.30}
+	sessionStartValues := []int{10, 11}
+	sessionEndValues := []int{14, 15, 16}
+
+	// Split data into per-day segments so each param combo is tested across
+	// multiple sessions to avoid single-day overfitting.
+	days := splitByTradingDay(events, prices)
+	fatal.Unlessf(len(days) > 0, "no trading days found in data")
+	fmt.Fprintf(os.Stderr, "sweep: %d trading day(s) detected\n", len(days))
+
+	// Window sizes for multi-day sessions. Window=1 is single-day (original
+	// behaviour). Larger windows carry position/cash across consecutive days.
+	var windowSizes []int
+	for w := 1; w <= len(days); w++ {
+		windowSizes = append(windowSizes, w)
+	}
+
+	type sweepResult struct {
+		TakeProfit   float64
+		Position     float64
+		Start        int
+		End          int
+		WindowDays   int
+		AvgReturn    float64
+		WinWindows   int
+		TotalWindows int
+		TotalTrades  int
+	}
+
+	var results []sweepResult
+
+	combos := len(takeProfitValues) * len(positionValues) * len(sessionStartValues) * len(sessionEndValues) * len(windowSizes)
+	run := 0
+	for _, tp := range takeProfitValues {
+		for _, pos := range positionValues {
+			for _, ss := range sessionStartValues {
+				for _, se := range sessionEndValues {
+					for _, ws := range windowSizes {
+						run++
+						params := tradingstrategy.ScalpingParams{
+							TakeProfitPct:       tp,
+							MaxPositionFraction: pos,
+							SessionStart:        ss,
+							SessionEnd:          se,
+						}
+						var totalReturn float64
+						var winWindows, totalTrades, windows int
+						for i := 0; i+ws <= len(days); i++ {
+							windowEvents, windowPrices := mergeWindow(days[i : i+ws])
+							res := runBacktest(symbol, strategyName, params, startingCash, windowPrices, windowEvents, fillLatency, bidAskSpreadPct)
+							totalReturn += res.TotalReturn
+							totalTrades += len(res.Decisions)
+							if res.TotalReturn > 0 {
+								winWindows++
+							}
+							windows++
+						}
+						if windows > 0 {
+							results = append(results, sweepResult{
+								TakeProfit:   tp,
+								Position:     pos,
+								Start:        ss,
+								End:          se,
+								WindowDays:   ws,
+								AvgReturn:    totalReturn / float64(windows),
+								WinWindows:   winWindows,
+								TotalWindows: windows,
+								TotalTrades:  totalTrades,
+							})
+						}
+						if run%50 == 0 || run == combos {
+							fmt.Fprintf(os.Stderr, "sweep: %d/%d combos\n", run, combos)
+						}
+					}
+				}
+			}
+		}
+	}
+
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].AvgReturn > results[j].AvgReturn
+	})
+
+	csvPath := fmt.Sprintf("%s/sweep-results.csv", outputDir)
+	f, err := os.Create(csvPath)
+	if err != nil {
+		fatal.OnError(err)
+	}
+	defer f.Close()
+
+	w := csv.NewWriter(f)
+	w.Write([]string{"TakeProfit%", "Position%", "SessionStartHour(ET)", "SessionEndHour(ET)", "WindowDays", "AvgReturn%", "WinRate%", "Windows", "Trades"})
+	for _, r := range results {
+		winRate := float64(r.WinWindows) / float64(r.TotalWindows) * 100
+		w.Write([]string{
+			fmt.Sprintf("%.2f", r.TakeProfit*100),
+			fmt.Sprintf("%.1f", r.Position*100),
+			strconv.Itoa(r.Start),
+			strconv.Itoa(r.End),
+			strconv.Itoa(r.WindowDays),
+			fmt.Sprintf("%.4f", r.AvgReturn*100),
+			fmt.Sprintf("%.1f", winRate),
+			strconv.Itoa(r.TotalWindows),
+			strconv.Itoa(r.TotalTrades),
+		})
+	}
+	w.Flush()
+	fatal.OnError(w.Error())
+
+	fmt.Fprintf(os.Stderr, "sweep results written to %s (%d rows)\n", csvPath, len(results))
+}
+
+// mergeWindow concatenates events and prices from consecutive trading days into
+// a single contiguous slice for multi-day backtest sessions.
+func mergeWindow(days []tradingDay) ([]replay.Event, []replay.PricePoint) {
+	var events []replay.Event
+	var prices []replay.PricePoint
+	for _, d := range days {
+		events = append(events, d.events...)
+		prices = append(prices, d.prices...)
+	}
+	return events, prices
+}
+
+// tradingDay holds one day's worth of events and the corresponding price series.
+type tradingDay struct {
+	date   string // "2006-01-02"
+	events []replay.Event
+	prices []replay.PricePoint
+}
+
+// splitByTradingDay partitions events and prices into per-calendar-day segments
+// using the US Eastern timezone so that a single market session stays together.
+func splitByTradingDay(events []replay.Event, prices []replay.PricePoint) []tradingDay {
+	dayEvents := make(map[string][]replay.Event)
+	for _, e := range events {
+		d := e.At.In(tradingstrategy.USMarketLocation).Format("2006-01-02")
+		dayEvents[d] = append(dayEvents[d], e)
+	}
+	dayPrices := make(map[string][]replay.PricePoint)
+	for _, p := range prices {
+		d := p.At.In(tradingstrategy.USMarketLocation).Format("2006-01-02")
+		dayPrices[d] = append(dayPrices[d], p)
+	}
+
+	var dates []string
+	for d := range dayEvents {
+		dates = append(dates, d)
+	}
+	sort.Strings(dates)
+
+	var days []tradingDay
+	for _, d := range dates {
+		p := dayPrices[d]
+		if len(p) == 0 {
+			p = replay.PriceSeries(dayEvents[d])
+		}
+		if len(p) == 0 {
+			continue
+		}
+		days = append(days, tradingDay{date: d, events: dayEvents[d], prices: p})
+	}
+	return days
+}
+
+func runBacktest(symbol string, strategyName string, params tradingstrategy.ScalpingParams, startingCash float64, prices []replay.PricePoint, events []replay.Event, fillLatency time.Duration, bidAskSpreadPct float64) result {
+	strategy := tradingstrategy.NewWithParams(strategyName, params)
 	account := tradingstrategy.AccountSnapshot{
 		CashBalance:      startingCash,
 		BuyingPower:      startingCash,
@@ -130,7 +320,7 @@ func runBacktest(symbol string, strategyName string, startingCash float64, price
 		lastSnapshot = snapshot
 
 		if pending != nil && !event.At.Before(pending.FillAt) {
-			applyPendingFill(pending, snapshot, event, &account, &decisions)
+			applyPendingFill(pending, snapshot, event, &account, &decisions, bidAskSpreadPct)
 			pending = nil
 		}
 
@@ -167,7 +357,7 @@ func runBacktest(symbol string, strategyName string, startingCash float64, price
 		}
 		account.HasOpenOrder = true
 		if !event.At.Before(pending.FillAt) {
-			applyPendingFill(pending, snapshot, event, &account, &decisions)
+			applyPendingFill(pending, snapshot, event, &account, &decisions, bidAskSpreadPct)
 			pending = nil
 		}
 	}
@@ -176,7 +366,7 @@ func runBacktest(symbol string, strategyName string, startingCash float64, price
 	// snapshot, avoiding a redundant Apply that would double-update session state.
 	if pending != nil && len(events) > 0 {
 		lastEvent := events[len(events)-1]
-		applyPendingFill(pending, lastSnapshot, lastEvent, &account, &decisions)
+		applyPendingFill(pending, lastSnapshot, lastEvent, &account, &decisions, bidAskSpreadPct)
 	}
 
 	lastPrice := prices[len(prices)-1].Close
@@ -194,7 +384,7 @@ func runBacktest(symbol string, strategyName string, startingCash float64, price
 	}
 }
 
-func applyPendingFill(pending *pendingOrder, snapshot tradingstrategy.MarketSnapshot, event replay.Event, account *tradingstrategy.AccountSnapshot, decisions *[]decisionPoint) {
+func applyPendingFill(pending *pendingOrder, snapshot tradingstrategy.MarketSnapshot, event replay.Event, account *tradingstrategy.AccountSnapshot, decisions *[]decisionPoint, bidAskSpreadPct float64) {
 	price := fillPrice(pending.Action, snapshot, event)
 	if price <= 0 {
 		return
@@ -203,10 +393,12 @@ func applyPendingFill(pending *pendingOrder, snapshot tradingstrategy.MarketSnap
 	switch pending.Action {
 	case tradingstrategy.ActionBuy:
 		qty := pending.Quantity
-		cost := qty * price
+		// Deduct bid-ask spread on buy (price goes up by spread/2)
+		effectivePrice := price * (1 + bidAskSpreadPct/2)
+		cost := qty * effectivePrice
 		if cost > account.CashBalance {
-			qty = math.Floor(account.CashBalance / price)
-			cost = qty * price
+			qty = math.Floor(account.CashBalance / effectivePrice)
+			cost = qty * effectivePrice
 		}
 		if qty <= 0 {
 			return
@@ -214,7 +406,7 @@ func applyPendingFill(pending *pendingOrder, snapshot tradingstrategy.MarketSnap
 		account.CashBalance -= cost
 		account.BuyingPower = account.CashBalance
 		account.PositionQuantity += qty
-		account.EntryPrice = price
+		account.EntryPrice = effectivePrice
 		*decisions = append(*decisions, decisionPoint{
 			At:       event.At,
 			Price:    price,
@@ -230,7 +422,9 @@ func applyPendingFill(pending *pendingOrder, snapshot tradingstrategy.MarketSnap
 		if qty <= 0 {
 			return
 		}
-		proceeds := qty * price
+		// Deduct bid-ask spread on sell (price goes down by spread/2)
+		effectivePrice := price * (1 - bidAskSpreadPct/2)
+		proceeds := qty * effectivePrice
 		account.CashBalance += proceeds
 		account.BuyingPower = account.CashBalance
 		account.PositionQuantity -= qty

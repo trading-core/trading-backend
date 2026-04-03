@@ -41,6 +41,19 @@ func Render(input RenderInput, outputPath string) error {
 		return errors.New("no price points to plot")
 	}
 
+	tz := input.Timezone
+	if tz == nil {
+		tz = time.UTC
+	}
+
+	// Filter prices and decisions to market hours (09:30–16:00 ET) so
+	// overnight gaps don't dominate the x-axis.
+	prices := filterMarketHours(input.Prices, tz)
+	if len(prices) == 0 {
+		prices = input.Prices // fallback if nothing passes the filter
+	}
+	decisions := filterDecisionMarketHours(input.Decisions, tz)
+
 	const (
 		width    = 1400
 		height   = 700
@@ -63,15 +76,27 @@ func Render(input RenderInput, outputPath string) error {
 	plotTop := topPad
 	plotBottom := height - botPad
 
-	xMin := input.Prices[0].At.Unix()
-	xMax := input.Prices[len(input.Prices)-1].At.Unix()
-	if xMax == xMin {
-		xMax = xMin + 1
+	// Build a compressed x-axis that maps each data point to a sequential
+	// index, eliminating overnight gaps between trading sessions.
+	type indexedPrice struct {
+		idx   int
+		price PricePoint
+	}
+	indexed := make([]indexedPrice, len(prices))
+	tsToIndex := make(map[int64]int, len(prices))
+	for i, p := range prices {
+		indexed[i] = indexedPrice{idx: i, price: p}
+		tsToIndex[p.At.Unix()] = i
+	}
+	idxMin := 0
+	idxMax := len(prices) - 1
+	if idxMax <= 0 {
+		idxMax = 1
 	}
 
-	yMin := input.Prices[0].Close
-	yMax := input.Prices[0].Close
-	for _, p := range input.Prices {
+	yMin := prices[0].Close
+	yMax := prices[0].Close
+	for _, p := range prices {
 		if p.Close < yMin {
 			yMin = p.Close
 		}
@@ -86,13 +111,31 @@ func Render(input RenderInput, outputPath string) error {
 	yMin -= priceMargin
 	yMax += priceMargin
 
-	xToPixel := func(ts int64) int {
-		fraction := float64(ts-xMin) / float64(xMax-xMin)
+	xToPixel := func(idx int) int {
+		fraction := float64(idx-idxMin) / float64(idxMax-idxMin)
 		return plotLeft + int(fraction*float64(plotRight-plotLeft))
 	}
 	yToPixel := func(value float64) int {
 		fraction := (value - yMin) / (yMax - yMin)
 		return plotBottom - int(fraction*float64(plotBottom-plotTop))
+	}
+
+	// Find the closest data index for a given timestamp.
+	closestIndex := func(ts int64) int {
+		if idx, ok := tsToIndex[ts]; ok {
+			return idx
+		}
+		// Binary search for nearest point.
+		lo, hi := 0, len(prices)-1
+		for lo < hi {
+			mid := (lo + hi) / 2
+			if prices[mid].At.Unix() < ts {
+				lo = mid + 1
+			} else {
+				hi = mid
+			}
+		}
+		return lo
 	}
 
 	var (
@@ -103,16 +146,17 @@ func Render(input RenderInput, outputPath string) error {
 		priceColor = color.RGBA{R: 35, G: 120, B: 230, A: 255}
 		buyColor   = color.RGBA{R: 25, G: 170, B: 70, A: 255}
 		sellColor  = color.RGBA{R: 220, G: 40, B: 40, A: 255}
+		sepColor   = color.RGBA{R: 180, G: 180, B: 180, A: 255}
 	)
 
-	tz := input.Timezone
-	if tz == nil {
-		tz = time.UTC
+	firstDate := prices[0].At.In(tz).Format("2006-01-02")
+	lastDate := prices[len(prices)-1].At.In(tz).Format("2006-01-02")
+	dateStr := firstDate
+	if lastDate != firstDate {
+		dateStr = firstDate + " to " + lastDate
 	}
-
-	date := input.Prices[0].At.In(tz).Format("2006-01-02")
 	title := fmt.Sprintf("%s  |  %s  |  %s  |  Return: %+.2f%%",
-		input.Symbol, input.Strategy, date, input.TotalReturn*100)
+		input.Symbol, input.Strategy, dateStr, input.TotalReturn*100)
 	drawText(img, title, plotLeft, 16, titleColor)
 
 	for _, tick := range niceTickValues(yMin, yMax, 7) {
@@ -126,31 +170,51 @@ func Render(input RenderInput, outputPath string) error {
 		drawText(img, label, plotLeft-len(label)*7-6, py-5, labelColor)
 	}
 
-	for _, ts := range niceTimeTicksUnix(xMin, xMax, 9) {
-		px := xToPixel(ts)
-		if px < plotLeft || px > plotRight {
-			continue
+	// Generate x-axis labels at regular index intervals, plus day separators.
+	tickStep := len(prices) / 10
+	if tickStep < 1 {
+		tickStep = 1
+	}
+	prevDay := ""
+	for i, p := range prices {
+		day := p.At.In(tz).Format("2006-01-02")
+
+		// Draw a vertical separator at each day boundary.
+		if day != prevDay && prevDay != "" {
+			px := xToPixel(i)
+			drawLine(img, px, plotTop, px, plotBottom, sepColor)
+			// Label the new date just below the top of the plot.
+			drawText(img, day, px+4, plotTop+2, labelColor)
 		}
-		drawLine(img, px, plotTop, px, plotBottom, gridColor)
-		drawLine(img, px, plotBottom, px, plotBottom+5, axisColor)
-		label := time.Unix(ts, 0).In(tz).Format("15:04")
-		drawText(img, label, px-len(label)*7/2, plotBottom+12, labelColor)
+		prevDay = day
+
+		// Regular time tick labels along the bottom.
+		if i%tickStep == 0 {
+			px := xToPixel(i)
+			if px >= plotLeft && px <= plotRight {
+				drawLine(img, px, plotTop, px, plotBottom, gridColor)
+				drawLine(img, px, plotBottom, px, plotBottom+5, axisColor)
+				label := p.At.In(tz).Format("15:04")
+				drawText(img, label, px-len(label)*7/2, plotBottom+12, labelColor)
+			}
+		}
 	}
 
 	drawLine(img, plotLeft, plotBottom, plotRight, plotBottom, axisColor)
 	drawLine(img, plotLeft, plotTop, plotLeft, plotBottom, axisColor)
 
-	for i := 1; i < len(input.Prices); i++ {
-		x1 := xToPixel(input.Prices[i-1].At.Unix())
-		y1 := yToPixel(input.Prices[i-1].Close)
-		x2 := xToPixel(input.Prices[i].At.Unix())
-		y2 := yToPixel(input.Prices[i].Close)
+	for i := 1; i < len(prices); i++ {
+		x1 := xToPixel(i - 1)
+		y1 := yToPixel(prices[i-1].Close)
+		x2 := xToPixel(i)
+		y2 := yToPixel(prices[i].Close)
 		drawLine(img, x1, y1, x2, y2, priceColor)
 		drawLine(img, x1, y1+1, x2, y2+1, priceColor)
 	}
 
-	for _, d := range input.Decisions {
-		x := xToPixel(d.At.Unix())
+	for _, d := range decisions {
+		idx := closestIndex(d.At.Unix())
+		x := xToPixel(idx)
 		y := yToPixel(d.Price)
 		if d.IsBuy {
 			drawTriangle(img, x, y, 8, buyColor)
@@ -211,26 +275,6 @@ func niceTickValues(dataMin, dataMax float64, maxTicks int) []float64 {
 	var ticks []float64
 	for v := start; v <= dataMax+mag*0.001; v += mag {
 		ticks = append(ticks, math.Round(v/mag)*mag)
-	}
-	return ticks
-}
-
-func niceTimeTicksUnix(xMin, xMax int64, maxTicks int) []int64 {
-	span := xMax - xMin
-	if span <= 0 {
-		return []int64{xMin}
-	}
-	step := int64(7200)
-	for _, c := range []int64{60, 300, 600, 900, 1800, 3600, 7200} {
-		if span/c <= int64(maxTicks) {
-			step = c
-			break
-		}
-	}
-	start := (xMin/step + 1) * step
-	var ticks []int64
-	for ts := start; ts <= xMax; ts += step {
-		ticks = append(ticks, ts)
 	}
 	return ticks
 }
@@ -299,4 +343,32 @@ func intAbs(v int) int {
 		return -v
 	}
 	return v
+}
+
+// isMarketHour returns true if t falls within 09:30–16:00 in the given timezone.
+func isMarketHour(t time.Time, tz *time.Location) bool {
+	local := t.In(tz)
+	h, m, _ := local.Clock()
+	mins := h*60 + m
+	return mins >= 9*60+30 && mins <= 16*60
+}
+
+func filterMarketHours(prices []PricePoint, tz *time.Location) []PricePoint {
+	out := make([]PricePoint, 0, len(prices))
+	for _, p := range prices {
+		if isMarketHour(p.At, tz) {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+func filterDecisionMarketHours(decisions []DecisionMarker, tz *time.Location) []DecisionMarker {
+	out := make([]DecisionMarker, 0, len(decisions))
+	for _, d := range decisions {
+		if isMarketHour(d.At, tz) {
+			out = append(out, d)
+		}
+	}
+	return out
 }

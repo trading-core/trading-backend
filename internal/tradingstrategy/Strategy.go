@@ -88,10 +88,36 @@ type Strategy interface {
 	Evaluate(input EvaluateInput) Decision
 }
 
+// ScalpingParams allows callers to override default Scalping parameters.
+// Zero-valued fields are ignored and defaults are used instead.
+type ScalpingParams struct {
+	MaxPositionFraction float64
+	TakeProfitPct       float64
+	SessionStart        int
+	SessionEnd          int
+}
+
 func New(strategyType string) Strategy {
+	return NewWithParams(strategyType, ScalpingParams{})
+}
+
+func NewWithParams(strategyType string, params ScalpingParams) Strategy {
 	switch strategyType {
 	case "scalping":
-		return NewScalping()
+		s := NewScalping()
+		if params.MaxPositionFraction > 0 {
+			s.MaxPositionFraction = params.MaxPositionFraction
+		}
+		if params.TakeProfitPct > 0 {
+			s.TakeProfitPct = params.TakeProfitPct
+		}
+		if params.SessionStart > 0 {
+			s.SessionStart = params.SessionStart
+		}
+		if params.SessionEnd > 0 {
+			s.SessionEnd = params.SessionEnd
+		}
+		return s
 	default:
 		return new(Noop)
 	}

@@ -122,7 +122,8 @@ func (client *HTTPClient) GetStockSnapshot(ctx context.Context, input GetStockSn
 }
 
 type GetStockBarsResponseBody struct {
-	Bars []StockBarResponseBody `json:"bars"`
+	Bars          []StockBarResponseBody `json:"bars"`
+	NextPageToken string                 `json:"next_page_token"`
 }
 
 type StockBarResponseBody struct {
@@ -136,7 +137,29 @@ func (client *HTTPClient) GetStockBars(ctx context.Context, input GetStockBarsIn
 		Host:   client.baseURL.Host,
 		Path:   fmt.Sprintf("/v2/stocks/%s/bars", input.Symbol),
 	}
-	query := target.Query()
+	query := buildStockBarsQuery(input)
+	var allStockBars []StockBar
+	var pageToken string
+	for {
+		stockBars, nextToken, fetchErr := client.fetchStockBarsPage(ctx, target, query, pageToken)
+		if fetchErr != nil {
+			err = fetchErr
+			return
+		}
+		allStockBars = append(allStockBars, stockBars...)
+		if nextToken == "" {
+			break
+		}
+		pageToken = nextToken
+	}
+	output = &GetStockBarsOutput{
+		Bars: allStockBars,
+	}
+	return
+}
+
+func buildStockBarsQuery(input GetStockBarsInput) url.Values {
+	query := make(url.Values)
 	if input.Timeframe != "" {
 		query.Set("timeframe", input.Timeframe)
 	}
@@ -150,13 +173,26 @@ func (client *HTTPClient) GetStockBars(ctx context.Context, input GetStockBarsIn
 		query.Set("end", input.End)
 	}
 	query.Set("adjustment", "raw")
+	query.Set("sort", "asc")
 	if input.Feed != "" {
 		query.Set("feed", input.Feed)
 	}
-	target.RawQuery = query.Encode()
+	return query
+}
+
+func (client *HTTPClient) fetchStockBarsPage(ctx context.Context, target url.URL, query url.Values, pageToken string) (bars []StockBar, nextToken string, err error) {
+	q := query
+	if pageToken != "" {
+		q = make(url.Values)
+		for k, v := range query {
+			q[k] = v
+		}
+		q.Set("page_token", pageToken)
+	}
+	target.RawQuery = q.Encode()
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, target.String(), nil)
 	if err != nil {
-		panic(err)
+		return
 	}
 	client.authorizeRequest(request)
 	response, err := client.Do(request)
@@ -172,16 +208,13 @@ func (client *HTTPClient) GetStockBars(ctx context.Context, input GetStockBarsIn
 	if err = json.NewDecoder(response.Body).Decode(&responseBody); err != nil {
 		return
 	}
-	bars := make([]StockBar, 0, len(responseBody.Bars))
 	for _, bar := range responseBody.Bars {
 		bars = append(bars, StockBar{
 			Time:  bar.Time,
 			Close: bar.Close,
 		})
 	}
-	output = &GetStockBarsOutput{
-		Bars: bars,
-	}
+	nextToken = responseBody.NextPageToken
 	return
 }
 

@@ -2,17 +2,29 @@ package botsync
 
 import (
 	"context"
+	"encoding/json"
 	"sync"
 	"time"
 
 	"github.com/kduong/trading-backend/internal/broker"
 	"github.com/kduong/trading-backend/internal/eventsource"
+	"github.com/kduong/trading-backend/internal/eventsource/subscription"
 	"github.com/kduong/trading-backend/internal/fatal"
 	"github.com/kduong/trading-backend/internal/logger"
 	"github.com/kduong/trading-backend/internal/tradingstrategy"
 )
 
 const accountSnapshotRefreshInterval = 1 * time.Second
+
+// orderPlacedTTL is the number of account-snapshot refresh cycles the
+// optimistic HasOpenOrder guard stays active. If the broker hasn't reported
+// the order as pending within this window (e.g. it filled instantly), the
+// guard expires so the bot isn't stuck forever.
+const orderPlacedTTL = 3
+
+// orderFailureCooldown prevents rapid-fire PlaceOrder retries when the
+// broker returns transient errors.
+const orderFailureCooldown = 5 * time.Second
 
 type TradeActor struct {
 	botID            string
@@ -25,7 +37,9 @@ type TradeActor struct {
 	mutex              sync.RWMutex
 	accountSnapshot    tradingstrategy.AccountSnapshot
 	hasAccountSnapshot bool
-	orderPlaced        bool // optimistic HasOpenOrder guard until broker reflects the order
+	entryPrice         float64   // persisted via decision events in the bot's event log
+	orderGuardTTL      int       // countdown refreshes for optimistic HasOpenOrder
+	orderFailedUntil   time.Time // suppress new orders until this time
 }
 
 type NewTradeActorInput struct {
@@ -49,20 +63,28 @@ func NewTradeActor(input NewTradeActorInput) *TradeActor {
 }
 
 func (actor *TradeActor) Run(ctx context.Context) {
+	actor.restoreStrategyState(ctx)
 	actor.startAccountSnapshotRefresher(ctx)
 	iterator := actor.marketDataClient.Stream(ctx, broker.StreamMarketDataInput{
 		Symbol: actor.marketState.Symbol(),
 	})
 	for iterator.Next() {
+		if ctx.Err() != nil {
+			break
+		}
 		accountSnapshot, ok := actor.getAccountSnapshot()
 		if !ok {
 			continue
 		}
 		message := iterator.Item()
 		snapshot := actor.marketState.Apply(message)
+		accountSnapshot.EntryPrice = actor.entryPrice
 		input := tradingstrategy.NewEvaluateInput(snapshot, accountSnapshot)
 		decision := actor.tradingStrategy.Evaluate(input)
 		if decision.Action == tradingstrategy.ActionNone {
+			continue
+		}
+		if actor.isInOrderCooldown() {
 			continue
 		}
 		var orderAction broker.OrderAction
@@ -78,12 +100,20 @@ func (actor *TradeActor) Run(ctx context.Context) {
 		})
 		if err != nil {
 			logger.Warnf("bot %s: failed to place %s order: %v", actor.botID, orderAction, err)
-		} else {
 			actor.mutex.Lock()
-			actor.accountSnapshot.HasOpenOrder = true
-			actor.orderPlaced = true
+			actor.orderFailedUntil = time.Now().Add(orderFailureCooldown)
 			actor.mutex.Unlock()
+			continue
 		}
+		actor.mutex.Lock()
+		actor.accountSnapshot.HasOpenOrder = true
+		actor.orderGuardTTL = orderPlacedTTL
+		if decision.Action == tradingstrategy.ActionBuy {
+			actor.entryPrice = input.Price
+		} else if decision.Action == tradingstrategy.ActionSell {
+			actor.entryPrice = 0
+		}
+		actor.mutex.Unlock()
 		payload := fatal.UnlessMarshal(EventFrame{
 			EventBase: eventsource.NewEventBase(EventTypeBotDecisionRecorded),
 			BotDecisionRecordedEvent: &BotDecisionRecordedEvent{
@@ -134,12 +164,17 @@ func (actor *TradeActor) startAccountSnapshotRefresher(ctx context.Context) {
 			logger.Warnf("bot %s: failed to refresh account snapshot: %v", actor.botID, err)
 			return
 		}
-		// If the broker now shows a pending order, clear the optimistic flag.
-		// If not yet reflected but we placed one, keep HasOpenOrder true.
-		if actor.orderPlaced && !snapshot.HasOpenOrder {
-			snapshot.HasOpenOrder = true
-		} else {
-			actor.orderPlaced = false
+		// Optimistic guard: if we recently placed an order and the broker
+		// hasn't reflected it yet, keep HasOpenOrder true. The TTL counter
+		// prevents this from getting stuck if the order filled instantly.
+		if actor.orderGuardTTL > 0 {
+			if snapshot.HasOpenOrder {
+				// Broker caught up — stop overriding.
+				actor.orderGuardTTL = 0
+			} else {
+				snapshot.HasOpenOrder = true
+				actor.orderGuardTTL--
+			}
 		}
 		actor.accountSnapshot = snapshot
 		actor.hasAccountSnapshot = true
@@ -166,4 +201,39 @@ func (actor *TradeActor) getAccountSnapshot() (tradingstrategy.AccountSnapshot, 
 		return tradingstrategy.AccountSnapshot{}, false
 	}
 	return actor.accountSnapshot, true
+}
+
+func (actor *TradeActor) isInOrderCooldown() bool {
+	actor.mutex.RLock()
+	defer actor.mutex.RUnlock()
+	return time.Now().Before(actor.orderFailedUntil)
+}
+
+// restoreStrategyState replays past decision events from the bot's event log
+// to recover entry price after a restart.
+func (actor *TradeActor) restoreStrategyState(ctx context.Context) {
+	_, err := subscription.CatchUp(ctx, subscription.Input{
+		Log:    actor.log,
+		Cursor: 0,
+		Apply: func(ctx context.Context, event *eventsource.Event) error {
+			var frame EventFrame
+			if err := json.Unmarshal(event.Data, &frame); err != nil {
+				return nil // skip malformed events
+			}
+			if frame.Type != EventTypeBotDecisionRecorded || frame.BotDecisionRecordedEvent == nil {
+				return nil
+			}
+			d := frame.BotDecisionRecordedEvent
+			switch tradingstrategy.Action(d.Action) {
+			case tradingstrategy.ActionBuy:
+				actor.entryPrice = d.Price
+			case tradingstrategy.ActionSell:
+				actor.entryPrice = 0
+			}
+			return nil
+		},
+	})
+	if err != nil {
+		logger.Warnf("bot %s: failed to restore strategy state: %v", actor.botID, err)
+	}
 }

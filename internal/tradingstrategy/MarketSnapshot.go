@@ -27,6 +27,7 @@ type AccountSnapshot struct {
 	BuyingPower      float64
 	PositionQuantity float64
 	HasOpenOrder     bool
+	EntryPrice       float64
 }
 
 // NewEvaluateInput combines market and account snapshots into the single input
@@ -69,6 +70,7 @@ func NewEvaluateInput(snapshot MarketSnapshot, account AccountSnapshot) Evaluate
 		BuyingPower:      account.BuyingPower,
 		PositionQuantity: account.PositionQuantity,
 		HasOpenOrder:     account.HasOpenOrder,
+		EntryPrice:       account.EntryPrice,
 		Now:              snapshot.Now,
 	}
 }

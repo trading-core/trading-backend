@@ -3,6 +3,7 @@ package tastytrade
 import (
 	"context"
 	"math"
+	"strconv"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -164,8 +165,8 @@ func (iterator *DXLinkIterator) openFeed(connection *websocket.Conn) (err error)
 		"acceptedAggregationPeriod": 0.1,
 		"acceptedDataFormat":        "COMPACT",
 		"acceptEventFields": map[string]any{
-			"Quote": []string{"eventType", "eventSymbol", "bidPrice", "askPrice", "bidSize", "askSize"},
-			"Trade": []string{"eventType", "eventSymbol", "price", "dayVolume", "size"},
+			"Quote": []string{"eventType", "eventSymbol", "bidPrice", "askPrice", "bidSize", "askSize", "time"},
+			"Trade": []string{"eventType", "eventSymbol", "price", "dayVolume", "size", "time"},
 		},
 	})
 	if err != nil {
@@ -218,6 +219,7 @@ func parseRawMessage(rawMessage map[string]any) ([]*MessageEvent, bool) {
 		event := entry.(map[string]any)
 		eventType := MessageEventType(event["eventType"].(string))
 		eventSymbol := event["eventSymbol"].(string)
+		eventTime := optionalTimestampValue(event["time"])
 		switch eventType {
 		case MessageEventTypeQuote:
 			messages = append(messages, &MessageEvent{
@@ -228,6 +230,7 @@ func parseRawMessage(rawMessage map[string]any) ([]*MessageEvent, bool) {
 					AskPrice:    numberValue(event["askPrice"]),
 					BidSize:     numberValue(event["bidSize"]),
 					AskSize:     numberValue(event["askSize"]),
+					EventTime:   eventTime,
 				},
 			})
 		case MessageEventTypeTrade:
@@ -238,6 +241,7 @@ func parseRawMessage(rawMessage map[string]any) ([]*MessageEvent, bool) {
 					Price:       numberValue(event["price"]),
 					DayVolume:   optionalNumberValue(event["dayVolume"]),
 					Size:        optionalNumberValue(event["size"]),
+					EventTime:   eventTime,
 				},
 			})
 		}
@@ -259,5 +263,42 @@ func numberValue(value any) float64 {
 		return typedValue
 	default:
 		return math.NaN()
+	}
+}
+
+func optionalTimestampValue(value any) *time.Time {
+	if value == nil {
+		return nil
+	}
+	const msToNs = int64(time.Millisecond)
+	switch typedValue := value.(type) {
+	case float64:
+		if math.IsNaN(typedValue) {
+			return nil
+		}
+		ts := time.Unix(0, int64(typedValue)*msToNs).UTC()
+		return &ts
+	case int64:
+		ts := time.Unix(0, typedValue*msToNs).UTC()
+		return &ts
+	case int:
+		ts := time.Unix(0, int64(typedValue)*msToNs).UTC()
+		return &ts
+	case string:
+		clean := typedValue
+		if clean == "" {
+			return nil
+		}
+		if parsed, err := strconv.ParseInt(clean, 10, 64); err == nil {
+			ts := time.Unix(0, parsed*msToNs).UTC()
+			return &ts
+		}
+		if parsed, err := time.Parse(time.RFC3339Nano, clean); err == nil {
+			utc := parsed.UTC()
+			return &utc
+		}
+		return nil
+	default:
+		return nil
 	}
 }

@@ -66,7 +66,7 @@ func convertTastyTradeMessageEvent(message *tastytrade.MessageEvent) *MarketData
 				BidSize:  message.Quote.BidSize,
 				AskSize:  message.Quote.AskSize,
 			},
-			ReceivedAt: time.Now(),
+			ReceivedAt: eventReceivedAt(message.Quote.EventTime),
 		}
 	case tastytrade.MessageEventTypeTrade:
 		return &MarketDataMessage{
@@ -77,9 +77,16 @@ func convertTastyTradeMessageEvent(message *tastytrade.MessageEvent) *MarketData
 				DayVolume: message.Trade.DayVolume,
 				Size:      message.Trade.Size,
 			},
-			ReceivedAt: time.Now(),
+			ReceivedAt: eventReceivedAt(message.Trade.EventTime),
 		}
 	default:
 		return nil
 	}
+}
+
+func eventReceivedAt(eventTime *time.Time) time.Time {
+	if eventTime == nil {
+		return time.Now()
+	}
+	return *eventTime
 }

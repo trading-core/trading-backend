@@ -75,6 +75,10 @@ func RenderCombined(input RenderCombinedInput, outputPath string) error {
 		prices = input.Prices
 	}
 	decisions := filterDecisionMarketHours(input.Decisions, tz)
+	if len(decisions) == 0 && len(input.Decisions) > 0 {
+		// Daily/weekly bars often carry non-RTH timestamps; preserve markers.
+		decisions = input.Decisions
+	}
 
 	tsToIndex := make(map[int64]int, len(prices))
 	for i, p := range prices {

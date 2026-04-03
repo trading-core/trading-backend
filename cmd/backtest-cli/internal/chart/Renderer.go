@@ -56,6 +56,10 @@ func Render(input RenderInput, outputPath string) error {
 		prices = input.Prices // fallback if nothing passes the filter
 	}
 	decisions := filterDecisionMarketHours(input.Decisions, tz)
+	if len(decisions) == 0 && len(input.Decisions) > 0 {
+		// Daily/weekly bars often carry non-RTH timestamps; preserve markers.
+		decisions = input.Decisions
+	}
 
 	const (
 		width    = 1400

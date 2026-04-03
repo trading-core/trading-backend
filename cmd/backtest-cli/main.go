@@ -85,7 +85,7 @@ func main() {
 		MaxPositionFraction:      config.EnvFloat64("BACKTEST_MAX_POSITION_FRACTION", 0),
 		TakeProfitPct:            config.EnvFloat64("BACKTEST_TAKE_PROFIT_PCT", 0),
 		StopLossPct:              config.EnvFloat64("BACKTEST_SCALPING_STOP_LOSS_PCT", 0),
-		SessionStart:             config.EnvInt("BACKTEST_SESSION_START", 0),
+		SessionStart:             config.EnvInt("BACKTEST_SESSION_START", -1),
 		SessionEnd:               config.EnvInt("BACKTEST_SESSION_END", 0),
 		MinRSI:                   config.EnvFloat64("BACKTEST_SCALPING_MIN_RSI", 40),
 		RequireMACDSignal:        config.EnvBool("BACKTEST_SCALPING_REQUIRE_MACD_ABOVE_SIGNAL", true),
@@ -97,6 +97,7 @@ func main() {
 		UseVolatilityTP:          config.EnvBool("BACKTEST_SCALPING_USE_VOLATILITY_TP", false),
 		VolatilityTPMultiplier:   config.EnvFloat64("BACKTEST_SCALPING_VOLATILITY_TP_MULTIPLIER", 0),
 		RiskPerTradePct:          config.EnvFloat64("BACKTEST_SCALPING_RISK_PER_TRADE_PCT", 0),
+		BreakoutLookbackBars:     config.EnvInt("BACKTEST_SCALPING_BREAKOUT_LOOKBACK_BARS", 0),
 	}
 	fatal.Unless(strategyParams.MinRSI >= 0 && strategyParams.MinRSI <= 100, "BACKTEST_SCALPING_MIN_RSI must be in [0,100]")
 	fatal.Unless(strategyParams.MinBollingerWidthPct >= 0, "BACKTEST_SCALPING_MIN_BOLLINGER_WIDTH_PCT must be non-negative")
@@ -439,12 +440,19 @@ func runBacktest(symbol string, strategyName string, params tradingstrategy.Scal
 	}
 	replayState := replay.NewState(symbol)
 
+	lookbackBars := params.BreakoutLookbackBars
+	if lookbackBars <= 0 {
+		lookbackBars = 1
+	}
+
 	var (
 		decisions      []decisionPoint
 		pending        *pendingOrder
 		lastSnapshot   tradingstrategy.MarketSnapshot
 		highSinceEntry float64
 		lastStopLossAt *time.Time
+		recentHighs    []float64 // circular buffer of recent highs
+		recentLows     []float64 // circular buffer of recent lows
 	)
 
 	for _, event := range events {
@@ -468,6 +476,35 @@ func runBacktest(symbol string, strategyName string, params tradingstrategy.Scal
 		}
 
 		input := tradingstrategy.NewEvaluateInput(snapshot, account)
+
+		// Track N-bar high/low for lookback-based breakout entries (daily/weekly strategies).
+		// Important: evaluate against prior bars only (exclude current bar), then append current.
+		if input.Price > 0 {
+			if len(recentHighs) > 0 {
+				maxHigh := recentHighs[0]
+				minLow := recentLows[0]
+				for _, h := range recentHighs {
+					if h > maxHigh {
+						maxHigh = h
+					}
+				}
+				for _, l := range recentLows {
+					if l < minLow {
+						minLow = l
+					}
+				}
+				input.LookbackHighPrice = maxHigh
+				input.LookbackLowPrice = minLow
+			}
+
+			recentHighs = append(recentHighs, input.Price)
+			recentLows = append(recentLows, input.Price)
+			if len(recentHighs) > lookbackBars {
+				recentHighs = recentHighs[len(recentHighs)-lookbackBars:]
+				recentLows = recentLows[len(recentLows)-lookbackBars:]
+			}
+		}
+
 		// Track trailing high while in position.
 		if account.PositionQuantity > 0 && input.Price > highSinceEntry {
 			highSinceEntry = input.Price

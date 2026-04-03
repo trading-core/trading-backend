@@ -29,6 +29,7 @@ type Scalping struct {
 	UseVolatilityTP          bool
 	VolatilityTPMultiplier   float64
 	RiskPerTradePct          float64
+	BreakoutLookbackBars     int // number of bars to lookback for breakout (1=session high, 5=5-bar high)
 }
 
 func NewScalping() *Scalping {
@@ -49,6 +50,7 @@ func NewScalping() *Scalping {
 		UseVolatilityTP:          false,
 		VolatilityTPMultiplier:   0.5,
 		RiskPerTradePct:          0,
+		BreakoutLookbackBars:     1,
 	}
 }
 
@@ -199,10 +201,15 @@ func (strategy *Scalping) Evaluate(input EvaluateInput) Decision {
 		}
 
 	default: // "breakout"
-		// Breakout entry: price breaks above session high.
-		// Guard: session must have established a range (SessionHighPrice > 0)
-		// to avoid false breakout on the very first trade of the day.
-		if input.SessionHighPrice > 0 && input.Price > input.SessionHighPrice {
+		// Breakout entry: price breaks above a reference high (session-based or lookback-based).
+		// For 1-min scalping: use SessionHighPrice (resets daily, tracks intraday range).
+		// For daily/weekly: use LookbackHighPrice (e.g., 5-bar high, avoids noisy daily resets).
+		referenceHigh := input.SessionHighPrice
+		if strategy.BreakoutLookbackBars > 1 && input.LookbackHighPrice > 0 {
+			// Use N-bar high if configured and available
+			referenceHigh = input.LookbackHighPrice
+		}
+		if referenceHigh > 0 && input.Price > referenceHigh {
 			entryTriggered = true
 		}
 	}

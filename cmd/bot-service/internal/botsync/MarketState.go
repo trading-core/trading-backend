@@ -8,28 +8,30 @@ import (
 )
 
 type sessionRange struct {
-	date  string
-	open  float64
-	high  float64
-	low   float64
-	ready bool
+	bucket string
+	open   float64
+	high   float64
+	low    float64
+	ready  bool
 }
 
 type MarketState struct {
-	symbol         string
-	session        sessionRange
-	lastTradePrice *float64
-	bidPrice       *float64
-	askPrice       *float64
-	bidSize        *float64
-	askSize        *float64
-	dayVolume      *float64
-	lastTradeSize  *float64
+	symbol          string
+	sessionInterval string
+	session         sessionRange
+	lastTradePrice  *float64
+	bidPrice        *float64
+	askPrice        *float64
+	bidSize         *float64
+	askSize         *float64
+	dayVolume       *float64
+	lastTradeSize   *float64
 }
 
-func NewMarketState(symbol string) *MarketState {
+func NewMarketState(symbol string, sessionInterval string) *MarketState {
 	return &MarketState{
-		symbol: symbol,
+		symbol:          symbol,
+		sessionInterval: normalizeIndicatorResetInterval(sessionInterval),
 	}
 }
 
@@ -75,11 +77,11 @@ func (state *MarketState) Apply(message *broker.MarketDataMessage) tradingstrate
 }
 
 func (state *MarketState) resetSessionIfNeeded(now time.Time) {
-	date := now.In(tradingstrategy.USMarketLocation).Format("2006-01-02")
-	if state.session.date == date {
+	bucket := indicatorResetBucket(now, state.sessionInterval)
+	if state.session.bucket == bucket {
 		return
 	}
-	state.session = sessionRange{date: date}
+	state.session = sessionRange{bucket: bucket}
 	state.dayVolume = nil
 	state.lastTradeSize = nil
 	state.lastTradePrice = nil

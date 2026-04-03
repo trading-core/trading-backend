@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"math"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -28,13 +30,15 @@ const orderPlacedTTL = 3
 const orderFailureCooldown = 5 * time.Second
 
 type TradeActor struct {
-	botID            string
-	accountClient    broker.AccountClient
-	tradingStrategy  tradingstrategy.Strategy
-	marketDataClient broker.MarketDataClient
-	marketState      *MarketState
-	log              eventsource.Log
-	indicators       *indicatorState
+	botID                  string
+	accountClient          broker.AccountClient
+	tradingStrategy        tradingstrategy.Strategy
+	marketDataClient       broker.MarketDataClient
+	marketState            *MarketState
+	log                    eventsource.Log
+	indicators             *indicatorState
+	indicatorResetInterval string
+	indicatorBucketKey     string
 
 	mutex              sync.RWMutex
 	accountSnapshot    tradingstrategy.AccountSnapshot
@@ -44,32 +48,43 @@ type TradeActor struct {
 	lastStopLossAt     *time.Time // time of last trailing-stop exit (re-entry cooldown)
 	orderGuardTTL      int        // countdown refreshes for optimistic HasOpenOrder
 	orderFailedUntil   time.Time  // suppress new orders until this time
+	lookbackBars       int        // N-bar lookback for breakout (from strategy params)
+	recentHighs        []float64  // circular buffer of recent price highs
+	recentLows         []float64  // circular buffer of recent price lows
 }
 
 type NewTradeActorInput struct {
-	AccountClient    broker.AccountClient
-	MarketDataClient broker.MarketDataClient
-	MarketState      *MarketState
-	TradingStrategy  tradingstrategy.Strategy
-	RSIPeriod        int
-	MACDFastPeriod   int
-	MACDSlowPeriod   int
-	MACDSignalPeriod int
-	BollingerPeriod  int
-	BollingerStdDev  float64
-	BotID            string
-	Log              eventsource.Log
+	AccountClient          broker.AccountClient
+	MarketDataClient       broker.MarketDataClient
+	MarketState            *MarketState
+	TradingStrategy        tradingstrategy.Strategy
+	RSIPeriod              int
+	MACDFastPeriod         int
+	MACDSlowPeriod         int
+	MACDSignalPeriod       int
+	BollingerPeriod        int
+	BollingerStdDev        float64
+	IndicatorResetInterval string
+	BotID                  string
+	Log                    eventsource.Log
+	BreakoutLookbackBars   int
 }
 
 func NewTradeActor(input NewTradeActorInput) *TradeActor {
+	lookbackBars := input.BreakoutLookbackBars
+	if lookbackBars <= 0 {
+		lookbackBars = 1
+	}
 	return &TradeActor{
-		accountClient:    input.AccountClient,
-		marketDataClient: input.MarketDataClient,
-		tradingStrategy:  input.TradingStrategy,
-		marketState:      input.MarketState,
-		indicators:       newIndicatorState(input.RSIPeriod, input.MACDFastPeriod, input.MACDSlowPeriod, input.MACDSignalPeriod, input.BollingerPeriod, input.BollingerStdDev),
-		botID:            input.BotID,
-		log:              input.Log,
+		accountClient:          input.AccountClient,
+		marketDataClient:       input.MarketDataClient,
+		tradingStrategy:        input.TradingStrategy,
+		marketState:            input.MarketState,
+		indicators:             newIndicatorState(input.RSIPeriod, input.MACDFastPeriod, input.MACDSlowPeriod, input.MACDSignalPeriod, input.BollingerPeriod, input.BollingerStdDev),
+		indicatorResetInterval: normalizeIndicatorResetInterval(input.IndicatorResetInterval),
+		botID:                  input.BotID,
+		log:                    input.Log,
+		lookbackBars:           lookbackBars,
 	}
 }
 
@@ -89,8 +104,42 @@ func (actor *TradeActor) Run(ctx context.Context) {
 		}
 		message := iterator.Item()
 		snapshot := actor.marketState.Apply(message)
+		currentBucket := indicatorResetBucket(snapshot.Now, actor.indicatorResetInterval)
+		if actor.indicatorBucketKey != currentBucket {
+			actor.indicators.Reset()
+			actor.indicatorBucketKey = currentBucket
+		}
 		accountSnapshot.EntryPrice = actor.entryPrice
 		input := tradingstrategy.NewEvaluateInput(snapshot, accountSnapshot)
+
+		// Track N-bar high/low for lookback-based breakout entries (daily/weekly strategies).
+		// Important: evaluate against prior bars only (exclude current bar), then append current.
+		if input.Price > 0 {
+			if len(actor.recentHighs) > 0 {
+				maxHigh := actor.recentHighs[0]
+				minLow := actor.recentLows[0]
+				for _, h := range actor.recentHighs {
+					if h > maxHigh {
+						maxHigh = h
+					}
+				}
+				for _, l := range actor.recentLows {
+					if l < minLow {
+						minLow = l
+					}
+				}
+				input.LookbackHighPrice = maxHigh
+				input.LookbackLowPrice = minLow
+			}
+
+			actor.recentHighs = append(actor.recentHighs, input.Price)
+			actor.recentLows = append(actor.recentLows, input.Price)
+			if len(actor.recentHighs) > actor.lookbackBars {
+				actor.recentHighs = actor.recentHighs[len(actor.recentHighs)-actor.lookbackBars:]
+				actor.recentLows = actor.recentLows[len(actor.recentLows)-actor.lookbackBars:]
+			}
+		}
+
 		rsi, macd, macdSignal, bollUpper, bollMiddle, bollLower, bollWidthPct := actor.indicators.Update(input.Price)
 		input.RSI = rsi
 		input.MACD = macd
@@ -220,6 +269,80 @@ func newIndicatorState(rsiPeriod int, macdFastPeriod int, macdSlowPeriod int, ma
 		bollPeriod:     bollPeriod,
 		bollStdDev:     bollStdDev,
 	}
+}
+
+func (state *indicatorState) Reset() {
+	state.priceSamples = 0
+	state.prevClose = nil
+
+	state.gainSum = 0
+	state.lossSum = 0
+	state.rsiSeedCount = 0
+	state.rsiReady = false
+	state.avgGain = 0
+	state.avgLoss = 0
+
+	state.fastEMA = 0
+	state.slowEMA = 0
+	state.macdSeed = nil
+	state.signalEMA = 0
+	state.signalReady = false
+	state.hasEMAValues = false
+
+	state.bollWindow = nil
+	state.bollSum = 0
+	state.bollSqSum = 0
+}
+
+func normalizeIndicatorResetInterval(value string) string {
+	clean := strings.ToLower(strings.TrimSpace(value))
+	switch clean {
+	case "1m", "5m", "10m", "30m", "1h", "2h", "4h", "1d", "1w", "1mo":
+		return clean
+	default:
+		return "1d"
+	}
+}
+
+func indicatorResetBucket(at time.Time, interval string) string {
+	ts := at.In(tradingstrategy.USMarketLocation)
+	base := time.Date(ts.Year(), ts.Month(), ts.Day(), ts.Hour(), ts.Minute(), 0, 0, tradingstrategy.USMarketLocation)
+
+	switch interval {
+	case "1m":
+		return base.Format(time.RFC3339)
+	case "5m":
+		return bucketByMinute(base, 5)
+	case "10m":
+		return bucketByMinute(base, 10)
+	case "30m":
+		return bucketByMinute(base, 30)
+	case "1h":
+		return bucketByHour(base, 1)
+	case "2h":
+		return bucketByHour(base, 2)
+	case "4h":
+		return bucketByHour(base, 4)
+	case "1w":
+		year, week := ts.ISOWeek()
+		return "week:" + strconv.Itoa(year) + "-" + strconv.Itoa(week)
+	case "1mo":
+		return ts.Format("2006-01")
+	default: // "1d"
+		return ts.Format("2006-01-02")
+	}
+}
+
+func bucketByMinute(ts time.Time, size int) string {
+	minute := (ts.Minute() / size) * size
+	bucket := time.Date(ts.Year(), ts.Month(), ts.Day(), ts.Hour(), minute, 0, 0, tradingstrategy.USMarketLocation)
+	return bucket.Format(time.RFC3339)
+}
+
+func bucketByHour(ts time.Time, size int) string {
+	hour := (ts.Hour() / size) * size
+	bucket := time.Date(ts.Year(), ts.Month(), ts.Day(), hour, 0, 0, 0, tradingstrategy.USMarketLocation)
+	return bucket.Format(time.RFC3339)
 }
 
 func (state *indicatorState) Update(price float64) (rsi *float64, macd *float64, macdSignal *float64, bollUpper *float64, bollMiddle *float64, bollLower *float64, bollWidthPct *float64) {

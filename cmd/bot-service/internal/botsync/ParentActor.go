@@ -183,9 +183,10 @@ func (actor *ParentActor) startTradeActor(ctx context.Context, botID string) (er
 	}
 	strategy := tradingstrategy.NewWithParams(bot.StrategyType, actor.scalpingParams)
 	logger.Noticef(
-		"bot %s strategy config: type=%s maxPosition=%.4f takeProfit=%.4f stopLoss=%.4f sessionStart=%d sessionEnd=%d minRSI=%.2f requireMACDAboveSignal=%t requireBollingerBreakout=%t minBollingerWidthPct=%.4f requireBollingerSqueeze=%t maxBollingerWidthPct=%.4f reentryCooldownMin=%d useVolatilityTP=%t volatilityTPMult=%.4f riskPerTradePct=%.4f rsiPeriod=%d macdFast=%d macdSlow=%d macdSignal=%d bollPeriod=%d bollStdDev=%.2f",
+		"bot %s strategy config: type=%s entryMode=%s maxPosition=%.4f takeProfit=%.4f stopLoss=%.4f sessionStart=%d sessionEnd=%d minRSI=%.2f requireMACDAboveSignal=%t requireBollingerBreakout=%t minBollingerWidthPct=%.4f requireBollingerSqueeze=%t maxBollingerWidthPct=%.4f reentryCooldownMin=%d useVolatilityTP=%t volatilityTPMult=%.4f riskPerTradePct=%.4f rsiPeriod=%d macdFast=%d macdSlow=%d macdSignal=%d bollPeriod=%d bollStdDev=%.2f",
 		botID,
 		bot.StrategyType,
+		actor.scalpingParams.EntryMode,
 		actor.scalpingParams.MaxPositionFraction,
 		actor.scalpingParams.TakeProfitPct,
 		actor.scalpingParams.StopLossPct,

@@ -18,31 +18,40 @@ import (
 
 func main() {
 	ctx := context.Background()
-	cfg, err := backtestconfig.LoadFromEnv()
+	cfg := backtestconfig.LoadFromEnv()
+	replayInput := cfg.ReplayInput()
+	strategy, err := replayInput.SelectStrategy()
 	fatal.OnError(err)
-	loaded, err := replay.Load(ctx, cfg.ReplayInput())
+	loaded, err := strategy.Load(ctx, replayInput)
 	fatal.OnError(err)
 	outputDir := cfg.OutputDir()
 	err = os.MkdirAll(outputDir, 0o755)
 	fatal.OnError(err)
 	if cfg.Sweep {
-		// Practical TP ladder from 1.5% up to 20%.
-		sweeper := sweeper.Sweeper{
-			TakeProfitValues:   []float64{0.015, 0.02, 0.03, 0.05, 0.075, 0.10, 0.125, 0.15, 0.175, 0.20},
-			PositionValues:     []float64{0.05, 0.10, 0.15, 0.20, 0.25, 0.30},
-			SessionStartValues: []int{10, 11},
-			SessionEndValues:   []int{14, 15, 16},
-		}
-		sweeper.Run(cfg, loaded.Prices, loaded.Events, outputDir)
-		return
+		RunSweep(cfg, loaded, outputDir)
+	} else {
+		RunBacktestAndPlot(cfg, loaded, outputDir)
 	}
-	backTestResult := backtest.Run(cfg, loaded.Prices, loaded.Events)
-	plotStart := backTestResult.Prices[0].At
-	plotEnd := backTestResult.Prices[len(backTestResult.Prices)-1].At
-	ind := cfg.Indicators
-	rsiSeries := indicator.ComputeRSI(loaded.IndicatorPrices, ind.RSIPeriod)
-	macdSeries, macdSignalSeries := indicator.ComputeMACD(loaded.IndicatorPrices, ind.MACDFastPeriod, ind.MACDSlowPeriod, ind.MACDSignalPeriod)
-	bollUpperSeries, bollMiddleSeries, bollLowerSeries := indicator.ComputeBollingerBands(loaded.IndicatorPrices, ind.BollingerPeriod, ind.BollingerStdDev)
+}
+
+func RunSweep(cfg backtestconfig.Config, loaded *replay.LoadOutput, outputDir string) {
+	// Practical TP ladder from 1.5% up to 20%.
+	sweeper := sweeper.Sweeper{
+		TakeProfitValues:   []float64{0.015, 0.02, 0.03, 0.05, 0.075, 0.10, 0.125, 0.15, 0.175, 0.20},
+		PositionValues:     []float64{0.05, 0.10, 0.15, 0.20, 0.25, 0.30},
+		SessionStartValues: []int{10, 11},
+		SessionEndValues:   []int{14, 15, 16},
+	}
+	sweeper.Run(cfg, loaded.Prices, loaded.Events, outputDir)
+}
+
+func RunBacktestAndPlot(cfg backtestconfig.Config, loaded *replay.LoadOutput, outputDir string) {
+	result := backtest.Run(cfg, loaded.Prices, loaded.Events)
+	plotStart := result.Prices[0].At
+	plotEnd := result.Prices[len(result.Prices)-1].At
+	rsiSeries := indicator.ComputeRSI(loaded.IndicatorPrices, cfg.Indicators.RSIPeriod)
+	macdSeries, macdSignalSeries := indicator.ComputeMACD(loaded.IndicatorPrices, cfg.Indicators.MACDFastPeriod, cfg.Indicators.MACDSlowPeriod, cfg.Indicators.MACDSignalPeriod)
+	bollUpperSeries, bollMiddleSeries, bollLowerSeries := indicator.ComputeBollingerBands(loaded.IndicatorPrices, cfg.Indicators.BollingerPeriod, cfg.Indicators.BollingerStdDev)
 	tz := tradingstrategy.USMarketLocation
 	rsiForPlot := filterIndicatorToMarketHours(filterIndicatorSeriesToRange(rsiSeries, plotStart, plotEnd), tz, cfg.Timeframe)
 	macdForPlot := filterIndicatorToMarketHours(filterIndicatorSeriesToRange(macdSeries, plotStart, plotEnd), tz, cfg.Timeframe)
@@ -51,32 +60,32 @@ func main() {
 	bollMiddleForPlot := filterIndicatorToMarketHours(filterIndicatorSeriesToRange(bollMiddleSeries, plotStart, plotEnd), tz, cfg.Timeframe)
 	bollLowerForPlot := filterIndicatorToMarketHours(filterIndicatorSeriesToRange(bollLowerSeries, plotStart, plotEnd), tz, cfg.Timeframe)
 	outputCombinedPNG := fmt.Sprintf("%s/backtest-with-indicators.png", outputDir)
-	err = chart.RenderCombined(chart.RenderCombinedInput{
-		Symbol:      backTestResult.Symbol,
-		Strategy:    backTestResult.Strategy,
-		TotalReturn: backTestResult.TotalReturn,
-		Prices:      chartPrices(backTestResult.Prices),
-		Decisions:   chartDecisions(backTestResult.Decisions),
+	err := chart.RenderCombined(chart.RenderCombinedInput{
+		Symbol:      result.Symbol,
+		Strategy:    result.Strategy,
+		TotalReturn: result.TotalReturn,
+		Prices:      chartPrices(result.Prices),
+		Decisions:   chartDecisions(result.Decisions),
 		BollUpper:   chartIndicatorPoints(bollUpperForPlot),
 		BollMiddle:  chartIndicatorPoints(bollMiddleForPlot),
 		BollLower:   chartIndicatorPoints(bollLowerForPlot),
 		RSI:         chartIndicatorPoints(rsiForPlot),
 		MACD:        chartIndicatorPoints(macdForPlot),
 		MACDSignal:  chartIndicatorPoints(macdSignalForPlot),
-		RSIPeriod:   ind.RSIPeriod,
-		MACDFast:    ind.MACDFastPeriod,
-		MACDSlow:    ind.MACDSlowPeriod,
-		MACDSignalN: ind.MACDSignalPeriod,
+		RSIPeriod:   cfg.Indicators.RSIPeriod,
+		MACDFast:    cfg.Indicators.MACDFastPeriod,
+		MACDSlow:    cfg.Indicators.MACDSlowPeriod,
+		MACDSignalN: cfg.Indicators.MACDSignalPeriod,
 		Timezone:    tz,
 	}, outputCombinedPNG)
 	fatal.OnError(err)
 	outputPNG := fmt.Sprintf("%s/backtest.png", outputDir)
 	err = chart.Render(chart.RenderInput{
-		Symbol:      backTestResult.Symbol,
-		Strategy:    backTestResult.Strategy,
-		TotalReturn: backTestResult.TotalReturn,
-		Prices:      chartPrices(backTestResult.Prices),
-		Decisions:   chartDecisions(backTestResult.Decisions),
+		Symbol:      result.Symbol,
+		Strategy:    result.Strategy,
+		TotalReturn: result.TotalReturn,
+		Prices:      chartPrices(result.Prices),
+		Decisions:   chartDecisions(result.Decisions),
 		BollUpper:   chartIndicatorPoints(bollUpperForPlot),
 		BollMiddle:  chartIndicatorPoints(bollMiddleForPlot),
 		BollLower:   chartIndicatorPoints(bollLowerForPlot),
@@ -85,27 +94,27 @@ func main() {
 	fatal.OnError(err)
 	outputIndicatorsPNG := fmt.Sprintf("%s/indicators.png", outputDir)
 	err = chart.RenderIndicators(chart.RenderIndicatorsInput{
-		Symbol:      backTestResult.Symbol,
-		Strategy:    backTestResult.Strategy,
-		Timeline:    chartTimes(backTestResult.Prices),
+		Symbol:      result.Symbol,
+		Strategy:    result.Strategy,
+		Timeline:    chartTimes(result.Prices),
 		RSI:         chartIndicatorPoints(rsiForPlot),
 		MACD:        chartIndicatorPoints(macdForPlot),
 		MACDSignal:  chartIndicatorPoints(macdSignalForPlot),
-		RSIPeriod:   ind.RSIPeriod,
-		MACDFast:    ind.MACDFastPeriod,
-		MACDSlow:    ind.MACDSlowPeriod,
-		MACDSignalN: ind.MACDSignalPeriod,
+		RSIPeriod:   cfg.Indicators.RSIPeriod,
+		MACDFast:    cfg.Indicators.MACDFastPeriod,
+		MACDSlow:    cfg.Indicators.MACDSlowPeriod,
+		MACDSignalN: cfg.Indicators.MACDSignalPeriod,
 		Timezone:    tz,
 	}, outputIndicatorsPNG)
 	fatal.OnError(err)
 
-	fmt.Printf("Backtest complete for %s (%s)\n", backTestResult.Symbol, backTestResult.Strategy)
-	fmt.Printf("Rows: %d\n", len(backTestResult.Prices))
-	fmt.Printf("Decisions: %d\n", len(backTestResult.Decisions))
-	fmt.Printf("Starting cash: %.2f\n", backTestResult.StartingCash)
-	fmt.Printf("Ending cash: %.2f\n", backTestResult.EndingCash)
-	fmt.Printf("Ending value: %.2f\n", backTestResult.EndingValue)
-	fmt.Printf("Total return: %.2f%%\n", backTestResult.TotalReturn*100)
+	fmt.Printf("Backtest complete for %s (%s)\n", result.Symbol, result.Strategy)
+	fmt.Printf("Rows: %d\n", len(result.Prices))
+	fmt.Printf("Decisions: %d\n", len(result.Decisions))
+	fmt.Printf("Starting cash: %.2f\n", result.StartingCash)
+	fmt.Printf("Ending cash: %.2f\n", result.EndingCash)
+	fmt.Printf("Ending value: %.2f\n", result.EndingValue)
+	fmt.Printf("Total return: %.2f%%\n", result.TotalReturn*100)
 	fmt.Printf("Combined image: %s\n", outputCombinedPNG)
 	fmt.Printf("Output image: %s\n", outputPNG)
 	fmt.Printf("Indicators image: %s\n", outputIndicatorsPNG)

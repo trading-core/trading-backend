@@ -13,83 +13,23 @@ import (
 
 	"github.com/kduong/trading-backend/internal/auth"
 	"github.com/kduong/trading-backend/internal/broker"
-	"github.com/kduong/trading-backend/internal/broker/alpaca"
 	"github.com/kduong/trading-backend/internal/broker/tastytrade"
 )
 
-func Load(ctx context.Context, input LoadInput) (LoadOutput, error) {
-	strategy, err := selectStrategy(input)
-	if err != nil {
-		return LoadOutput{}, err
-	}
-	return strategy.Load(ctx, input)
-}
-
-func selectStrategy(input LoadInput) (Strategy, error) {
-	source := strings.TrimSpace(strings.ToLower(input.Source))
-	if source == "" {
-		source = "alpaca"
-	}
-	switch source {
-	case "alpaca":
-		return alpacaCandlesStrategy{}, nil
-	case "tastytrade", "tasty_trade":
-		return tastyTradeHistoricalStrategy{}, nil
-	default:
-		return nil, fmt.Errorf("unsupported BACKTEST_DATA_SOURCE: %s (valid values: alpaca, tastytrade)", input.Source)
-	}
-}
-
-type alpacaCandlesStrategy struct{}
-
-func (alpacaCandlesStrategy) Load(ctx context.Context, input LoadInput) (LoadOutput, error) {
-	prices, err := loadCandlesFromAlpaca(ctx, alpacaLoadInput{
-		Symbol:    input.Symbol,
-		Timeframe: input.Timeframe,
-		Limit:     input.Alpaca.Limit,
-		Start:     input.Start,
-		End:       input.End,
-		Feed:      input.Alpaca.Feed,
-	})
-	if err != nil {
-		return LoadOutput{}, err
-	}
-	if len(prices) == 0 {
-		return LoadOutput{}, fmt.Errorf("alpaca returned no candle rows (symbol=%s timeframe=%s start=%q end=%q feed=%s limit=%d)", input.Symbol, input.Timeframe, input.Start, input.End, input.Alpaca.Feed, input.Alpaca.Limit)
-	}
-	indicatorPrices := prices
-	if input.WarmupBars > 0 && strings.TrimSpace(input.Start) != "" {
-		warmupStart, warmupErr := computeIndicatorWarmupStart(input.Start, input.Timeframe, input.WarmupBars)
-		if warmupErr == nil {
-			warmupPrices, loadErr := loadCandlesFromAlpaca(ctx, alpacaLoadInput{
-				Symbol:    input.Symbol,
-				Timeframe: input.Timeframe,
-				Limit:     input.Alpaca.Limit,
-				Start:     warmupStart,
-				End:       input.End,
-				Feed:      input.Alpaca.Feed,
-			})
-			if loadErr == nil && len(warmupPrices) > len(prices) {
-				indicatorPrices = warmupPrices
-			}
-		}
-	}
-	events := EventsFromCandles(input.Symbol, prices)
-	return LoadOutput{Prices: prices, IndicatorPrices: indicatorPrices, Events: events}, nil
-}
-
 type tastyTradeHistoricalStrategy struct{}
 
-func (tastyTradeHistoricalStrategy) Load(ctx context.Context, input LoadInput) (LoadOutput, error) {
+func (strategy *tastyTradeHistoricalStrategy) Load(ctx context.Context, input LoadInput) (output *LoadOutput, err error) {
 	fromTime, err := parseOptionalTime(input.Start)
 	if err != nil {
-		return LoadOutput{}, fmt.Errorf("invalid start time: %w", err)
+		err = fmt.Errorf("invalid start time: %w", err)
+		return
 	}
 	endTime, err := parseOptionalTime(input.End)
 	if err != nil {
-		return LoadOutput{}, fmt.Errorf("invalid end time: %w", err)
+		err = fmt.Errorf("invalid end time: %w", err)
+		return
 	}
-	prices, err := loadCandlesFromTastyTrade(ctx, tastyTradeLoadInput{
+	prices, err := strategy.loadCandlesFromTastyTrade(ctx, tastyTradeLoadInput{
 		Symbol:            input.Symbol,
 		BrokerType:        input.TastyTrade.BrokerType,
 		CandleInterval:    input.Timeframe,
@@ -99,14 +39,17 @@ func (tastyTradeHistoricalStrategy) Load(ctx context.Context, input LoadInput) (
 		MaxCandles:        input.TastyTrade.MaxCandles,
 	})
 	if err != nil {
-		return LoadOutput{}, err
+		err = fmt.Errorf("failed to load candles from tastytrade: %w", err)
+		return
 	}
 	if len(prices) == 0 {
-		return LoadOutput{}, fmt.Errorf("tastytrade returned no historical candle rows (symbol=%s interval=%s)", input.Symbol, input.Timeframe)
+		err = fmt.Errorf("tastytrade returned no historical candle rows (symbol=%s interval=%s)", input.Symbol, input.Timeframe)
+		return
 	}
 	prices = filterToMarketHours(prices, input.Timeframe)
 	if len(prices) == 0 {
-		return LoadOutput{}, fmt.Errorf("tastytrade returned no market-hours candle rows (symbol=%s interval=%s)", input.Symbol, input.Timeframe)
+		err = fmt.Errorf("tastytrade returned no market-hours candle rows (symbol=%s interval=%s)", input.Symbol, input.Timeframe)
+		return
 	}
 	indicatorPrices := prices
 	if input.WarmupBars > 0 && !fromTime.IsZero() {
@@ -114,7 +57,7 @@ func (tastyTradeHistoricalStrategy) Load(ctx context.Context, input LoadInput) (
 		if warmupErr == nil {
 			warmupFromTime, parseErr := parseOptionalTime(warmupStart)
 			if parseErr == nil {
-				warmupPrices, loadErr := loadCandlesFromTastyTrade(ctx, tastyTradeLoadInput{
+				warmupPrices, loadErr := strategy.loadCandlesFromTastyTrade(ctx, tastyTradeLoadInput{
 					Symbol:            input.Symbol,
 					BrokerType:        input.TastyTrade.BrokerType,
 					CandleInterval:    input.Timeframe,
@@ -133,49 +76,12 @@ func (tastyTradeHistoricalStrategy) Load(ctx context.Context, input LoadInput) (
 		}
 	}
 	events := EventsFromCandles(input.Symbol, prices)
-	return LoadOutput{Prices: prices, IndicatorPrices: indicatorPrices, Events: events}, nil
-}
-
-type alpacaLoadInput struct {
-	Symbol    string
-	Timeframe string
-	Limit     int
-	Start     string
-	End       string
-	Feed      string
-}
-
-func loadCandlesFromAlpaca(ctx context.Context, input alpacaLoadInput) ([]PricePoint, error) {
-	if input.Symbol == "" {
-		return nil, errors.New("symbol is required for alpaca source")
+	output = &LoadOutput{
+		Prices:          prices,
+		IndicatorPrices: indicatorPrices,
+		Events:          events,
 	}
-	if input.Timeframe == "" {
-		return nil, errors.New("alpaca timeframe is required")
-	}
-	client := alpaca.ClientFromEnv()
-	barsOutput, err := client.GetStockBars(ctx, alpaca.GetStockBarsInput{
-		Symbol:    input.Symbol,
-		Timeframe: input.Timeframe,
-		Limit:     input.Limit,
-		Feed:      input.Feed,
-		Start:     input.Start,
-		End:       input.End,
-	})
-	if err != nil {
-		return nil, err
-	}
-	points := make([]PricePoint, 0, len(barsOutput.Bars))
-	for _, bar := range barsOutput.Bars {
-		at, err := parseTimestamp(bar.Time)
-		if err != nil {
-			return nil, fmt.Errorf("invalid alpaca bar time %q: %w", bar.Time, err)
-		}
-		points = append(points, PricePoint{At: at, Close: bar.Close})
-	}
-	sort.Slice(points, func(i, j int) bool {
-		return points[i].At.Before(points[j].At)
-	})
-	return points, nil
+	return
 }
 
 type tastyTradeLoadInput struct {
@@ -188,7 +94,7 @@ type tastyTradeLoadInput struct {
 	MaxCandles        int
 }
 
-func loadCandlesFromTastyTrade(ctx context.Context, input tastyTradeLoadInput) ([]PricePoint, error) {
+func (strategy *tastyTradeHistoricalStrategy) loadCandlesFromTastyTrade(ctx context.Context, input tastyTradeLoadInput) ([]PricePoint, error) {
 	if strings.TrimSpace(input.Symbol) == "" {
 		return nil, errors.New("symbol is required for tastytrade source")
 	}
@@ -219,7 +125,7 @@ func loadCandlesFromTastyTrade(ctx context.Context, input tastyTradeLoadInput) (
 	if maxCandles <= 0 {
 		maxCandles = 2500
 	}
-	bucketDuration, err := candleIntervalToDuration(input.CandleInterval)
+	bucketDuration, err := strategy.candleIntervalToDuration(input.CandleInterval)
 	if err != nil {
 		return nil, err
 	}
@@ -268,66 +174,7 @@ func loadCandlesFromTastyTrade(ctx context.Context, input tastyTradeLoadInput) (
 	return points, nil
 }
 
-func parseTimestamp(value string) (time.Time, error) {
-	clean := strings.TrimSpace(value)
-	if clean == "" {
-		return time.Time{}, errors.New("empty timestamp")
-	}
-	layouts := []string{time.RFC3339, time.RFC3339Nano, "2006-01-02 15:04:05", "2006-01-02 15:04"}
-	for _, layout := range layouts {
-		if ts, err := time.Parse(layout, clean); err == nil {
-			return ts, nil
-		}
-	}
-	if unixSeconds, err := strconv.ParseInt(clean, 10, 64); err == nil {
-		return time.Unix(unixSeconds, 0).UTC(), nil
-	}
-	return time.Time{}, fmt.Errorf("unsupported time format: %s", clean)
-}
-
-func parseOptionalTime(value string) (time.Time, error) {
-	clean := strings.TrimSpace(value)
-	if clean == "" {
-		return time.Time{}, nil
-	}
-	return time.Parse(time.RFC3339, clean)
-}
-
-func computeIndicatorWarmupStart(startRFC3339 string, timeframe string, warmupBars int) (string, error) {
-	if warmupBars <= 0 {
-		return startRFC3339, nil
-	}
-	startAt, err := parseTimestamp(startRFC3339)
-	if err != nil {
-		return "", fmt.Errorf("invalid BACKTEST_START: %w", err)
-	}
-	barSize, err := timeframeToDuration(timeframe)
-	if err != nil {
-		return "", err
-	}
-	warmupDuration := time.Duration(warmupBars) * barSize
-	return startAt.Add(-warmupDuration).Format(time.RFC3339), nil
-}
-
-func timeframeToDuration(timeframe string) (time.Duration, error) {
-	clean := strings.TrimSpace(strings.ToLower(timeframe))
-	switch clean {
-	case "1min", "1m":
-		return time.Minute, nil
-	case "5min", "5m":
-		return 5 * time.Minute, nil
-	case "15min", "15m":
-		return 15 * time.Minute, nil
-	case "1hour", "1h":
-		return time.Hour, nil
-	case "1day", "1d":
-		return 24 * time.Hour, nil
-	default:
-		return 0, fmt.Errorf("unsupported timeframe for warmup: %s", timeframe)
-	}
-}
-
-func candleIntervalToDuration(interval string) (time.Duration, error) {
+func (strategy *tastyTradeHistoricalStrategy) candleIntervalToDuration(interval string) (time.Duration, error) {
 	clean := strings.TrimSpace(strings.ToLower(interval))
 	if clean == "" {
 		return time.Minute, nil

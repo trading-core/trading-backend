@@ -31,10 +31,9 @@ type result struct {
 
 func Run(cfg backtestconfig.Config, prices []replay.PricePoint, events []replay.Event) result {
 	strategy := tradingstrategy.NewWithParams(cfg.Strategy, cfg.Scalping)
-	ind := cfg.Indicators
-	rsiSeries := indicator.ComputeRSI(prices, ind.RSIPeriod)
-	macdSeries, macdSignalSeries := indicator.ComputeMACD(prices, ind.MACDFastPeriod, ind.MACDSlowPeriod, ind.MACDSignalPeriod)
-	bollUpperSeries, bollMiddleSeries, bollLowerSeries := indicator.ComputeBollingerBands(prices, ind.BollingerPeriod, ind.BollingerStdDev)
+	rsiSeries := indicator.ComputeRSI(prices, cfg.Indicators.RSIPeriod)
+	macdSeries, macdSignalSeries := indicator.ComputeMACD(prices, cfg.Indicators.MACDFastPeriod, cfg.Indicators.MACDSlowPeriod, cfg.Indicators.MACDSignalPeriod)
+	bollUpperSeries, bollMiddleSeries, bollLowerSeries := indicator.ComputeBollingerBands(prices, cfg.Indicators.BollingerPeriod, cfg.Indicators.BollingerStdDev)
 	rsiByTs := make(map[int64]float64, len(rsiSeries))
 	for _, p := range rsiSeries {
 		rsiByTs[p.At.Unix()] = p.Value

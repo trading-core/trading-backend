@@ -53,27 +53,25 @@ type IndicatorConfig struct {
 	BollingerStdDev  float64
 }
 
-const AlpacaStockBarLimit = 10000
-
 // LoadFromEnv reads all backtest configuration from environment variables and
 // validates constraints. Returns an error if any value is invalid.
-func LoadFromEnv() (Config, error) {
+func LoadFromEnv() Config {
 	cfg := Config{
-		Symbol:              config.EnvString("BACKTEST_SYMBOL", "AAPL"),
+		Symbol:              config.EnvString("BACKTEST_SYMBOL", "SNDK"),
 		Strategy:            config.EnvString("BACKTEST_STRATEGY", "scalping"),
-		Cash:                config.EnvInt("BACKTEST_CASH", 20000),
+		Cash:                config.EnvInt("BACKTEST_CASH", 100000),
 		Source:              config.EnvString("BACKTEST_DATA_SOURCE", "alpaca"),
 		Sweep:               config.EnvBool("BACKTEST_SWEEP", false),
 		FillLatencyMS:       config.EnvInt("BACKTEST_FILL_LATENCY_MS", 0),
 		BidAskSpreadPct:     config.EnvFloat64("BACKTEST_BID_ASK_SPREAD_PCT", 0),
 		IndicatorWarmupBars: config.EnvInt("BACKTEST_INDICATOR_WARMUP_BARS", 200),
 
-		Timeframe: config.EnvString("BACKTEST_TIMEFRAME", "1Min"),
-		Start:     config.EnvString("BACKTEST_START", ""),
-		End:       config.EnvString("BACKTEST_END", ""),
+		Timeframe: config.EnvString("BACKTEST_TIMEFRAME", "1Hour"),
+		Start:     config.EnvString("BACKTEST_START", "2025-09-01T09:30:00-05:00"),
+		End:       config.EnvString("BACKTEST_END", "2026-12-01T16:00:00-05:00"),
 
 		Alpaca: AlpacaConfig{
-			Limit: AlpacaStockBarLimit,
+			Limit: config.EnvInt("BACKTEST_ALPACA_STOCK_BAR_LIMIT", 10000),
 			Feed:  config.EnvString("BACKTEST_ALPACA_FEED", "iex"),
 		},
 		TastyTrade: TastyTradeConfig{
@@ -109,104 +107,104 @@ func LoadFromEnv() (Config, error) {
 			BreakoutLookbackBars:     config.EnvInt("BACKTEST_SCALPING_BREAKOUT_LOOKBACK_BARS", 0),
 		},
 	}
-
-	if err := cfg.validate(); err != nil {
-		return Config{}, err
+	err := cfg.validate()
+	if err != nil {
+		panic(err)
 	}
-	return cfg, nil
+	return cfg
 }
 
-func (c Config) validate() error {
-	if c.Cash < 0 {
+func (config Config) validate() error {
+	if config.Cash < 0 {
 		return fmt.Errorf("BACKTEST_CASH must be greater than zero")
 	}
-	if c.FillLatencyMS < 0 {
+	if config.FillLatencyMS < 0 {
 		return fmt.Errorf("BACKTEST_FILL_LATENCY_MS must be non-negative")
 	}
-	if c.BidAskSpreadPct < 0 {
+	if config.BidAskSpreadPct < 0 {
 		return fmt.Errorf("BACKTEST_BID_ASK_SPREAD_PCT must be non-negative")
 	}
-	if c.IndicatorWarmupBars < 0 {
+	if config.IndicatorWarmupBars < 0 {
 		return fmt.Errorf("BACKTEST_INDICATOR_WARMUP_BARS must be non-negative")
 	}
-	if err := tradingstrategy.ValidateType(c.Strategy); err != nil {
+
+	err := tradingstrategy.ValidateType(config.Strategy)
+	if err != nil {
 		return err
 	}
 
 	// Indicator constraints.
-	ind := c.Indicators
-	if ind.RSIPeriod < 2 {
+	if config.Indicators.RSIPeriod < 2 {
 		return fmt.Errorf("BACKTEST_RSI_PERIOD must be at least 2")
 	}
-	if ind.MACDFastPeriod < 2 {
+	if config.Indicators.MACDFastPeriod < 2 {
 		return fmt.Errorf("BACKTEST_MACD_FAST_PERIOD must be at least 2")
 	}
-	if ind.MACDSlowPeriod <= ind.MACDFastPeriod {
+	if config.Indicators.MACDSlowPeriod <= config.Indicators.MACDFastPeriod {
 		return fmt.Errorf("BACKTEST_MACD_SLOW_PERIOD must be greater than BACKTEST_MACD_FAST_PERIOD")
 	}
-	if ind.MACDSignalPeriod < 2 {
+	if config.Indicators.MACDSignalPeriod < 2 {
 		return fmt.Errorf("BACKTEST_MACD_SIGNAL_PERIOD must be at least 2")
 	}
-	if ind.BollingerPeriod < 2 {
+	if config.Indicators.BollingerPeriod < 2 {
 		return fmt.Errorf("BACKTEST_BOLLINGER_PERIOD must be at least 2")
 	}
-	if ind.BollingerStdDev <= 0 {
+	if config.Indicators.BollingerStdDev <= 0 {
 		return fmt.Errorf("BACKTEST_BOLLINGER_STDDEV must be greater than zero")
 	}
 
 	// Scalping constraints.
-	s := c.Scalping
-	if s.MinRSI < 0 || s.MinRSI > 100 {
+	if config.Scalping.MinRSI < 0 || config.Scalping.MinRSI > 100 {
 		return fmt.Errorf("BACKTEST_SCALPING_MIN_RSI must be in [0,100]")
 	}
-	if s.MinBollingerWidthPct < 0 {
+	if config.Scalping.MinBollingerWidthPct < 0 {
 		return fmt.Errorf("BACKTEST_SCALPING_MIN_BOLLINGER_WIDTH_PCT must be non-negative")
 	}
-	if s.StopLossPct < 0 {
+	if config.Scalping.StopLossPct < 0 {
 		return fmt.Errorf("BACKTEST_SCALPING_STOP_LOSS_PCT must be non-negative")
 	}
-	if s.RiskPerTradePct < 0 {
+	if config.Scalping.RiskPerTradePct < 0 {
 		return fmt.Errorf("BACKTEST_SCALPING_RISK_PER_TRADE_PCT must be non-negative")
 	}
 	return nil
 }
 
 // ReplayInput builds the replay.LoadInput from config.
-func (c Config) ReplayInput() replay.LoadInput {
+func (config Config) ReplayInput() replay.LoadInput {
 	return replay.LoadInput{
-		Source:     c.Source,
-		Symbol:     c.Symbol,
-		Timeframe:  c.Timeframe,
-		Start:      c.Start,
-		End:        c.End,
-		WarmupBars: c.IndicatorWarmupBars,
+		Source:     config.Source,
+		Symbol:     config.Symbol,
+		Timeframe:  config.Timeframe,
+		Start:      config.Start,
+		End:        config.End,
+		WarmupBars: config.IndicatorWarmupBars,
 		Alpaca: replay.AlpacaInput{
-			Limit: c.Alpaca.Limit,
-			Feed:  c.Alpaca.Feed,
+			Limit: config.Alpaca.Limit,
+			Feed:  config.Alpaca.Feed,
 		},
 		TastyTrade: replay.TastyTradeInput{
-			BrokerType:        c.TastyTrade.BrokerType,
-			CollectionTimeout: c.TastyTrade.CollectionTimeout,
-			MaxCandles:        c.TastyTrade.MaxCandles,
+			BrokerType:        config.TastyTrade.BrokerType,
+			CollectionTimeout: config.TastyTrade.CollectionTimeout,
+			MaxCandles:        config.TastyTrade.MaxCandles,
 		},
 	}
 }
 
 // FillLatency returns the fill latency as a time.Duration.
-func (c Config) FillLatency() time.Duration {
-	return time.Duration(c.FillLatencyMS) * time.Millisecond
+func (config Config) FillLatency() time.Duration {
+	return time.Duration(config.FillLatencyMS) * time.Millisecond
 }
 
 // StartingCash returns Cash as float64 for backtest calculations.
-func (c Config) StartingCash() float64 {
-	return float64(c.Cash)
+func (config Config) StartingCash() float64 {
+	return float64(config.Cash)
 }
 
 // OutputDir returns the output directory path for backtest results.
-func (c Config) OutputDir() string {
-	sourceSlug := strings.ReplaceAll(strings.ToLower(strings.TrimSpace(c.Source)), "_", "-")
+func (config Config) OutputDir() string {
+	sourceSlug := strings.ReplaceAll(strings.ToLower(strings.TrimSpace(config.Source)), "_", "-")
 	if sourceSlug == "" {
 		sourceSlug = "alpaca"
 	}
-	return fmt.Sprintf("./tmp/%s-%s-%s", c.Symbol, sourceSlug, c.Timeframe)
+	return fmt.Sprintf("./tmp/%s-%s-%s", config.Symbol, sourceSlug, config.Timeframe)
 }

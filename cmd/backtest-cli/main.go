@@ -53,12 +53,12 @@ func main() {
 	macdSeries, macdSignalSeries := computeMACD(loaded.IndicatorPrices, ind.MACDFastPeriod, ind.MACDSlowPeriod, ind.MACDSignalPeriod)
 	bollUpperSeries, bollMiddleSeries, bollLowerSeries := computeBollingerBands(loaded.IndicatorPrices, ind.BollingerPeriod, ind.BollingerStdDev)
 	tz := tradingstrategy.USMarketLocation
-	rsiForPlot := filterIndicatorToMarketHours(filterIndicatorSeriesToRange(rsiSeries, plotStart, plotEnd), tz)
-	macdForPlot := filterIndicatorToMarketHours(filterIndicatorSeriesToRange(macdSeries, plotStart, plotEnd), tz)
-	macdSignalForPlot := filterIndicatorToMarketHours(filterIndicatorSeriesToRange(macdSignalSeries, plotStart, plotEnd), tz)
-	bollUpperForPlot := filterIndicatorToMarketHours(filterIndicatorSeriesToRange(bollUpperSeries, plotStart, plotEnd), tz)
-	bollMiddleForPlot := filterIndicatorToMarketHours(filterIndicatorSeriesToRange(bollMiddleSeries, plotStart, plotEnd), tz)
-	bollLowerForPlot := filterIndicatorToMarketHours(filterIndicatorSeriesToRange(bollLowerSeries, plotStart, plotEnd), tz)
+	rsiForPlot := filterIndicatorToMarketHours(filterIndicatorSeriesToRange(rsiSeries, plotStart, plotEnd), tz, cfg.Timeframe)
+	macdForPlot := filterIndicatorToMarketHours(filterIndicatorSeriesToRange(macdSeries, plotStart, plotEnd), tz, cfg.Timeframe)
+	macdSignalForPlot := filterIndicatorToMarketHours(filterIndicatorSeriesToRange(macdSignalSeries, plotStart, plotEnd), tz, cfg.Timeframe)
+	bollUpperForPlot := filterIndicatorToMarketHours(filterIndicatorSeriesToRange(bollUpperSeries, plotStart, plotEnd), tz, cfg.Timeframe)
+	bollMiddleForPlot := filterIndicatorToMarketHours(filterIndicatorSeriesToRange(bollMiddleSeries, plotStart, plotEnd), tz, cfg.Timeframe)
+	bollLowerForPlot := filterIndicatorToMarketHours(filterIndicatorSeriesToRange(bollLowerSeries, plotStart, plotEnd), tz, cfg.Timeframe)
 	outputCombinedPNG := fmt.Sprintf("%s/backtest-with-indicators.png", outputDir)
 	err = chart.RenderCombined(chart.RenderCombinedInput{
 		Symbol:      backTestResult.Symbol,
@@ -715,7 +715,12 @@ func filterIndicatorSeriesToRange(points []indicatorPoint, start time.Time, end 
 	return out
 }
 
-func filterIndicatorToMarketHours(points []indicatorPoint, tz *time.Location) []indicatorPoint {
+func filterIndicatorToMarketHours(points []indicatorPoint, tz *time.Location, timeframe string) []indicatorPoint {
+	// For daily and weekly timeframes, don't filter to market hours (they need end-of-day/week closes).
+	// Only filter intraday (1Min, 5Min, etc.) to 9:30 AM - 4:00 PM.
+	if timeframe == "1Day" || timeframe == "1Week" {
+		return points
+	}
 	out := make([]indicatorPoint, 0, len(points))
 	for _, p := range points {
 		local := p.At.In(tz)

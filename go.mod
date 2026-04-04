@@ -15,6 +15,7 @@ require (
 	github.com/satori/go.uuid v1.2.0
 	github.com/smartystreets/goconvey v1.8.1
 	golang.org/x/crypto v0.0.0-20210711020723-a769d52b0f97
+	golang.org/x/image v0.38.0
 )
 
 require (
@@ -27,6 +28,5 @@ require (
 	github.com/smarty/assertions v1.15.0 // indirect
 	github.com/yuin/gopher-lua v1.1.1 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
-	golang.org/x/image v0.38.0 // indirect
 	golang.org/x/sys v0.30.0 // indirect
 )

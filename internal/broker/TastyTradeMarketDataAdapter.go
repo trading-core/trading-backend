@@ -31,6 +31,17 @@ func (adapter *TastyTradeMarketDataAdapter) Stream(ctx context.Context, input St
 	}
 }
 
+func (adapter *TastyTradeMarketDataAdapter) GetHistoricalData(ctx context.Context, input GetHistoricaDataInput) iterator.Iterator[*MarketDataMessage] {
+	return &tastyTradeHistoricalMarketDataIterator{
+		iterator: tastytrade.NewHistoricalDXLinkIterator(ctx, tastytrade.NewHistoricalDXLinkIteratorInput{
+			Client:         adapter.client,
+			Symbol:         input.Symbol,
+			CandleInterval: input.CandleInterval,
+			FromTime:       input.FromTime,
+		}),
+	}
+}
+
 type tastyTradeMarketDataIterator struct {
 	iterator *tastytrade.DXLinkIterator
 	item     *MarketDataMessage
@@ -51,6 +62,29 @@ func (iterator *tastyTradeMarketDataIterator) Item() *MarketDataMessage {
 }
 
 func (iterator *tastyTradeMarketDataIterator) Err() error {
+	return iterator.iterator.Err()
+}
+
+type tastyTradeHistoricalMarketDataIterator struct {
+	iterator *tastytrade.HistoricalDXLinkIterator
+	item     *MarketDataMessage
+}
+
+func (iterator *tastyTradeHistoricalMarketDataIterator) Next() bool {
+	for iterator.iterator.Next() {
+		message := iterator.iterator.MessageEvent()
+		iterator.item = convertTastyTradeMessageEvent(message)
+		return true
+	}
+	iterator.item = nil
+	return false
+}
+
+func (iterator *tastyTradeHistoricalMarketDataIterator) Item() *MarketDataMessage {
+	return iterator.item
+}
+
+func (iterator *tastyTradeHistoricalMarketDataIterator) Err() error {
 	return iterator.iterator.Err()
 }
 
@@ -78,6 +112,20 @@ func convertTastyTradeMessageEvent(message *tastytrade.MessageEvent) *MarketData
 				Size:      message.Trade.Size,
 			},
 			ReceivedAt: eventReceivedAt(message.Trade.EventTime),
+		}
+	case tastytrade.MessageEventTypeCandle:
+		return &MarketDataMessage{
+			Type:   MarketDataTypeCandle,
+			Symbol: message.Candle.EventSymbol,
+			Candle: &Candle{
+				Open:         message.Candle.Open,
+				High:         message.Candle.High,
+				Low:          message.Candle.Low,
+				Close:        message.Candle.Close,
+				Volume:       message.Candle.Volume,
+				OpenInterest: message.Candle.OpenInterest,
+			},
+			ReceivedAt: eventReceivedAt(message.Candle.EventTime),
 		}
 	default:
 		return nil

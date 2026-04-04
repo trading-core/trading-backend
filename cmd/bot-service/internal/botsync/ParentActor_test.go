@@ -153,6 +153,10 @@ func (fakeMarketDataClient) Stream(ctx context.Context, input broker.StreamMarke
 	return emptyMarketDataIterator{}
 }
 
+func (fakeMarketDataClient) GetHistoricalData(ctx context.Context, input broker.GetHistoricaDataInput) iterator.Iterator[*broker.MarketDataMessage] {
+	return emptyMarketDataIterator{}
+}
+
 type emptyMarketDataIterator struct{}
 
 func (emptyMarketDataIterator) Next() bool {

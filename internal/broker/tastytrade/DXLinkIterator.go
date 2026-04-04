@@ -9,6 +9,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// https://developer.tastytrade.com/streaming-market-data/#dxlink-documentation
 type DXLinkIterator struct {
 	client        Client
 	symbol        string

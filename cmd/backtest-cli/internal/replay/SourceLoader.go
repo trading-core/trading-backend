@@ -104,7 +104,7 @@ func (tastyTradeHistoricalStrategy) Load(ctx context.Context, input LoadInput) (
 	if len(prices) == 0 {
 		return LoadOutput{}, fmt.Errorf("tastytrade returned no historical candle rows (symbol=%s interval=%s)", input.Symbol, input.Timeframe)
 	}
-	prices = filterToMarketHours(prices)
+	prices = filterToMarketHours(prices, input.Timeframe)
 	if len(prices) == 0 {
 		return LoadOutput{}, fmt.Errorf("tastytrade returned no market-hours candle rows (symbol=%s interval=%s)", input.Symbol, input.Timeframe)
 	}
@@ -124,7 +124,7 @@ func (tastyTradeHistoricalStrategy) Load(ctx context.Context, input LoadInput) (
 					MaxCandles:        input.TastyTrade.MaxCandles,
 				})
 				if loadErr == nil {
-					warmupPrices = filterToMarketHours(warmupPrices)
+					warmupPrices = filterToMarketHours(warmupPrices, input.Timeframe)
 					if len(warmupPrices) > len(prices) {
 						indicatorPrices = warmupPrices
 					}
@@ -381,7 +381,12 @@ var usEastern = func() *time.Location {
 	return loc
 }()
 
-func filterToMarketHours(prices []PricePoint) []PricePoint {
+func filterToMarketHours(prices []PricePoint, timeframe string) []PricePoint {
+	// For daily and weekly timeframes, don't filter to market hours (they close outside 9:30-16:00 window).
+	// Only filter intraday (1Min, 5Min, etc.) to 9:30 AM - 4:00 PM.
+	if timeframe == "1Day" || timeframe == "1Week" {
+		return prices
+	}
 	out := make([]PricePoint, 0, len(prices))
 	for _, p := range prices {
 		h, m, _ := p.At.In(usEastern).Clock()

@@ -208,5 +208,5 @@ func (c Config) OutputDir() string {
 	if sourceSlug == "" {
 		sourceSlug = "alpaca"
 	}
-	return fmt.Sprintf("./tmp/%s-%s", c.Symbol, sourceSlug)
+	return fmt.Sprintf("./tmp/%s-%s-%s", c.Symbol, sourceSlug, c.Timeframe)
 }

@@ -25,18 +25,6 @@ type decisionPoint struct {
 	Reason   string
 }
 
-type result struct {
-	Symbol        string
-	Strategy      string
-	StartingCash  float64
-	EndingCash    float64
-	EndingValue   float64
-	TotalReturn   float64
-	Prices        []replay.PricePoint
-	Decisions     []decisionPoint
-	FinalPosition float64
-}
-
 type pendingOrder struct {
 	Action   tradingstrategy.Action
 	Quantity float64
@@ -297,6 +285,18 @@ func splitByTradingDay(events []replay.Event, prices []replay.PricePoint) []trad
 		days = append(days, tradingDay{date: d, events: dayEvents[d], prices: p})
 	}
 	return days
+}
+
+type result struct {
+	Symbol        string
+	Strategy      string
+	StartingCash  float64
+	EndingCash    float64
+	EndingValue   float64
+	TotalReturn   float64
+	Prices        []replay.PricePoint
+	Decisions     []decisionPoint
+	FinalPosition float64
 }
 
 func runBacktest(cfg backtestconfig.Config, prices []replay.PricePoint, events []replay.Event) result {

@@ -140,7 +140,10 @@ func (actor *TradeActor) Run(ctx context.Context) {
 			}
 		}
 
-		rsi, macd, macdSignal, bollUpper, bollMiddle, bollLower, bollWidthPct := actor.indicators.Update(input.Price)
+		var rsi, macd, macdSignal, bollUpper, bollMiddle, bollLower, bollWidthPct *float64
+		if isMarketHour(snapshot.Now) {
+			rsi, macd, macdSignal, bollUpper, bollMiddle, bollLower, bollWidthPct = actor.indicators.Update(input.Price)
+		}
 		input.RSI = rsi
 		input.MACD = macd
 		input.MACDSignal = macdSignal
@@ -346,7 +349,7 @@ func bucketByHour(ts time.Time, size int) string {
 }
 
 func (state *indicatorState) Update(price float64) (rsi *float64, macd *float64, macdSignal *float64, bollUpper *float64, bollMiddle *float64, bollLower *float64, bollWidthPct *float64) {
-	if price <= 0 {
+	if price <= 0 || math.IsNaN(price) || math.IsInf(price, 0) {
 		return nil, nil, nil, nil, nil, nil, nil
 	}
 	state.priceSamples++
@@ -452,6 +455,13 @@ func rsiFromAverages(avgGain, avgLoss float64) float64 {
 	}
 	rs := avgGain / avgLoss
 	return 100 - (100 / (1 + rs))
+}
+
+func isMarketHour(t time.Time) bool {
+	local := t.In(tradingstrategy.USMarketLocation)
+	h, m, _ := local.Clock()
+	mins := h*60 + m
+	return mins >= 9*60+30 && mins <= 16*60
 }
 
 func (actor *TradeActor) loadAccountSnapshot(ctx context.Context, accountClient broker.AccountClient) (snapshot tradingstrategy.AccountSnapshot, err error) {

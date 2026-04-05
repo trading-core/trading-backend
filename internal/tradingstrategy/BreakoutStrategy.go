@@ -3,16 +3,12 @@ package tradingstrategy
 import "fmt"
 
 type BreakoutStrategy struct {
-	lookbackBars int
+	lookbackBars int // number of bars to lookback for breakout (1=session high, 5=5-bar high). Default 1.
 }
 
-type NewBreakoutStrategyInput struct {
-	LookbackBars int // number of bars to lookback for breakout (1=session high, 5=5-bar high). Default 1.
-}
-
-func NewBreakoutStrategy(input NewBreakoutStrategyInput) *BreakoutStrategy {
+func NewBreakoutStrategy(lookbackBars int) *BreakoutStrategy {
 	return &BreakoutStrategy{
-		lookbackBars: input.LookbackBars,
+		lookbackBars: lookbackBars,
 	}
 }
 
@@ -32,4 +28,3 @@ func (strategy *BreakoutStrategy) Evaluate(input EvaluateInput) Decision {
 	}
 	return Decision{Action: ActionNone, Reason: "no breakout"}
 }
-

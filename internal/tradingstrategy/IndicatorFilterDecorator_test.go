@@ -1,15 +1,16 @@
-package tradingstrategy
+package tradingstrategy_test
 
 import (
 	"testing"
 
+	"github.com/kduong/trading-backend/internal/tradingstrategy"
 	. "github.com/smartystreets/goconvey/convey"
 )
 
 func TestIndicatorFilterDecorator(t *testing.T) {
 	Convey("Given an indicator filter decorator", t, func() {
-		decorated := &stubStrategy{decision: Decision{Action: ActionBuy, Reason: "signal"}}
-		decorator := NewIndicatorFilterDecorator(NewIndicatorFilterDecoratorInput{
+		decorated := &stubStrategy{decision: tradingstrategy.Decision{Action: tradingstrategy.ActionBuy, Reason: "signal"}}
+		decorator := tradingstrategy.NewIndicatorFilterDecorator(tradingstrategy.NewIndicatorFilterDecoratorInput{
 			Decorated:                decorated,
 			MinRSI:                   40,
 			RequireMACDSignal:        true,
@@ -20,7 +21,7 @@ func TestIndicatorFilterDecorator(t *testing.T) {
 		})
 
 		Convey("When RSI is missing", func() {
-			decision := decorator.Evaluate(EvaluateInput{Price: 100})
+			decision := decorator.Evaluate(tradingstrategy.EvaluateInput{Price: 100})
 			So(decision.Reason, ShouldEqual, "rsi unavailable")
 			So(decorated.calls, ShouldEqual, 0)
 		})
@@ -29,7 +30,7 @@ func TestIndicatorFilterDecorator(t *testing.T) {
 			rsi := 55.0
 			macd := 1.0
 			signal := 2.0
-			decision := decorator.Evaluate(EvaluateInput{Price: 100, RSI: &rsi, MACD: &macd, MACDSignal: &signal})
+			decision := decorator.Evaluate(tradingstrategy.EvaluateInput{Price: 100, RSI: &rsi, MACD: &macd, MACDSignal: &signal})
 			So(decision.Reason, ShouldEqual, "macd below signal")
 			So(decorated.calls, ShouldEqual, 0)
 		})
@@ -42,7 +43,7 @@ func TestIndicatorFilterDecorator(t *testing.T) {
 			middle := 100.0
 			lower := 99.0
 			width := 0.03
-			decision := decorator.Evaluate(EvaluateInput{
+			decision := decorator.Evaluate(tradingstrategy.EvaluateInput{
 				Price:        100,
 				RSI:          &rsi,
 				MACD:         &macd,
@@ -64,7 +65,7 @@ func TestIndicatorFilterDecorator(t *testing.T) {
 			middle := 100.0
 			lower := 90.0
 			width := 0.06
-			decision := decorator.Evaluate(EvaluateInput{
+			decision := decorator.Evaluate(tradingstrategy.EvaluateInput{
 				Price:        110,
 				RSI:          &rsi,
 				MACD:         &macd,
@@ -86,7 +87,7 @@ func TestIndicatorFilterDecorator(t *testing.T) {
 			middle := 100.0
 			lower := 90.0
 			width := 0.03
-			decision := decorator.Evaluate(EvaluateInput{
+			decision := decorator.Evaluate(tradingstrategy.EvaluateInput{
 				Price:        110,
 				RSI:          &rsi,
 				MACD:         &macd,
@@ -97,7 +98,7 @@ func TestIndicatorFilterDecorator(t *testing.T) {
 				BollWidthPct: &width,
 			})
 			So(decorated.calls, ShouldEqual, 1)
-			So(decision.Action, ShouldEqual, ActionBuy)
+			So(decision.Action, ShouldEqual, tradingstrategy.ActionBuy)
 		})
 	})
 }

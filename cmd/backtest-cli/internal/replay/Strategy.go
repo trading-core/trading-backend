@@ -53,7 +53,7 @@ func (input LoadInput) SelectStrategy() (strategy Strategy, err error) {
 		return
 	}
 	if input.CacheEnabled {
-		strategy = &cacheDecorator{base: strategy}
+		strategy = &cacheStrategyDecorator{base: strategy}
 	}
 	return
 }

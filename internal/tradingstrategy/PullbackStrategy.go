@@ -12,6 +12,5 @@ func (strategy *PullbackStrategy) Evaluate(input EvaluateInput) Decision {
 	if input.Price <= *input.BollMiddle {
 		return Decision{Action: ActionBuy, Reason: "pullback"}
 	}
-	return Decision{Action: ActionNone}
+	return Decision{Action: ActionNone, Reason: "price above bollinger middle"}
 }
-

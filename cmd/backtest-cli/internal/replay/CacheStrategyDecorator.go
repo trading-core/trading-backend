@@ -13,7 +13,7 @@ import (
 
 const replayLoadCacheVersion = 1
 
-type cacheDecorator struct {
+type cacheStrategyDecorator struct {
 	base Strategy
 }
 
@@ -29,7 +29,7 @@ type cacheIdentity struct {
 	TastyTrade TastyTradeInput `json:"tastyTrade"`
 }
 
-func (decorator *cacheDecorator) Load(ctx context.Context, input LoadInput) (output *LoadOutput, err error) {
+func (decorator *cacheStrategyDecorator) Load(ctx context.Context, input LoadInput) (output *LoadOutput, err error) {
 	cachePath, err := decorator.cachePathForInput(input)
 	if err != nil {
 		return
@@ -45,7 +45,7 @@ func (decorator *cacheDecorator) Load(ctx context.Context, input LoadInput) (out
 	return
 }
 
-func (decorator *cacheDecorator) cachePathForInput(input LoadInput) (string, error) {
+func (decorator *cacheStrategyDecorator) cachePathForInput(input LoadInput) (string, error) {
 	identity := cacheIdentity{
 		Version:    replayLoadCacheVersion,
 		Source:     strings.TrimSpace(strings.ToLower(input.Source)),
@@ -70,7 +70,7 @@ func (decorator *cacheDecorator) cachePathForInput(input LoadInput) (string, err
 	return filepath.Join(cacheDir, fmt.Sprintf("load-%s.json", cacheKey)), nil
 }
 
-func (decorator *cacheDecorator) readLoadOutputCache(path string) (*LoadOutput, error) {
+func (decorator *cacheStrategyDecorator) readLoadOutputCache(path string) (*LoadOutput, error) {
 	bytes, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
@@ -85,7 +85,7 @@ func (decorator *cacheDecorator) readLoadOutputCache(path string) (*LoadOutput, 
 	return &output, nil
 }
 
-func (decorator *cacheDecorator) writeLoadOutputCache(path string, output *LoadOutput) error {
+func (decorator *cacheStrategyDecorator) writeLoadOutputCache(path string, output *LoadOutput) error {
 	if output == nil {
 		return nil
 	}

@@ -16,7 +16,6 @@ type ParentActor struct {
 	log                    eventsource.Log
 	botEventLogFactory     eventsource.LogFactory
 	botChannelFunc         func(botID string) string
-	tradingParams          tradingstrategy.Parameters
 	rsiPeriod              int
 	macdFastPeriod         int
 	macdSlowPeriod         int
@@ -38,7 +37,6 @@ type NewParentActorInput struct {
 	BotChannelFunc                func(botID string) string
 	BrokerAccountClientFactory    broker.AccountClientFactory
 	BrokerMarketDataClientFactory broker.MarketDataClientFactory
-	TradingParams                 tradingstrategy.Parameters
 	RSIPeriod                     int
 	MACDFastPeriod                int
 	MACDSlowPeriod                int
@@ -54,7 +52,6 @@ func NewParentActor(input NewParentActorInput) *ParentActor {
 		log:                     input.Log,
 		botEventLogFactory:      input.BotEventLogFactory,
 		botChannelFunc:          input.BotChannelFunc,
-		tradingParams:           input.TradingParams,
 		rsiPeriod:               input.RSIPeriod,
 		macdFastPeriod:          input.MACDFastPeriod,
 		macdSlowPeriod:          input.MACDSlowPeriod,

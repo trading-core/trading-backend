@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strings"
 
 	"github.com/kduong/trading-backend/cmd/account-service/pkg/accountservice"
 	"github.com/kduong/trading-backend/cmd/bot-service/internal/botstore"
@@ -14,22 +13,20 @@ import (
 	"github.com/kduong/trading-backend/cmd/bot-service/internal/httpapi"
 	"github.com/kduong/trading-backend/internal/auth"
 	"github.com/kduong/trading-backend/internal/broker/tastytrade"
-	"github.com/kduong/trading-backend/internal/config"
 	"github.com/kduong/trading-backend/internal/eventsource"
 	"github.com/kduong/trading-backend/internal/eventsource/subscription"
 	"github.com/kduong/trading-backend/internal/fatal"
-	"github.com/kduong/trading-backend/internal/tradingstrategy"
 	"github.com/rs/cors"
 )
 
 func main() {
 	ctx := context.Background()
-	logFactory, err := eventsource.LogFactoryFromEnv("BOT_EVENT_LOG", "INMEMORY")
+	logFactory, err := eventsource.LogFactoryFromEnv("TRADING_BOT_EVENT_LOG", "INMEMORY")
 	fatal.OnError(err)
-	log, err := logFactory.Create("bot:events")
+	log, err := logFactory.Create("trading_bot:events")
 	fatal.OnError(err)
 	botChannelFunc := func(botID string) string {
-		return fmt.Sprintf("bot:%s:events", botID)
+		return fmt.Sprintf("trading_bot:%s:events", botID)
 	}
 	credentialsByType := auth.CredentialsByTypeFromEnv()
 	tastyTradeAPIURL, tastyTradeTokenManager := loadTastyTradeConfiguration(credentialsByType, "tastytrade")
@@ -46,72 +43,18 @@ func main() {
 		TastyTradeClientFactory:        tastyTradeClientFactory,
 		TastyTradeSandboxClientFactory: tastyTradeSandboxClientFactory,
 	})
-	tradingParams := tradingstrategy.Parameters{
-		EntryMode:                config.EnvString("BOT_SCALPING_ENTRY_MODE", ""),
-		MaxPositionFraction:      config.EnvFloat64("BOT_SCALPING_MAX_POSITION_FRACTION", 0),
-		TakeProfitPct:            config.EnvFloat64("BOT_SCALPING_TAKE_PROFIT_PCT", 0),
-		StopLossPct:              config.EnvFloat64("BOT_SCALPING_STOP_LOSS_PCT", 0),
-		SessionStart:             config.EnvInt("BOT_SCALPING_SESSION_START", -1),
-		SessionEnd:               config.EnvInt("BOT_SCALPING_SESSION_END", 0),
-		MinRSI:                   config.EnvFloat64("BOT_SCALPING_MIN_RSI", 40),
-		RequireMACDSignal:        config.EnvBool("BOT_SCALPING_REQUIRE_MACD_ABOVE_SIGNAL", true),
-		RequireBollingerBreakout: config.EnvBool("BOT_SCALPING_REQUIRE_BOLLINGER_BREAKOUT", false),
-		MinBollingerWidthPct:     config.EnvFloat64("BOT_SCALPING_MIN_BOLLINGER_WIDTH_PCT", 0),
-		RequireBollingerSqueeze:  config.EnvBool("BOT_SCALPING_REQUIRE_BOLLINGER_SQUEEZE", false),
-		MaxBollingerWidthPct:     config.EnvFloat64("BOT_SCALPING_MAX_BOLLINGER_WIDTH_PCT", 0),
-		ReentryCooldownMinutes:   config.EnvInt("BOT_SCALPING_REENTRY_COOLDOWN_MINUTES", 0),
-		UseVolatilityTP:          config.EnvBool("BOT_SCALPING_USE_VOLATILITY_TP", false),
-		VolatilityTPMultiplier:   config.EnvFloat64("BOT_SCALPING_VOLATILITY_TP_MULTIPLIER", 0),
-		RiskPerTradePct:          config.EnvFloat64("BOT_SCALPING_RISK_PER_TRADE_PCT", 0),
-		BreakoutLookbackBars:     config.EnvInt("BOT_SCALPING_BREAKOUT_LOOKBACK_BARS", 0),
-	}
-	fatal.Unless(tradingParams.MinRSI >= 0 && tradingParams.MinRSI <= 100, "BOT_SCALPING_MIN_RSI must be in [0,100]")
-	fatal.Unless(tradingParams.MinBollingerWidthPct >= 0, "BOT_SCALPING_MIN_BOLLINGER_WIDTH_PCT must be non-negative")
-	fatal.Unless(tradingParams.StopLossPct >= 0, "BOT_SCALPING_STOP_LOSS_PCT must be non-negative")
-	fatal.Unless(tradingParams.RiskPerTradePct >= 0, "BOT_SCALPING_RISK_PER_TRADE_PCT must be non-negative")
-	rsiPeriod := config.EnvInt("BOT_RSI_PERIOD", 14)
-	macdFastPeriod := config.EnvInt("BOT_MACD_FAST_PERIOD", 12)
-	macdSlowPeriod := config.EnvInt("BOT_MACD_SLOW_PERIOD", 26)
-	macdSignalPeriod := config.EnvInt("BOT_MACD_SIGNAL_PERIOD", 9)
-	bollingerPeriod := config.EnvInt("BOT_BOLLINGER_PERIOD", 20)
-	bollingerStdDev := config.EnvFloat64("BOT_BOLLINGER_STDDEV", 2.0)
-	sessionInterval := strings.ToLower(strings.TrimSpace(config.EnvString("BOT_SESSION_INTERVAL", "1d")))
-	indicatorResetInterval := strings.ToLower(strings.TrimSpace(config.EnvString("BOT_INDICATOR_RESET_INTERVAL", sessionInterval)))
-	validIntervals := map[string]struct{}{
-		"1m":  {},
-		"5m":  {},
-		"10m": {},
-		"30m": {},
-		"1h":  {},
-		"2h":  {},
-		"4h":  {},
-		"1d":  {},
-		"1w":  {},
-		"1mo": {},
-	}
-	_, isValidSessionInterval := validIntervals[sessionInterval]
-	fatal.Unless(isValidSessionInterval, "BOT_SESSION_INTERVAL must be one of: 1m,5m,10m,30m,1h,2h,4h,1d,1w,1mo")
-	_, isValidIndicatorInterval := validIntervals[indicatorResetInterval]
-	fatal.Unless(isValidIndicatorInterval, "BOT_INDICATOR_RESET_INTERVAL must be one of: 1m,5m,10m,30m,1h,2h,4h,1d,1w,1mo")
-	fatal.Unless(rsiPeriod >= 2, "BOT_RSI_PERIOD must be at least 2")
-	fatal.Unless(macdFastPeriod >= 2, "BOT_MACD_FAST_PERIOD must be at least 2")
-	fatal.Unless(macdSlowPeriod > macdFastPeriod, "BOT_MACD_SLOW_PERIOD must be greater than BOT_MACD_FAST_PERIOD")
-	fatal.Unless(macdSignalPeriod >= 2, "BOT_MACD_SIGNAL_PERIOD must be at least 2")
-	fatal.Unless(bollingerPeriod >= 2, "BOT_BOLLINGER_PERIOD must be at least 2")
-	fatal.Unless(bollingerStdDev > 0, "BOT_BOLLINGER_STDDEV must be greater than zero")
 	botSyncActor := botsync.NewParentActor(botsync.NewParentActorInput{
 		Log:                    log,
 		BotEventLogFactory:     logFactory,
 		BotChannelFunc:         botChannelFunc,
-		TradingParams:          tradingParams,
-		RSIPeriod:              rsiPeriod,
-		MACDFastPeriod:         macdFastPeriod,
-		MACDSlowPeriod:         macdSlowPeriod,
-		MACDSignalPeriod:       macdSignalPeriod,
-		BollingerPeriod:        bollingerPeriod,
-		BollingerStdDev:        bollingerStdDev,
-		SessionInterval:        sessionInterval,
-		IndicatorResetInterval: indicatorResetInterval,
+		RSIPeriod:              14,   // RSI period at 14 days
+		MACDFastPeriod:         12,   // Default MACD fast period.
+		MACDSlowPeriod:         26,   // Default MACD slow period.
+		MACDSignalPeriod:       9,    // Default MACD signal period.
+		BollingerPeriod:        20,   // Common Bollinger Bands period.
+		BollingerStdDev:        2.0,  // Common Bollinger Bands standard deviation multiplier.
+		SessionInterval:        "1h", // Default session interval of 1 hour.
+		IndicatorResetInterval: "1h", // Default indicator reset interval of 1 day.
 		BrokerAccountClientFactory: &brokerfactory.AccountClientFactory{
 			TastyTradeClientFactory:        tastyTradeClientFactory,
 			TastyTradeSandboxClientFactory: tastyTradeSandboxClientFactory,

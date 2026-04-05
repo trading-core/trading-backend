@@ -90,23 +90,23 @@ func LoadFromEnv() Config {
 			BollingerStdDev:  config.EnvFloat64("BACKTEST_BOLLINGER_STDDEV", 2.0),
 		},
 		TradingParameters: tradingstrategy.Parameters{
-			EntryMode:                config.EnvString("BACKTEST_SCALPING_ENTRY_MODE", ""),
-			MaxPositionFraction:      config.EnvFloat64("BACKTEST_MAX_POSITION_FRACTION", 0),
-			TakeProfitPct:            config.EnvFloat64("BACKTEST_TAKE_PROFIT_PCT", 0),
-			StopLossPct:              config.EnvFloat64("BACKTEST_SCALPING_STOP_LOSS_PCT", 0),
-			SessionStart:             config.EnvInt("BACKTEST_SESSION_START", -1),
-			SessionEnd:               config.EnvInt("BACKTEST_SESSION_END", 0),
-			MinRSI:                   config.EnvFloat64("BACKTEST_SCALPING_MIN_RSI", 40),
-			RequireMACDSignal:        config.EnvBool("BACKTEST_SCALPING_REQUIRE_MACD_ABOVE_SIGNAL", true),
-			RequireBollingerBreakout: config.EnvBool("BACKTEST_SCALPING_REQUIRE_BOLLINGER_BREAKOUT", false),
-			MinBollingerWidthPct:     config.EnvFloat64("BACKTEST_SCALPING_MIN_BOLLINGER_WIDTH_PCT", 0),
-			RequireBollingerSqueeze:  config.EnvBool("BACKTEST_SCALPING_REQUIRE_BOLLINGER_SQUEEZE", false),
-			MaxBollingerWidthPct:     config.EnvFloat64("BACKTEST_SCALPING_MAX_BOLLINGER_WIDTH_PCT", 0),
-			ReentryCooldownMinutes:   config.EnvInt("BACKTEST_SCALPING_REENTRY_COOLDOWN_MINUTES", 0),
-			UseVolatilityTP:          config.EnvBool("BACKTEST_SCALPING_USE_VOLATILITY_TP", false),
-			VolatilityTPMultiplier:   config.EnvFloat64("BACKTEST_SCALPING_VOLATILITY_TP_MULTIPLIER", 0),
-			RiskPerTradePct:          config.EnvFloat64("BACKTEST_SCALPING_RISK_PER_TRADE_PCT", 0),
-			BreakoutLookbackBars:     config.EnvInt("BACKTEST_SCALPING_BREAKOUT_LOOKBACK_BARS", 0),
+			EntryMode:                config.EnvString("BACKTEST_TRADING_PARAMETER_ENTRY_MODE", "pullback"),
+			MaxPositionFraction:      config.EnvFloat64("BACKTEST_TRADING_PARAMETER_MAX_POSITION_FRACTION", tradingstrategy.PullbackParameters.MaxPositionFraction),
+			TakeProfitPct:            config.EnvFloat64("BACKTEST_TRADING_PARAMETER_TAKE_PROFIT_PCT", tradingstrategy.PullbackParameters.TakeProfitPct),
+			StopLossPct:              config.EnvFloat64("BACKTEST_TRADING_PARAMETER_STOP_LOSS_PCT", tradingstrategy.PullbackParameters.StopLossPct),
+			SessionStart:             config.EnvInt("BACKTEST_TRADING_PARAMETER_SESSION_START", tradingstrategy.PullbackParameters.SessionStart),
+			SessionEnd:               config.EnvInt("BACKTEST_TRADING_PARAMETER_SESSION_END", tradingstrategy.PullbackParameters.SessionEnd),
+			MinRSI:                   config.EnvFloat64("BACKTEST_TRADING_PARAMETER_MIN_RSI", tradingstrategy.PullbackParameters.MinRSI),
+			RequireMACDSignal:        config.EnvBool("BACKTEST_TRADING_PARAMETER_REQUIRE_MACD_ABOVE_SIGNAL", true),
+			RequireBollingerBreakout: config.EnvBool("BACKTEST_TRADING_PARAMETER_REQUIRE_BOLLINGER_BREAKOUT", false),
+			MinBollingerWidthPct:     config.EnvFloat64("BACKTEST_TRADING_PARAMETER_MIN_BOLLINGER_WIDTH_PCT", 0),
+			RequireBollingerSqueeze:  config.EnvBool("BACKTEST_TRADING_PARAMETER_REQUIRE_BOLLINGER_SQUEEZE", false),
+			MaxBollingerWidthPct:     config.EnvFloat64("BACKTEST_TRADING_PARAMETER_MAX_BOLLINGER_WIDTH_PCT", tradingstrategy.PullbackParameters.MaxBollingerWidthPct),
+			ReentryCooldownMinutes:   config.EnvInt("BACKTEST_TRADING_PARAMETER_REENTRY_COOLDOWN_MINUTES", tradingstrategy.PullbackParameters.ReentryCooldownMinutes),
+			UseVolatilityTP:          config.EnvBool("BACKTEST_TRADING_PARAMETER_USE_VOLATILITY_TP", false),
+			VolatilityTPMultiplier:   config.EnvFloat64("BACKTEST_TRADING_PARAMETER_VOLATILITY_TP_MULTIPLIER", 0),
+			RiskPerTradePct:          config.EnvFloat64("BACKTEST_TRADING_PARAMETER_RISK_PER_TRADE_PCT", 0),
+			BreakoutLookbackBars:     config.EnvInt("BACKTEST_TRADING_PARAMETER_BREAKOUT_LOOKBACK_BARS", tradingstrategy.PullbackParameters.BreakoutLookbackBars),
 		},
 	}
 	err := cfg.validate()
@@ -151,6 +151,18 @@ func (config Config) validate() error {
 	}
 
 	// Trading parameters constraints.
+	if config.TradingParameters.MaxPositionFraction <= 0 || config.TradingParameters.MaxPositionFraction > 1 {
+		return fmt.Errorf("BACKTEST_TRADING_PARAMETERS_MAX_POSITION_FRACTION must be in (0,1]")
+	}
+	if config.TradingParameters.SessionStart < 0 || config.TradingParameters.SessionStart > 23 {
+		return fmt.Errorf("BACKTEST_TRADING_PARAMETERS_SESSION_START must be in [0,23]")
+	}
+	if config.TradingParameters.SessionEnd < 1 || config.TradingParameters.SessionEnd > 24 {
+		return fmt.Errorf("BACKTEST_TRADING_PARAMETERS_SESSION_END must be in [1,24]")
+	}
+	if config.TradingParameters.SessionStart >= config.TradingParameters.SessionEnd {
+		return fmt.Errorf("BACKTEST_TRADING_PARAMETERS_SESSION_START must be less than BACKTEST_TRADING_PARAMETERS_SESSION_END")
+	}
 	if config.TradingParameters.MinRSI < 0 || config.TradingParameters.MinRSI > 100 {
 		return fmt.Errorf("BACKTEST_TRADING_PARAMETERS_MIN_RSI must be in [0,100]")
 	}

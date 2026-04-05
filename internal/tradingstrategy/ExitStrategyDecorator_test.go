@@ -1,59 +1,60 @@
-package tradingstrategy
+package tradingstrategy_test
 
 import (
 	"testing"
 
+	"github.com/kduong/trading-backend/internal/tradingstrategy"
 	. "github.com/smartystreets/goconvey/convey"
 )
 
 func TestExitStrategyDecorator(t *testing.T) {
 	Convey("Given an exit strategy decorator", t, func() {
 		Convey("When flat and decorated strategy is set", func() {
-			decorated := &stubStrategy{decision: Decision{Action: ActionBuy, Reason: "entry"}}
-			decorator := NewExitStrategyDecorator(NewExitStrategyDecoratorInput{Decorated: decorated})
-			decision := decorator.Evaluate(EvaluateInput{PositionQuantity: 0})
+			decorated := &stubStrategy{decision: tradingstrategy.Decision{Action: tradingstrategy.ActionBuy, Reason: "entry"}}
+			decorator := tradingstrategy.NewExitStrategyDecorator(tradingstrategy.NewExitStrategyDecoratorInput{Decorated: decorated})
+			decision := decorator.Evaluate(tradingstrategy.EvaluateInput{PositionQuantity: 0})
 			Convey("Then it delegates to decorated strategy", func() {
 				So(decorated.calls, ShouldEqual, 1)
-				So(decision.Action, ShouldEqual, ActionBuy)
+				So(decision.Action, ShouldEqual, tradingstrategy.ActionBuy)
 			})
 		})
 
 		Convey("When in position after session end", func() {
-			decorator := NewExitStrategyDecorator(NewExitStrategyDecoratorInput{SessionEnd: 15})
-			decision := decorator.Evaluate(EvaluateInput{
+			decorator := tradingstrategy.NewExitStrategyDecorator(tradingstrategy.NewExitStrategyDecoratorInput{SessionEnd: 15})
+			decision := decorator.Evaluate(tradingstrategy.EvaluateInput{
 				PositionQuantity: 5,
 				Now:              nyTimeForTest(15, 0),
 			})
 			Convey("Then it forces an end-of-day exit", func() {
-				So(decision.Action, ShouldEqual, ActionSell)
+				So(decision.Action, ShouldEqual, tradingstrategy.ActionSell)
 				So(decision.Reason, ShouldEqual, "forced end-of-day exit")
 				So(decision.Quantity, ShouldEqual, 5)
 			})
 		})
 
 		Convey("When in position and take-profit is reached", func() {
-			decorator := NewExitStrategyDecorator(NewExitStrategyDecoratorInput{
+			decorator := tradingstrategy.NewExitStrategyDecorator(tradingstrategy.NewExitStrategyDecoratorInput{
 				TakeProfitPct: 0.02,
 			})
-			decision := decorator.Evaluate(EvaluateInput{
+			decision := decorator.Evaluate(tradingstrategy.EvaluateInput{
 				PositionQuantity: 3,
 				EntryPrice:       100,
 				Price:            102,
 				Now:              nyTimeForTest(11, 0),
 			})
 			Convey("Then it sells for take-profit", func() {
-				So(decision.Action, ShouldEqual, ActionSell)
+				So(decision.Action, ShouldEqual, tradingstrategy.ActionSell)
 				So(decision.Reason, ShouldEqual, "take-profit target reached")
 			})
 		})
 
 		Convey("When volatility TP is enabled and wider than fixed TP", func() {
-			decorator := NewExitStrategyDecorator(NewExitStrategyDecoratorInput{
+			decorator := tradingstrategy.NewExitStrategyDecorator(tradingstrategy.NewExitStrategyDecoratorInput{
 				TakeProfitPct:          0.01,
 				UseVolatilityTP:        true,
 				VolatilityTPMultiplier: 0.5,
 			})
-			decision := decorator.Evaluate(EvaluateInput{
+			decision := decorator.Evaluate(tradingstrategy.EvaluateInput{
 				PositionQuantity: 2,
 				EntryPrice:       100,
 				Price:            102,
@@ -61,16 +62,16 @@ func TestExitStrategyDecorator(t *testing.T) {
 				Now:              nyTimeForTest(11, 0),
 			})
 			Convey("Then it holds because dynamic TP dominates", func() {
-				So(decision.Action, ShouldEqual, ActionNone)
+				So(decision.Action, ShouldEqual, tradingstrategy.ActionNone)
 				So(decision.Reason, ShouldEqual, "holding position")
 			})
 		})
 
 		Convey("When trailing stop is triggered", func() {
-			decorator := NewExitStrategyDecorator(NewExitStrategyDecoratorInput{
+			decorator := tradingstrategy.NewExitStrategyDecorator(tradingstrategy.NewExitStrategyDecoratorInput{
 				StopLossPct: 0.10,
 			})
-			decision := decorator.Evaluate(EvaluateInput{
+			decision := decorator.Evaluate(tradingstrategy.EvaluateInput{
 				PositionQuantity: 4,
 				EntryPrice:       100,
 				HighSinceEntry:   120,
@@ -78,7 +79,7 @@ func TestExitStrategyDecorator(t *testing.T) {
 				Now:              nyTimeForTest(11, 0),
 			})
 			Convey("Then it exits via trailing stop", func() {
-				So(decision.Action, ShouldEqual, ActionSell)
+				So(decision.Action, ShouldEqual, tradingstrategy.ActionSell)
 				So(decision.Reason, ShouldEqual, "trailing stop triggered")
 			})
 		})

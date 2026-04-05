@@ -16,7 +16,6 @@ func TestIndicatorFilterDecorator(t *testing.T) {
 			RequireMACDSignal:        true,
 			RequireBollingerBreakout: true,
 			MinBollingerWidthPct:     0.02,
-			RequireBollingerSqueeze:  true,
 			MaxBollingerWidthPct:     0.05,
 		})
 

@@ -13,17 +13,16 @@ import (
 )
 
 type ParentActor struct {
-	log                    eventsource.Log
-	botEventLogFactory     eventsource.LogFactory
-	botChannelFunc         func(botID string) string
-	rsiPeriod              int
-	macdFastPeriod         int
-	macdSlowPeriod         int
-	macdSignalPeriod       int
-	bollingerPeriod        int
-	bollingerStdDev        float64
-	sessionInterval        string
-	indicatorResetInterval string
+	log                eventsource.Log
+	botEventLogFactory eventsource.LogFactory
+	botChannelFunc     func(botID string) string
+	rsiPeriod          int
+	macdFastPeriod     int
+	macdSlowPeriod     int
+	macdSignalPeriod   int
+	bollingerPeriod    int
+	bollingerStdDev    float64
+	sessionInterval    string
 
 	accountClientFactory    broker.AccountClientFactory
 	marketDataClientFactory broker.MarketDataClientFactory
@@ -59,7 +58,6 @@ func NewParentActor(input NewParentActorInput) *ParentActor {
 		bollingerPeriod:         input.BollingerPeriod,
 		bollingerStdDev:         input.BollingerStdDev,
 		sessionInterval:         input.SessionInterval,
-		indicatorResetInterval:  input.IndicatorResetInterval,
 		accountClientFactory:    input.BrokerAccountClientFactory,
 		marketDataClientFactory: input.BrokerMarketDataClientFactory,
 		tradeBotByID:            make(map[string]*TradeBot),
@@ -186,7 +184,7 @@ func (actor *ParentActor) startTradeActor(ctx context.Context, botID string) (er
 	}
 	strategy := tradingstrategy.FromParameters(bot.Parameters)
 	logger.Noticef(
-		"bot %s strategy config: entryMode=%s maxPosition=%.4f takeProfit=%.4f stopLoss=%.4f sessionStart=%d sessionEnd=%d minRSI=%.2f requireMACDAboveSignal=%t requireBollingerBreakout=%t minBollingerWidthPct=%.4f requireBollingerSqueeze=%t maxBollingerWidthPct=%.4f reentryCooldownMin=%d useVolatilityTP=%t volatilityTPMult=%.4f riskPerTradePct=%.4f rsiPeriod=%d macdFast=%d macdSlow=%d macdSignal=%d bollPeriod=%d bollStdDev=%.2f sessionInterval=%s indicatorResetInterval=%s",
+		"bot %s strategy config: entryMode=%s maxPosition=%.4f takeProfit=%.4f stopLoss=%.4f sessionStart=%d sessionEnd=%d minRSI=%.2f requireMACDAboveSignal=%t requireBollingerBreakout=%t minBollingerWidthPct=%.4f maxBollingerWidthPct=%.4f reentryCooldownMin=%d volatilityTPMult=%.4f rsiPeriod=%d macdFast=%d macdSlow=%d macdSignal=%d bollPeriod=%d bollStdDev=%.2f sessionInterval=%s timeFrame=%s",
 		botID,
 		bot.Parameters.EntryMode,
 		bot.Parameters.MaxPositionFraction,
@@ -198,12 +196,9 @@ func (actor *ParentActor) startTradeActor(ctx context.Context, botID string) (er
 		bot.Parameters.RequireMACDSignal,
 		bot.Parameters.RequireBollingerBreakout,
 		bot.Parameters.MinBollingerWidthPct,
-		bot.Parameters.RequireBollingerSqueeze,
 		bot.Parameters.MaxBollingerWidthPct,
 		bot.Parameters.ReentryCooldownMinutes,
-		bot.Parameters.UseVolatilityTP,
 		bot.Parameters.VolatilityTPMultiplier,
-		bot.Parameters.RiskPerTradePct,
 		actor.rsiPeriod,
 		actor.macdFastPeriod,
 		actor.macdSlowPeriod,
@@ -211,7 +206,7 @@ func (actor *ParentActor) startTradeActor(ctx context.Context, botID string) (er
 		actor.bollingerPeriod,
 		actor.bollingerStdDev,
 		actor.sessionInterval,
-		actor.indicatorResetInterval,
+		bot.Parameters.Timeframe,
 	)
 	ctx, cancel := context.WithCancel(ctx)
 	actor.cancelByBotID[botID] = cancel
@@ -223,20 +218,19 @@ func (actor *ParentActor) startTradeActor(ctx context.Context, botID string) (er
 	log, err := actor.botEventLogFactory.Create(channel)
 	fatal.OnError(err)
 	tradeActor := NewTradeActor(NewTradeActorInput{
-		AccountClient:          actor.accountClientFactory.Get(ctx, brokerAccount),
-		MarketDataClient:       actor.marketDataClientFactory.Get(ctx, brokerAccount),
-		MarketState:            NewMarketState(bot.Symbol, actor.sessionInterval),
-		TradingStrategy:        strategy,
-		RSIPeriod:              actor.rsiPeriod,
-		MACDFastPeriod:         actor.macdFastPeriod,
-		MACDSlowPeriod:         actor.macdSlowPeriod,
-		MACDSignalPeriod:       actor.macdSignalPeriod,
-		BollingerPeriod:        actor.bollingerPeriod,
-		BollingerStdDev:        actor.bollingerStdDev,
-		IndicatorResetInterval: actor.indicatorResetInterval,
-		BotID:                  botID,
-		Log:                    log,
-		BreakoutLookbackBars:   bot.Parameters.BreakoutLookbackBars,
+		AccountClient:        actor.accountClientFactory.Get(ctx, brokerAccount),
+		MarketDataClient:     actor.marketDataClientFactory.Get(ctx, brokerAccount),
+		MarketState:          NewMarketState(bot.Symbol, actor.sessionInterval),
+		TradingStrategy:      strategy,
+		RSIPeriod:            actor.rsiPeriod,
+		MACDFastPeriod:       actor.macdFastPeriod,
+		MACDSlowPeriod:       actor.macdSlowPeriod,
+		MACDSignalPeriod:     actor.macdSignalPeriod,
+		BollingerPeriod:      actor.bollingerPeriod,
+		BollingerStdDev:      actor.bollingerStdDev,
+		BotID:                botID,
+		Log:                  log,
+		BreakoutLookbackBars: bot.Parameters.BreakoutLookbackBars,
 	})
 	logger.Noticef("Starting trading actor for bot %s", botID)
 	go tradeActor.Run(ctx)

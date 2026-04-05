@@ -1,7 +1,9 @@
 package backtestconfig
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -18,15 +20,14 @@ type Config struct {
 	Source              string
 	CacheEnabled        bool
 	CacheDir            string
-	Sweep               bool
+	Tune                bool
 	FillLatencyMS       int
 	BidAskSpreadPct     float64
 	IndicatorWarmupBars int
 
 	// Shared data-source fields — used by whichever source is active.
-	Timeframe string // candle interval, e.g. "1Min", "1Hour", "1Day"
-	Start     string // RFC 3339 start time (inclusive)
-	End       string // RFC 3339 end time (inclusive), may be empty
+	Start string // RFC 3339 start time (inclusive)
+	End   string // RFC 3339 end time (inclusive), may be empty
 
 	Alpaca            AlpacaConfig
 	TastyTrade        TastyTradeConfig
@@ -52,6 +53,7 @@ type IndicatorConfig struct {
 	MACDSignalPeriod int
 	BollingerPeriod  int
 	BollingerStdDev  float64
+	SMAPeriod        int
 }
 
 // LoadFromEnv reads all backtest configuration from environment variables and
@@ -63,14 +65,13 @@ func LoadFromEnv() Config {
 		Source:              config.EnvString("BACKTEST_DATA_SOURCE", "alpaca"),
 		CacheEnabled:        config.EnvBool("BACKTEST_CACHE_ENABLED", false),
 		CacheDir:            config.EnvString("BACKTEST_CACHE_DIR", "./tmp/cache"),
-		Sweep:               config.EnvBool("BACKTEST_SWEEP", false),
+		Tune:                config.EnvBool("BACKTEST_TUNE", false),
 		FillLatencyMS:       config.EnvInt("BACKTEST_FILL_LATENCY_MS", 0),
 		BidAskSpreadPct:     config.EnvFloat64("BACKTEST_BID_ASK_SPREAD_PCT", 0),
 		IndicatorWarmupBars: config.EnvInt("BACKTEST_INDICATOR_WARMUP_BARS", 200),
 
-		Timeframe: config.EnvString("BACKTEST_TIMEFRAME", "1Hour"),
-		Start:     config.EnvString("BACKTEST_START", "2025-09-01T09:30:00-05:00"),
-		End:       config.EnvString("BACKTEST_END", "2026-12-01T16:00:00-05:00"),
+		Start: config.EnvString("BACKTEST_START", "2025-09-01T09:30:00-05:00"),
+		End:   config.EnvString("BACKTEST_END", "2026-12-01T16:00:00-05:00"),
 
 		Alpaca: AlpacaConfig{
 			Limit: config.EnvInt("BACKTEST_ALPACA_STOCK_BAR_LIMIT", 10000),
@@ -88,6 +89,7 @@ func LoadFromEnv() Config {
 			MACDSignalPeriod: config.EnvInt("BACKTEST_MACD_SIGNAL_PERIOD", 9),
 			BollingerPeriod:  config.EnvInt("BACKTEST_BOLLINGER_PERIOD", 20),
 			BollingerStdDev:  config.EnvFloat64("BACKTEST_BOLLINGER_STDDEV", 2.0),
+			SMAPeriod:        config.EnvInt("BACKTEST_SMA_PERIOD", 50),
 		},
 		TradingParameters: tradingstrategy.Parameters{
 			EntryMode:                config.EnvString("BACKTEST_TRADING_PARAMETER_ENTRY_MODE", "pullback"),
@@ -100,14 +102,19 @@ func LoadFromEnv() Config {
 			RequireMACDSignal:        config.EnvBool("BACKTEST_TRADING_PARAMETER_REQUIRE_MACD_ABOVE_SIGNAL", true),
 			RequireBollingerBreakout: config.EnvBool("BACKTEST_TRADING_PARAMETER_REQUIRE_BOLLINGER_BREAKOUT", false),
 			MinBollingerWidthPct:     config.EnvFloat64("BACKTEST_TRADING_PARAMETER_MIN_BOLLINGER_WIDTH_PCT", 0),
-			RequireBollingerSqueeze:  config.EnvBool("BACKTEST_TRADING_PARAMETER_REQUIRE_BOLLINGER_SQUEEZE", false),
 			MaxBollingerWidthPct:     config.EnvFloat64("BACKTEST_TRADING_PARAMETER_MAX_BOLLINGER_WIDTH_PCT", tradingstrategy.PullbackParameters.MaxBollingerWidthPct),
 			ReentryCooldownMinutes:   config.EnvInt("BACKTEST_TRADING_PARAMETER_REENTRY_COOLDOWN_MINUTES", tradingstrategy.PullbackParameters.ReentryCooldownMinutes),
-			UseVolatilityTP:          config.EnvBool("BACKTEST_TRADING_PARAMETER_USE_VOLATILITY_TP", false),
 			VolatilityTPMultiplier:   config.EnvFloat64("BACKTEST_TRADING_PARAMETER_VOLATILITY_TP_MULTIPLIER", 0),
-			RiskPerTradePct:          config.EnvFloat64("BACKTEST_TRADING_PARAMETER_RISK_PER_TRADE_PCT", 0),
 			BreakoutLookbackBars:     config.EnvInt("BACKTEST_TRADING_PARAMETER_BREAKOUT_LOOKBACK_BARS", tradingstrategy.PullbackParameters.BreakoutLookbackBars),
+			Timeframe:                config.EnvString("BACKTEST_TRADING_PARAMETER_TIMEFRAME", "1hour"),
 		},
+	}
+	if raw := os.Getenv("BACKTEST_PARAMS_JSON"); raw != "" {
+		var params tradingstrategy.Parameters
+		if err := json.Unmarshal([]byte(raw), &params); err != nil {
+			panic(fmt.Errorf("BACKTEST_PARAMS_JSON is not valid JSON: %w", err))
+		}
+		cfg.TradingParameters = params
 	}
 	err := cfg.validate()
 	if err != nil {
@@ -149,6 +156,9 @@ func (config Config) validate() error {
 	if config.Indicators.BollingerStdDev <= 0 {
 		return fmt.Errorf("BACKTEST_BOLLINGER_STDDEV must be greater than zero")
 	}
+	if config.Indicators.SMAPeriod < 2 {
+		return fmt.Errorf("BACKTEST_SMA_PERIOD must be at least 2")
+	}
 
 	// Trading parameters constraints.
 	if config.TradingParameters.MaxPositionFraction <= 0 || config.TradingParameters.MaxPositionFraction > 1 {
@@ -172,9 +182,6 @@ func (config Config) validate() error {
 	if config.TradingParameters.StopLossPct < 0 {
 		return fmt.Errorf("BACKTEST_TRADING_PARAMETERS_STOP_LOSS_PCT must be non-negative")
 	}
-	if config.TradingParameters.RiskPerTradePct < 0 {
-		return fmt.Errorf("BACKTEST_TRADING_PARAMETERS_RISK_PER_TRADE_PCT must be non-negative")
-	}
 	return nil
 }
 
@@ -183,7 +190,7 @@ func (config Config) ReplayInput() replay.LoadInput {
 	return replay.LoadInput{
 		Source:       config.Source,
 		Symbol:       config.Symbol,
-		Timeframe:    config.Timeframe,
+		Timeframe:    config.TradingParameters.Timeframe,
 		Start:        config.Start,
 		End:          config.End,
 		WarmupBars:   config.IndicatorWarmupBars,
@@ -217,5 +224,5 @@ func (config Config) OutputDir() string {
 	if sourceSlug == "" {
 		sourceSlug = "alpaca"
 	}
-	return fmt.Sprintf("./tmp/%s-%s-%s", config.Symbol, sourceSlug, config.Timeframe)
+	return fmt.Sprintf("./tmp/%s-%s-%s", config.Symbol, sourceSlug, config.TradingParameters.Timeframe)
 }

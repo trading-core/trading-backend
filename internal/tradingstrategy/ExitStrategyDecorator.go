@@ -4,7 +4,6 @@ type ExitStrategyDecorator struct {
 	sessionEnd             int
 	takeProfitPct          float64
 	stopLossPct            float64
-	useVolatilityTP        bool
 	volatilityTPMultiplier float64
 	decorated              Strategy
 }
@@ -14,7 +13,6 @@ type NewExitStrategyDecoratorInput struct {
 	SessionEnd             int     // hour 0-23, exclusive
 	TakeProfitPct          float64 // e.g. 0.02 for 2% TP
 	StopLossPct            float64 // e.g. 0.01 for 1% trailing stop
-	UseVolatilityTP        bool    // if true, TP is max of fixed TP and volatility-based TP
 	VolatilityTPMultiplier float64 // multiplier for Bollinger width to calculate dynamic TP
 }
 
@@ -24,7 +22,6 @@ func NewExitStrategyDecorator(input NewExitStrategyDecoratorInput) *ExitStrategy
 		sessionEnd:             input.SessionEnd,
 		takeProfitPct:          input.TakeProfitPct,
 		stopLossPct:            input.StopLossPct,
-		useVolatilityTP:        input.UseVolatilityTP,
 		volatilityTPMultiplier: input.VolatilityTPMultiplier,
 	}
 }
@@ -40,7 +37,7 @@ func (decorator *ExitStrategyDecorator) Evaluate(input EvaluateInput) Decision {
 	if decorator.takeProfitPct > 0 && input.EntryPrice > 0 {
 		effectiveTP := decorator.takeProfitPct
 		// Optional volatility-based TP (Bollinger width)
-		if decorator.useVolatilityTP && input.BollWidthPct != nil {
+		if decorator.volatilityTPMultiplier > 0 && input.BollWidthPct != nil {
 			dynamicTP := *input.BollWidthPct * decorator.volatilityTPMultiplier
 			if dynamicTP > effectiveTP {
 				effectiveTP = dynamicTP
@@ -62,4 +59,3 @@ func (decorator *ExitStrategyDecorator) Evaluate(input EvaluateInput) Decision {
 	}
 	return Decision{Action: ActionNone, Reason: "holding position"}
 }
-

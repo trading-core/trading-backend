@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"time"
@@ -11,7 +12,6 @@ import (
 	"github.com/kduong/trading-backend/cmd/backtest-cli/internal/chart"
 	"github.com/kduong/trading-backend/cmd/backtest-cli/internal/indicator"
 	"github.com/kduong/trading-backend/cmd/backtest-cli/internal/replay"
-	"github.com/kduong/trading-backend/cmd/backtest-cli/internal/sweeper"
 	"github.com/kduong/trading-backend/internal/fatal"
 	"github.com/kduong/trading-backend/internal/tradingstrategy"
 )
@@ -24,25 +24,32 @@ func main() {
 	fatal.OnError(err)
 	loaded, err := strategy.Load(ctx, replayInput)
 	fatal.OnError(err)
+	if cfg.Tune {
+		RunTune(cfg, loaded)
+		return
+	}
 	outputDir := cfg.OutputDir()
 	err = os.MkdirAll(outputDir, 0o755)
 	fatal.OnError(err)
-	if cfg.Sweep {
-		RunSweep(cfg, loaded, outputDir)
-	} else {
-		RunBacktestAndPlot(cfg, loaded, outputDir)
-	}
+	RunBacktestAndPlot(cfg, loaded, outputDir)
 }
 
-func RunSweep(cfg backtestconfig.Config, loaded *replay.LoadOutput, outputDir string) {
-	// Practical TP ladder from 1.5% up to 20%.
-	sweeper := sweeper.Sweeper{
-		TakeProfitValues:   []float64{0.015, 0.02, 0.03, 0.05, 0.075, 0.10, 0.125, 0.15, 0.175, 0.20},
-		PositionValues:     []float64{0.05, 0.10, 0.15, 0.20, 0.25, 0.30},
-		SessionStartValues: []int{10, 11},
-		SessionEndValues:   []int{14, 15, 16},
+func RunTune(cfg backtestconfig.Config, loaded *replay.LoadOutput) {
+	result := backtest.Run(cfg, loaded.Prices, loaded.Events)
+	out := struct {
+		TotalReturn float64 `json:"total_return"`
+		Sharpe      float64 `json:"sharpe"`
+		Trades      int     `json:"trades"`
+		WinRate     float64 `json:"win_rate"`
+	}{
+		TotalReturn: result.TotalReturn,
+		Sharpe:      result.SharpeRatio,
+		Trades:      result.TradeCount,
+		WinRate:     result.WinRate,
 	}
-	sweeper.Run(cfg, loaded.Prices, loaded.Events, outputDir)
+	b, err := json.Marshal(out)
+	fatal.OnError(err)
+	fmt.Println(string(b))
 }
 
 func RunBacktestAndPlot(cfg backtestconfig.Config, loaded *replay.LoadOutput, outputDir string) {
@@ -52,13 +59,15 @@ func RunBacktestAndPlot(cfg backtestconfig.Config, loaded *replay.LoadOutput, ou
 	rsiSeries := indicator.ComputeRSI(loaded.IndicatorPrices, cfg.Indicators.RSIPeriod)
 	macdSeries, macdSignalSeries := indicator.ComputeMACD(loaded.IndicatorPrices, cfg.Indicators.MACDFastPeriod, cfg.Indicators.MACDSlowPeriod, cfg.Indicators.MACDSignalPeriod)
 	bollUpperSeries, bollMiddleSeries, bollLowerSeries := indicator.ComputeBollingerBands(loaded.IndicatorPrices, cfg.Indicators.BollingerPeriod, cfg.Indicators.BollingerStdDev)
+	smaSeries := indicator.ComputeSMA(loaded.IndicatorPrices, cfg.Indicators.SMAPeriod)
 	tz := tradingstrategy.USMarketLocation
-	rsiForPlot := filterIndicatorToMarketHours(filterIndicatorSeriesToRange(rsiSeries, plotStart, plotEnd), tz, cfg.Timeframe)
-	macdForPlot := filterIndicatorToMarketHours(filterIndicatorSeriesToRange(macdSeries, plotStart, plotEnd), tz, cfg.Timeframe)
-	macdSignalForPlot := filterIndicatorToMarketHours(filterIndicatorSeriesToRange(macdSignalSeries, plotStart, plotEnd), tz, cfg.Timeframe)
-	bollUpperForPlot := filterIndicatorToMarketHours(filterIndicatorSeriesToRange(bollUpperSeries, plotStart, plotEnd), tz, cfg.Timeframe)
-	bollMiddleForPlot := filterIndicatorToMarketHours(filterIndicatorSeriesToRange(bollMiddleSeries, plotStart, plotEnd), tz, cfg.Timeframe)
-	bollLowerForPlot := filterIndicatorToMarketHours(filterIndicatorSeriesToRange(bollLowerSeries, plotStart, plotEnd), tz, cfg.Timeframe)
+	rsiForPlot := filterIndicatorToMarketHours(filterIndicatorSeriesToRange(rsiSeries, plotStart, plotEnd), tz, cfg.TradingParameters.Timeframe)
+	macdForPlot := filterIndicatorToMarketHours(filterIndicatorSeriesToRange(macdSeries, plotStart, plotEnd), tz, cfg.TradingParameters.Timeframe)
+	macdSignalForPlot := filterIndicatorToMarketHours(filterIndicatorSeriesToRange(macdSignalSeries, plotStart, plotEnd), tz, cfg.TradingParameters.Timeframe)
+	bollUpperForPlot := filterIndicatorToMarketHours(filterIndicatorSeriesToRange(bollUpperSeries, plotStart, plotEnd), tz, cfg.TradingParameters.Timeframe)
+	bollMiddleForPlot := filterIndicatorToMarketHours(filterIndicatorSeriesToRange(bollMiddleSeries, plotStart, plotEnd), tz, cfg.TradingParameters.Timeframe)
+	bollLowerForPlot := filterIndicatorToMarketHours(filterIndicatorSeriesToRange(bollLowerSeries, plotStart, plotEnd), tz, cfg.TradingParameters.Timeframe)
+	smaForPlot := filterIndicatorToMarketHours(filterIndicatorSeriesToRange(smaSeries, plotStart, plotEnd), tz, cfg.TradingParameters.Timeframe)
 	outputCombinedPNG := fmt.Sprintf("%s/backtest-with-indicators.png", outputDir)
 	err := chart.RenderCombined(chart.RenderCombinedInput{
 		Symbol:      result.Symbol,
@@ -68,6 +77,8 @@ func RunBacktestAndPlot(cfg backtestconfig.Config, loaded *replay.LoadOutput, ou
 		BollUpper:   chartIndicatorPoints(bollUpperForPlot),
 		BollMiddle:  chartIndicatorPoints(bollMiddleForPlot),
 		BollLower:   chartIndicatorPoints(bollLowerForPlot),
+		SMA:         chartIndicatorPoints(smaForPlot),
+		SMAPeriod:   cfg.Indicators.SMAPeriod,
 		RSI:         chartIndicatorPoints(rsiForPlot),
 		MACD:        chartIndicatorPoints(macdForPlot),
 		MACDSignal:  chartIndicatorPoints(macdSignalForPlot),
@@ -87,13 +98,15 @@ func RunBacktestAndPlot(cfg backtestconfig.Config, loaded *replay.LoadOutput, ou
 		BollUpper:   chartIndicatorPoints(bollUpperForPlot),
 		BollMiddle:  chartIndicatorPoints(bollMiddleForPlot),
 		BollLower:   chartIndicatorPoints(bollLowerForPlot),
+		SMA:         chartIndicatorPoints(smaForPlot),
+		SMAPeriod:   cfg.Indicators.SMAPeriod,
 		Timezone:    tz,
 	}, outputPNG)
 	fatal.OnError(err)
 	outputIndicatorsPNG := fmt.Sprintf("%s/indicators.png", outputDir)
 	err = chart.RenderIndicators(chart.RenderIndicatorsInput{
-		Symbol:   result.Symbol,
-		Timeline: chartTimes(result.Prices),
+		Symbol:      result.Symbol,
+		Timeline:    chartTimes(result.Prices),
 		RSI:         chartIndicatorPoints(rsiForPlot),
 		MACD:        chartIndicatorPoints(macdForPlot),
 		MACDSignal:  chartIndicatorPoints(macdSignalForPlot),

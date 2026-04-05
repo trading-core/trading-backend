@@ -19,6 +19,8 @@ type RenderCombinedInput struct {
 	BollUpper   []IndicatorPoint
 	BollMiddle  []IndicatorPoint
 	BollLower   []IndicatorPoint
+	SMA         []IndicatorPoint
+	SMAPeriod   int
 	RSI         []IndicatorPoint
 	MACD        []IndicatorPoint
 	MACDSignal  []IndicatorPoint
@@ -123,6 +125,7 @@ func RenderCombined(input RenderCombinedInput, outputPath string) error {
 		macdColor    = color.RGBA{R: 35, G: 120, B: 230, A: 255}
 		signalColor  = color.RGBA{R: 220, G: 40, B: 40, A: 255}
 		neutralColor = color.RGBA{R: 130, G: 130, B: 130, A: 255}
+		smaColor     = color.RGBA{R: 130, G: 60, B: 200, A: 255}
 	)
 
 	firstDate := prices[0].At.In(tz).Format("2006-01-02")
@@ -131,8 +134,8 @@ func RenderCombined(input RenderCombinedInput, outputPath string) error {
 	if lastDate != firstDate {
 		dateStr = firstDate + " to " + lastDate
 	}
-	title := fmt.Sprintf("%s  |  %s  |  Return: %+.2f%%  |  RSI(%d) MACD(%d,%d,%d)",
-		input.Symbol, dateStr, input.TotalReturn*100, input.RSIPeriod, input.MACDFast, input.MACDSlow, input.MACDSignalN)
+	title := fmt.Sprintf("%s  |  %s  |  Return: %+.2f%%  |  RSI(%d) MACD(%d,%d,%d) SMA(%d)",
+		input.Symbol, dateStr, input.TotalReturn*100, input.RSIPeriod, input.MACDFast, input.MACDSlow, input.MACDSignalN, input.SMAPeriod)
 	drawText(img, title, plotLeft, 16, titleColor)
 
 	// Price panel.
@@ -180,6 +183,7 @@ func RenderCombined(input RenderCombinedInput, outputPath string) error {
 	drawIndicatorLine(img, input.BollUpper, closestIndex, xToPixel, priceY, bollUp)
 	drawIndicatorLine(img, input.BollMiddle, closestIndex, xToPixel, priceY, bollMid)
 	drawIndicatorLine(img, input.BollLower, closestIndex, xToPixel, priceY, bollLow)
+	drawIndicatorLine(img, input.SMA, closestIndex, xToPixel, priceY, smaColor)
 
 	// RSI panel.
 	rsiY := func(v float64) int {

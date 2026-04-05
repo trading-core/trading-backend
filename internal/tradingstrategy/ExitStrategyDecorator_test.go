@@ -51,7 +51,6 @@ func TestExitStrategyDecorator(t *testing.T) {
 		Convey("When volatility TP is enabled and wider than fixed TP", func() {
 			decorator := tradingstrategy.NewExitStrategyDecorator(tradingstrategy.NewExitStrategyDecoratorInput{
 				TakeProfitPct:          0.01,
-				UseVolatilityTP:        true,
 				VolatilityTPMultiplier: 0.5,
 			})
 			decision := decorator.Evaluate(tradingstrategy.EvaluateInput{

@@ -26,6 +26,9 @@ type result struct {
 	Prices        []replay.PricePoint
 	Decisions     []DecisionPoint
 	FinalPosition float64
+	SharpeRatio   float64
+	WinRate       float64
+	TradeCount    int
 }
 
 func Run(cfg backtestconfig.Config, prices []replay.PricePoint, events []replay.Event) result {
@@ -33,6 +36,7 @@ func Run(cfg backtestconfig.Config, prices []replay.PricePoint, events []replay.
 	rsiSeries := indicator.ComputeRSI(prices, cfg.Indicators.RSIPeriod)
 	macdSeries, macdSignalSeries := indicator.ComputeMACD(prices, cfg.Indicators.MACDFastPeriod, cfg.Indicators.MACDSlowPeriod, cfg.Indicators.MACDSignalPeriod)
 	bollUpperSeries, bollMiddleSeries, bollLowerSeries := indicator.ComputeBollingerBands(prices, cfg.Indicators.BollingerPeriod, cfg.Indicators.BollingerStdDev)
+	smaSeries := indicator.ComputeSMA(prices, cfg.Indicators.SMAPeriod)
 	rsiByTs := make(map[int64]float64, len(rsiSeries))
 	for _, p := range rsiSeries {
 		rsiByTs[p.At.Unix()] = p.Value
@@ -56,6 +60,10 @@ func Run(cfg backtestconfig.Config, prices []replay.PricePoint, events []replay.
 	bollLowerByTs := make(map[int64]float64, len(bollLowerSeries))
 	for _, p := range bollLowerSeries {
 		bollLowerByTs[p.At.Unix()] = p.Value
+	}
+	smaByTs := make(map[int64]float64, len(smaSeries))
+	for _, p := range smaSeries {
+		smaByTs[p.At.Unix()] = p.Value
 	}
 	account := tradingstrategy.AccountSnapshot{
 		CashBalance:      cfg.StartingCash(),
@@ -160,6 +168,10 @@ func Run(cfg backtestconfig.Config, prices []replay.PricePoint, events []replay.
 			value := v
 			input.BollLower = &value
 		}
+		if v, ok := smaByTs[event.At.Unix()]; ok {
+			value := v
+			input.SMA = &value
+		}
 		if input.BollUpper != nil && input.BollMiddle != nil && input.BollLower != nil && *input.BollMiddle != 0 {
 			value := (*input.BollUpper - *input.BollLower) / *input.BollMiddle
 			input.BollWidthPct = &value
@@ -222,6 +234,7 @@ func Run(cfg backtestconfig.Config, prices []replay.PricePoint, events []replay.
 	lastPrice := prices[len(prices)-1].Close
 	endingValue := account.CashBalance + (account.PositionQuantity * lastPrice)
 	startingCash := cfg.StartingCash()
+	returns := computeTradeReturns(decisions)
 	return result{
 		Symbol:        cfg.Symbol,
 		StartingCash:  startingCash,
@@ -231,7 +244,63 @@ func Run(cfg backtestconfig.Config, prices []replay.PricePoint, events []replay.
 		Prices:        prices,
 		Decisions:     decisions,
 		FinalPosition: account.PositionQuantity,
+		SharpeRatio:   computeSharpe(returns),
+		WinRate:       computeWinRate(returns),
+		TradeCount:    len(returns),
 	}
+}
+
+// computeTradeReturns pairs up buy/sell decisions and returns per-trade returns.
+func computeTradeReturns(decisions []DecisionPoint) []float64 {
+	var returns []float64
+	for i := 0; i+1 < len(decisions); i += 2 {
+		buy := decisions[i]
+		sell := decisions[i+1]
+		if buy.Action != tradingstrategy.ActionBuy || sell.Action != tradingstrategy.ActionSell {
+			continue
+		}
+		if buy.Price <= 0 {
+			continue
+		}
+		ret := (sell.Price - buy.Price) / buy.Price
+		returns = append(returns, ret)
+	}
+	return returns
+}
+
+func computeSharpe(returns []float64) float64 {
+	if len(returns) < 2 {
+		return 0
+	}
+	var sum float64
+	for _, r := range returns {
+		sum += r
+	}
+	mean := sum / float64(len(returns))
+	var variance float64
+	for _, r := range returns {
+		d := r - mean
+		variance += d * d
+	}
+	variance /= float64(len(returns))
+	stddev := math.Sqrt(variance)
+	if stddev == 0 {
+		return 0
+	}
+	return mean / stddev
+}
+
+func computeWinRate(returns []float64) float64 {
+	if len(returns) == 0 {
+		return 0
+	}
+	var wins int
+	for _, r := range returns {
+		if r > 0 {
+			wins++
+		}
+	}
+	return float64(wins) / float64(len(returns))
 }
 
 func applyPendingFill(pending *pendingOrder, snapshot tradingstrategy.MarketSnapshot, event replay.Event, account *tradingstrategy.AccountSnapshot, decisions *[]DecisionPoint, bidAskSpreadPct float64) {

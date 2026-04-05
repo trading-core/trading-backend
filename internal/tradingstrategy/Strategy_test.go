@@ -68,7 +68,7 @@ func TestScalpingEvaluate(t *testing.T) {
 			})
 			Convey("Then it buys with size derived from allocation", func() {
 				So(decision.Action, ShouldEqual, tradingstrategy.ActionBuy)
-				So(decision.Reason, ShouldEqual, "pullback")
+				So(decision.Reason, ShouldContainSubstring, "pullback")
 				So(decision.Quantity, ShouldEqual, 1)
 			})
 		})

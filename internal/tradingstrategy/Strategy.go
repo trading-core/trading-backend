@@ -37,6 +37,7 @@ type EvaluateInput struct {
 	RSI               *float64
 	MACD              *float64
 	MACDSignal        *float64
+	SMA               *float64
 	BollUpper         *float64
 	BollMiddle        *float64
 	BollLower         *float64

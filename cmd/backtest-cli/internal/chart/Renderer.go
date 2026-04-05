@@ -35,6 +35,8 @@ type RenderInput struct {
 	BollUpper   []IndicatorPoint
 	BollMiddle  []IndicatorPoint
 	BollLower   []IndicatorPoint
+	SMA         []IndicatorPoint
+	SMAPeriod   int
 	Timezone    *time.Location
 }
 
@@ -156,6 +158,7 @@ func Render(input RenderInput, outputPath string) error {
 		buyColor   = color.RGBA{R: 25, G: 170, B: 70, A: 255}
 		sellColor  = color.RGBA{R: 220, G: 40, B: 40, A: 255}
 		sepColor   = color.RGBA{R: 180, G: 180, B: 180, A: 255}
+		smaColor   = color.RGBA{R: 130, G: 60, B: 200, A: 255}
 	)
 
 	firstDate := prices[0].At.In(tz).Format("2006-01-02")
@@ -230,10 +233,11 @@ func Render(input RenderInput, outputPath string) error {
 		drawLine(img, x1, y1+1, x2, y2+1, priceColor)
 	}
 
-	// Overlay Bollinger bands on the price panel.
+	// Overlay Bollinger bands and SMA on the price panel.
 	drawIndicatorLine(img, input.BollUpper, closestIndex, xToPixel, yToPixel, bollUp)
 	drawIndicatorLine(img, input.BollMiddle, closestIndex, xToPixel, yToPixel, bollMid)
 	drawIndicatorLine(img, input.BollLower, closestIndex, xToPixel, yToPixel, bollLow)
+	drawIndicatorLine(img, input.SMA, closestIndex, xToPixel, yToPixel, smaColor)
 
 	for _, d := range decisions {
 		idx := closestIndex(d.At.Unix())
@@ -246,7 +250,7 @@ func Render(input RenderInput, outputPath string) error {
 		}
 	}
 
-	lx := plotRight - 100
+	lx := plotRight - 110
 	ly := plotTop + 10
 	drawTriangle(img, lx+8, ly+8, 7, buyColor)
 	drawText(img, "BUY", lx+20, ly+2, labelColor)
@@ -258,6 +262,10 @@ func Render(input RenderInput, outputPath string) error {
 	drawText(img, "B-M", lx+20, ly+52, labelColor)
 	drawLine(img, lx, ly+72, lx+16, ly+72, bollLow)
 	drawText(img, "B-L", lx+20, ly+66, labelColor)
+	if input.SMAPeriod > 0 {
+		drawLine(img, lx, ly+86, lx+16, ly+86, smaColor)
+		drawText(img, fmt.Sprintf("SMA%d", input.SMAPeriod), lx+20, ly+80, labelColor)
+	}
 
 	outputDir := filepath.Dir(outputPath)
 	if outputDir != "." && outputDir != "" {

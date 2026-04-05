@@ -5,8 +5,8 @@ type IndicatorFilterDecorator struct {
 	requireMACDSignal        bool
 	requireBollingerBreakout bool
 	minBollingerWidthPct     float64
-	requireBollingerSqueeze  bool
 	maxBollingerWidthPct     float64
+	requirePriceAboveSMA     bool
 	decorated                Strategy
 }
 
@@ -16,8 +16,8 @@ type NewIndicatorFilterDecoratorInput struct {
 	RequireMACDSignal        bool
 	RequireBollingerBreakout bool
 	MinBollingerWidthPct     float64
-	RequireBollingerSqueeze  bool
 	MaxBollingerWidthPct     float64
+	RequirePriceAboveSMA     bool
 }
 
 func NewIndicatorFilterDecorator(input NewIndicatorFilterDecoratorInput) *IndicatorFilterDecorator {
@@ -27,8 +27,8 @@ func NewIndicatorFilterDecorator(input NewIndicatorFilterDecoratorInput) *Indica
 		requireMACDSignal:        input.RequireMACDSignal,
 		requireBollingerBreakout: input.RequireBollingerBreakout,
 		minBollingerWidthPct:     input.MinBollingerWidthPct,
-		requireBollingerSqueeze:  input.RequireBollingerSqueeze,
 		maxBollingerWidthPct:     input.MaxBollingerWidthPct,
+		requirePriceAboveSMA:     input.RequirePriceAboveSMA,
 	}
 }
 
@@ -66,12 +66,21 @@ func (decorator *IndicatorFilterDecorator) Evaluate(input EvaluateInput) Decisio
 		}
 	}
 
-	if decorator.requireBollingerSqueeze {
+	if decorator.maxBollingerWidthPct > 0 {
 		if input.BollWidthPct == nil {
 			return Decision{Action: ActionNone, Reason: "bollinger width unavailable"}
 		}
 		if *input.BollWidthPct >= decorator.maxBollingerWidthPct {
 			return Decision{Action: ActionNone, Reason: "bollinger not in squeeze"}
+		}
+	}
+
+	if decorator.requirePriceAboveSMA {
+		if input.SMA == nil {
+			return Decision{Action: ActionNone, Reason: "sma unavailable"}
+		}
+		if input.Price <= *input.SMA {
+			return Decision{Action: ActionNone, Reason: "price below sma"}
 		}
 	}
 

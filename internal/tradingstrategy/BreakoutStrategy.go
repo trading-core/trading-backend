@@ -33,6 +33,3 @@ func (strategy *BreakoutStrategy) Evaluate(input EvaluateInput) Decision {
 	return Decision{Action: ActionNone, Reason: "no breakout"}
 }
 
-func (strategy *BreakoutStrategy) Type() StrategyType {
-	return StrategyTypeBreakoutTrading
-}

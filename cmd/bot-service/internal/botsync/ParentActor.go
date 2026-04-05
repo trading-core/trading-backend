@@ -76,8 +76,8 @@ type TradeBot struct {
 	BrokerID          string
 	BrokerType        string
 	Symbol            string
-	StrategyType      string
 	AllocationPercent float64
+	ScalpingParams    *tradingstrategy.ScalpingParams
 	IsActive          bool
 }
 
@@ -112,8 +112,8 @@ func (actor *ParentActor) applyCatchup(ctx context.Context, event *eventsource.E
 			BrokerID:          frame.BotCreatedEvent.BrokerAccountID,
 			BrokerType:        frame.BotCreatedEvent.BrokerType,
 			Symbol:            frame.BotCreatedEvent.Symbol,
-			StrategyType:      frame.BotCreatedEvent.StrategyTradeType,
 			AllocationPercent: frame.BotCreatedEvent.AllocationPercent,
+			ScalpingParams:    frame.BotCreatedEvent.ScalpingParams,
 			IsActive:          false,
 		}
 		return
@@ -152,8 +152,8 @@ func (actor *ParentActor) applyBotCreatedEvent(ctx context.Context, event *botst
 		BrokerID:          event.BrokerAccountID,
 		BrokerType:        event.BrokerType,
 		Symbol:            event.Symbol,
-		StrategyType:      event.StrategyTradeType,
 		AllocationPercent: event.AllocationPercent,
+		ScalpingParams:    event.ScalpingParams,
 		IsActive:          false,
 	}
 	return nil
@@ -187,27 +187,31 @@ func (actor *ParentActor) startTradeActor(ctx context.Context, botID string) (er
 	if !ok {
 		return
 	}
-	strategy := tradingstrategy.NewWithParams(bot.StrategyType, actor.scalpingParams)
+	// Per-bot params take precedence; fall back to actor-level (env-configured) params for older bots.
+	effectiveParams := actor.scalpingParams
+	if bot.ScalpingParams != nil {
+		effectiveParams = *bot.ScalpingParams
+	}
+	strategy := tradingstrategy.NewWithParams(effectiveParams)
 	logger.Noticef(
-		"bot %s strategy config: type=%s entryMode=%s maxPosition=%.4f takeProfit=%.4f stopLoss=%.4f sessionStart=%d sessionEnd=%d minRSI=%.2f requireMACDAboveSignal=%t requireBollingerBreakout=%t minBollingerWidthPct=%.4f requireBollingerSqueeze=%t maxBollingerWidthPct=%.4f reentryCooldownMin=%d useVolatilityTP=%t volatilityTPMult=%.4f riskPerTradePct=%.4f rsiPeriod=%d macdFast=%d macdSlow=%d macdSignal=%d bollPeriod=%d bollStdDev=%.2f sessionInterval=%s indicatorResetInterval=%s",
+		"bot %s strategy config: entryMode=%s maxPosition=%.4f takeProfit=%.4f stopLoss=%.4f sessionStart=%d sessionEnd=%d minRSI=%.2f requireMACDAboveSignal=%t requireBollingerBreakout=%t minBollingerWidthPct=%.4f requireBollingerSqueeze=%t maxBollingerWidthPct=%.4f reentryCooldownMin=%d useVolatilityTP=%t volatilityTPMult=%.4f riskPerTradePct=%.4f rsiPeriod=%d macdFast=%d macdSlow=%d macdSignal=%d bollPeriod=%d bollStdDev=%.2f sessionInterval=%s indicatorResetInterval=%s",
 		botID,
-		bot.StrategyType,
-		actor.scalpingParams.EntryMode,
-		actor.scalpingParams.MaxPositionFraction,
-		actor.scalpingParams.TakeProfitPct,
-		actor.scalpingParams.StopLossPct,
-		actor.scalpingParams.SessionStart,
-		actor.scalpingParams.SessionEnd,
-		actor.scalpingParams.MinRSI,
-		actor.scalpingParams.RequireMACDSignal,
-		actor.scalpingParams.RequireBollingerBreakout,
-		actor.scalpingParams.MinBollingerWidthPct,
-		actor.scalpingParams.RequireBollingerSqueeze,
-		actor.scalpingParams.MaxBollingerWidthPct,
-		actor.scalpingParams.ReentryCooldownMinutes,
-		actor.scalpingParams.UseVolatilityTP,
-		actor.scalpingParams.VolatilityTPMultiplier,
-		actor.scalpingParams.RiskPerTradePct,
+		effectiveParams.EntryMode,
+		effectiveParams.MaxPositionFraction,
+		effectiveParams.TakeProfitPct,
+		effectiveParams.StopLossPct,
+		effectiveParams.SessionStart,
+		effectiveParams.SessionEnd,
+		effectiveParams.MinRSI,
+		effectiveParams.RequireMACDSignal,
+		effectiveParams.RequireBollingerBreakout,
+		effectiveParams.MinBollingerWidthPct,
+		effectiveParams.RequireBollingerSqueeze,
+		effectiveParams.MaxBollingerWidthPct,
+		effectiveParams.ReentryCooldownMinutes,
+		effectiveParams.UseVolatilityTP,
+		effectiveParams.VolatilityTPMultiplier,
+		effectiveParams.RiskPerTradePct,
 		actor.rsiPeriod,
 		actor.macdFastPeriod,
 		actor.macdSlowPeriod,
@@ -240,7 +244,7 @@ func (actor *ParentActor) startTradeActor(ctx context.Context, botID string) (er
 		IndicatorResetInterval: actor.indicatorResetInterval,
 		BotID:                  botID,
 		Log:                    log,
-		BreakoutLookbackBars:   actor.scalpingParams.BreakoutLookbackBars,
+		BreakoutLookbackBars:   effectiveParams.BreakoutLookbackBars,
 	})
 	logger.Noticef("Starting trading actor for bot %s", botID)
 	go tradeActor.Run(ctx)

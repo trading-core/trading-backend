@@ -39,6 +39,3 @@ func (decorator *SessionGuardDecorator) Evaluate(input EvaluateInput) Decision {
 	return decorator.decorated.Evaluate(input)
 }
 
-func (decorator *SessionGuardDecorator) Type() StrategyType {
-	return decorator.decorated.Type()
-}

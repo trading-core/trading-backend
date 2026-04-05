@@ -19,7 +19,6 @@ type pendingOrder struct {
 
 type result struct {
 	Symbol        string
-	Strategy      string
 	StartingCash  float64
 	EndingCash    float64
 	EndingValue   float64
@@ -30,7 +29,7 @@ type result struct {
 }
 
 func Run(cfg backtestconfig.Config, prices []replay.PricePoint, events []replay.Event) result {
-	strategy := tradingstrategy.NewWithParams(cfg.Strategy, cfg.Scalping)
+	strategy := tradingstrategy.NewWithParams(cfg.Scalping)
 	rsiSeries := indicator.ComputeRSI(prices, cfg.Indicators.RSIPeriod)
 	macdSeries, macdSignalSeries := indicator.ComputeMACD(prices, cfg.Indicators.MACDFastPeriod, cfg.Indicators.MACDSlowPeriod, cfg.Indicators.MACDSignalPeriod)
 	bollUpperSeries, bollMiddleSeries, bollLowerSeries := indicator.ComputeBollingerBands(prices, cfg.Indicators.BollingerPeriod, cfg.Indicators.BollingerStdDev)
@@ -224,9 +223,8 @@ func Run(cfg backtestconfig.Config, prices []replay.PricePoint, events []replay.
 	endingValue := account.CashBalance + (account.PositionQuantity * lastPrice)
 	startingCash := cfg.StartingCash()
 	return result{
-		Symbol:        cfg.Symbol,
-		Strategy:      cfg.Strategy,
-		StartingCash:  startingCash,
+		Symbol:       cfg.Symbol,
+		StartingCash: startingCash,
 		EndingCash:    account.CashBalance,
 		EndingValue:   endingValue,
 		TotalReturn:   (endingValue - startingCash) / startingCash,

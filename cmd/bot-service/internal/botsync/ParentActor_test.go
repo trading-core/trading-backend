@@ -29,12 +29,11 @@ func TestParentActorStatusUpdates(t *testing.T) {
 		})
 
 		err := actor.applyBotCreatedEvent(ctx, &botstore.BotCreatedEvent{
-			BotID:             "bot-1",
-			AccountID:         "acct-1",
-			BrokerAccountID:   "broker-1",
-			BrokerType:        string(broker.AccountTypeTastyTrade),
-			Symbol:            "AAPL",
-			StrategyTradeType: "scalping",
+			BotID:           "bot-1",
+			AccountID:       "acct-1",
+			BrokerAccountID: "broker-1",
+			BrokerType:      string(broker.AccountTypeTastyTrade),
+			Symbol:          "AAPL",
 		})
 		So(err, ShouldBeNil)
 

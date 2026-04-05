@@ -83,12 +83,5 @@ func TestExitStrategyDecorator(t *testing.T) {
 			})
 		})
 
-		Convey("When reading decorator type", func() {
-			Convey("And a decorated strategy exists", func() {
-				decorated := &stubStrategy{typ: StrategyTypePullbackTrading}
-				decorator := NewExitStrategyDecorator(NewExitStrategyDecoratorInput{Decorated: decorated})
-				So(decorator.Type(), ShouldEqual, StrategyTypePullbackTrading)
-			})
-		})
 	})
 }

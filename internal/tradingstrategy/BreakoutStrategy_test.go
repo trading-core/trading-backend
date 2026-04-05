@@ -35,9 +35,5 @@ func TestBreakoutStrategy(t *testing.T) {
 			})
 		})
 
-		Convey("When reading strategy type", func() {
-			strategy := NewBreakoutStrategy(NewBreakoutStrategyInput{LookbackBars: 1})
-			So(strategy.Type(), ShouldEqual, StrategyTypeBreakoutTrading)
-		})
 	})
 }

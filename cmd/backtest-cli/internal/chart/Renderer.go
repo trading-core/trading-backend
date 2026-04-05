@@ -29,7 +29,6 @@ type DecisionMarker struct {
 
 type RenderInput struct {
 	Symbol      string
-	Strategy    string
 	TotalReturn float64
 	Prices      []PricePoint
 	Decisions   []DecisionMarker
@@ -165,8 +164,8 @@ func Render(input RenderInput, outputPath string) error {
 	if lastDate != firstDate {
 		dateStr = firstDate + " to " + lastDate
 	}
-	title := fmt.Sprintf("%s  |  %s  |  %s  |  Return: %+.2f%%",
-		input.Symbol, input.Strategy, dateStr, input.TotalReturn*100)
+	title := fmt.Sprintf("%s  |  %s  |  Return: %+.2f%%",
+		input.Symbol, dateStr, input.TotalReturn*100)
 	drawText(img, title, plotLeft, 16, titleColor)
 
 	for _, tick := range niceTickValues(yMin, yMax, 7) {

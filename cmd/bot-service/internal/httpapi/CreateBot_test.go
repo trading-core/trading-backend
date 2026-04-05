@@ -57,11 +57,10 @@ func (handler *fakeBotStoreCommandHandler) Delete(ctx context.Context, botID str
 
 func TestCreateBotInputValidate(t *testing.T) {
 	Convey("Given a create bot input", t, func() {
-		Convey("When account, symbol, and strategy are valid", func() {
+		Convey("When account and symbol are valid", func() {
 			input := CreateBotInput{
 				AccountID:         "acct-1",
 				Symbol:            "AAPL",
-				StrategyTradeType: "scalping",
 				AllocationPercent: 10,
 			}
 
@@ -73,7 +72,6 @@ func TestCreateBotInputValidate(t *testing.T) {
 			input := CreateBotInput{
 				AccountID:         "acct-1",
 				Symbol:            "BAD!",
-				StrategyTradeType: "scalping",
 				AllocationPercent: 10,
 			}
 
@@ -102,7 +100,7 @@ func TestCreateBot_RejectsSymbolNotTradableForBroker(t *testing.T) {
 			botStoreCommandHandler: commandHandler,
 		}
 
-		body := []byte(`{"account_id":"acct-1","symbol":"BADSYMB","strategy_trade_type":"scalping","allocation_percent":10}`)
+		body := []byte(`{"account_id":"acct-1","symbol":"BADSYMB","allocation_percent":10}`)
 		request := httptest.NewRequest(http.MethodPost, "/bots/v1/bots", bytes.NewReader(body))
 		request.Header.Set("Authorization", "Bearer token")
 		request = request.WithContext(contextx.WithUserID(request.Context(), "user-1"))

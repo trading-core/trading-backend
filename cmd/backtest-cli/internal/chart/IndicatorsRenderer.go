@@ -18,9 +18,8 @@ type IndicatorPoint struct {
 }
 
 type RenderIndicatorsInput struct {
-	Symbol      string
-	Strategy    string
-	Timeline    []time.Time
+	Symbol   string
+	Timeline []time.Time
 	RSI         []IndicatorPoint
 	MACD        []IndicatorPoint
 	MACDSignal  []IndicatorPoint
@@ -116,8 +115,8 @@ func RenderIndicators(input RenderIndicatorsInput, outputPath string) error {
 	if lastDate != firstDate {
 		dateStr = firstDate + " to " + lastDate
 	}
-	title := fmt.Sprintf("%s  |  %s  |  %s  |  RSI(%d) MACD(%d,%d,%d)",
-		input.Symbol, input.Strategy, dateStr, input.RSIPeriod, input.MACDFast, input.MACDSlow, input.MACDSignalN)
+	title := fmt.Sprintf("%s  |  %s  |  RSI(%d) MACD(%d,%d,%d)",
+		input.Symbol, dateStr, input.RSIPeriod, input.MACDFast, input.MACDSlow, input.MACDSignalN)
 	drawText(img, title, plotLeft, 16, titleColor)
 
 	// RSI panel.

@@ -10,7 +10,6 @@ func TestEntryStrategyDecorator(t *testing.T) {
 	Convey("Given an entry strategy decorator", t, func() {
 		Convey("When flat and a decorated strategy is configured", func() {
 			decorated := &stubStrategy{
-				typ:      StrategyTypePullbackTrading,
 				decision: Decision{Action: ActionBuy, Reason: "signal"},
 			}
 			decorator := NewEntryStrategyDecorator(NewEntryStrategyDecoratorInput{Decorated: decorated})
@@ -33,12 +32,5 @@ func TestEntryStrategyDecorator(t *testing.T) {
 			})
 		})
 
-		Convey("When reading decorator type", func() {
-			Convey("And a decorated strategy exists", func() {
-				decorated := &stubStrategy{typ: StrategyTypeBreakoutTrading}
-				decorator := NewEntryStrategyDecorator(NewEntryStrategyDecoratorInput{Decorated: decorated})
-				So(decorator.Type(), ShouldEqual, StrategyTypeBreakoutTrading)
-			})
-		})
 	})
 }

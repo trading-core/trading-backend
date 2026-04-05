@@ -62,7 +62,6 @@ func RunBacktestAndPlot(cfg backtestconfig.Config, loaded *replay.LoadOutput, ou
 	outputCombinedPNG := fmt.Sprintf("%s/backtest-with-indicators.png", outputDir)
 	err := chart.RenderCombined(chart.RenderCombinedInput{
 		Symbol:      result.Symbol,
-		Strategy:    result.Strategy,
 		TotalReturn: result.TotalReturn,
 		Prices:      chartPrices(result.Prices),
 		Decisions:   chartDecisions(result.Decisions),
@@ -82,7 +81,6 @@ func RunBacktestAndPlot(cfg backtestconfig.Config, loaded *replay.LoadOutput, ou
 	outputPNG := fmt.Sprintf("%s/backtest.png", outputDir)
 	err = chart.Render(chart.RenderInput{
 		Symbol:      result.Symbol,
-		Strategy:    result.Strategy,
 		TotalReturn: result.TotalReturn,
 		Prices:      chartPrices(result.Prices),
 		Decisions:   chartDecisions(result.Decisions),
@@ -94,9 +92,8 @@ func RunBacktestAndPlot(cfg backtestconfig.Config, loaded *replay.LoadOutput, ou
 	fatal.OnError(err)
 	outputIndicatorsPNG := fmt.Sprintf("%s/indicators.png", outputDir)
 	err = chart.RenderIndicators(chart.RenderIndicatorsInput{
-		Symbol:      result.Symbol,
-		Strategy:    result.Strategy,
-		Timeline:    chartTimes(result.Prices),
+		Symbol:   result.Symbol,
+		Timeline: chartTimes(result.Prices),
 		RSI:         chartIndicatorPoints(rsiForPlot),
 		MACD:        chartIndicatorPoints(macdForPlot),
 		MACDSignal:  chartIndicatorPoints(macdSignalForPlot),
@@ -108,7 +105,7 @@ func RunBacktestAndPlot(cfg backtestconfig.Config, loaded *replay.LoadOutput, ou
 	}, outputIndicatorsPNG)
 	fatal.OnError(err)
 
-	fmt.Printf("Backtest complete for %s (%s)\n", result.Symbol, result.Strategy)
+	fmt.Printf("Backtest complete for %s\n", result.Symbol)
 	fmt.Printf("Rows: %d\n", len(result.Prices))
 	fmt.Printf("Decisions: %d\n", len(result.Decisions))
 	fmt.Printf("Starting cash: %.2f\n", result.StartingCash)

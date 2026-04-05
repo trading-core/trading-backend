@@ -30,16 +30,14 @@ const (
 type StrategyType string
 
 const (
-	StrategyTypeTrendTrading    StrategyType = "trend_trading"
-	StrategyTypeSwingTrading    StrategyType = "swing_trading"
 	StrategyTypeScalping        StrategyType = "scalping"
+	StrategyTypePullbackTrading StrategyType = "pullback_trading"
 	StrategyTypeBreakoutTrading StrategyType = "breakout_trading"
 )
 
 var ValidStrategyTypes = map[StrategyType]struct{}{
-	StrategyTypeTrendTrading:    {},
-	StrategyTypeSwingTrading:    {},
 	StrategyTypeScalping:        {},
+	StrategyTypePullbackTrading: {},
 	StrategyTypeBreakoutTrading: {},
 }
 
@@ -174,6 +172,6 @@ func NewWithParams(strategyType string, params ScalpingParams) Strategy {
 		}
 		return s
 	default:
-		return new(Noop)
+		return nil
 	}
 }

@@ -77,4 +77,3 @@ func (decorator *IndicatorFilterDecorator) Evaluate(input EvaluateInput) Decisio
 
 	return decorator.decorated.Evaluate(input)
 }
-

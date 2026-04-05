@@ -1,6 +1,8 @@
 package tradingstrategy
 
-import "math"
+import (
+	"math"
+)
 
 type PositionSizingDecorator struct {
 	maxPositionFraction float64
@@ -58,4 +60,3 @@ func (decorator *PositionSizingDecorator) Evaluate(input EvaluateInput) Decision
 	decision.Quantity = qty
 	return decision
 }
-

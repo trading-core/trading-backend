@@ -78,6 +78,3 @@ func (decorator *IndicatorFilterDecorator) Evaluate(input EvaluateInput) Decisio
 	return decorator.decorated.Evaluate(input)
 }
 
-func (decorator *IndicatorFilterDecorator) Type() StrategyType {
-	return decorator.decorated.Type()
-}

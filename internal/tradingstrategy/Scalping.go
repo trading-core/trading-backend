@@ -49,10 +49,6 @@ func NewScalping() *Scalping {
 	}
 }
 
-func (strategy *Scalping) Type() StrategyType {
-	return StrategyTypeScalping
-}
-
 func (strategy *Scalping) Evaluate(input EvaluateInput) Decision {
 	if input.HasOpenOrder {
 		return Decision{Action: ActionNone, Reason: "waiting for open order to resolve"}
@@ -74,7 +70,9 @@ func (strategy *Scalping) Evaluate(input EvaluateInput) Decision {
 func (strategy *Scalping) newDecisionEngine() Strategy {
 	var tradingStrategy Strategy
 	tradingStrategy = strategy.newEntrySignalStrategy()
-	tradingStrategy = NewEntryStrategyDecorator(NewEntryStrategyDecoratorInput{Decorated: tradingStrategy})
+	tradingStrategy = NewEntryStrategyDecorator(NewEntryStrategyDecoratorInput{
+		Decorated: tradingStrategy,
+	})
 	tradingStrategy = NewIndicatorFilterDecorator(NewIndicatorFilterDecoratorInput{
 		Decorated:                tradingStrategy,
 		MinRSI:                   strategy.MinRSI,

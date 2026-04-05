@@ -13,7 +13,6 @@ import (
 
 type RenderCombinedInput struct {
 	Symbol      string
-	Strategy    string
 	TotalReturn float64
 	Prices      []PricePoint
 	Decisions   []DecisionMarker
@@ -132,8 +131,8 @@ func RenderCombined(input RenderCombinedInput, outputPath string) error {
 	if lastDate != firstDate {
 		dateStr = firstDate + " to " + lastDate
 	}
-	title := fmt.Sprintf("%s  |  %s  |  %s  |  Return: %+.2f%%  |  RSI(%d) MACD(%d,%d,%d)",
-		input.Symbol, input.Strategy, dateStr, input.TotalReturn*100, input.RSIPeriod, input.MACDFast, input.MACDSlow, input.MACDSignalN)
+	title := fmt.Sprintf("%s  |  %s  |  Return: %+.2f%%  |  RSI(%d) MACD(%d,%d,%d)",
+		input.Symbol, dateStr, input.TotalReturn*100, input.RSIPeriod, input.MACDFast, input.MACDSlow, input.MACDSignalN)
 	drawText(img, title, plotLeft, 16, titleColor)
 
 	// Price panel.

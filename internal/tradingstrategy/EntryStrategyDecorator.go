@@ -21,6 +21,3 @@ func (decorator *EntryStrategyDecorator) Evaluate(input EvaluateInput) Decision 
 	return Decision{Action: ActionNone, Reason: "already in position"}
 }
 
-func (decorator *EntryStrategyDecorator) Type() StrategyType {
-	return decorator.decorated.Type()
-}

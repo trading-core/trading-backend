@@ -63,6 +63,3 @@ func (decorator *ExitStrategyDecorator) Evaluate(input EvaluateInput) Decision {
 	return Decision{Action: ActionNone, Reason: "holding position"}
 }
 
-func (decorator *ExitStrategyDecorator) Type() StrategyType {
-	return decorator.decorated.Type()
-}

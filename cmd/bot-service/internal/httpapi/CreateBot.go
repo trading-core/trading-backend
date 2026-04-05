@@ -20,24 +20,19 @@ import (
 var symbolPattern = regexp.MustCompile(`^[A-Z][A-Z0-9.-]{0,14}$`)
 
 type CreateBotInput struct {
-	AccountID         string  `json:"account_id"`
-	Symbol            string  `json:"symbol"`
-	StrategyTradeType string  `json:"strategy_trade_type"`
-	AllocationPercent float64 `json:"allocation_percent"`
+	AccountID         string                          `json:"account_id"`
+	Symbol            string                          `json:"symbol"`
+	AllocationPercent float64                         `json:"allocation_percent"`
+	ScalpingParams    *tradingstrategy.ScalpingParams `json:"scalping_params,omitempty"`
 }
 
 func (input *CreateBotInput) Validate() (err error) {
-	if input.AccountID == "" || input.Symbol == "" || input.StrategyTradeType == "" {
-		err = merry.New("account_id, symbol, and strategy_trade_type are required").WithHTTPCode(http.StatusBadRequest)
+	if input.AccountID == "" || input.Symbol == "" {
+		err = merry.New("account_id and symbol are required").WithHTTPCode(http.StatusBadRequest)
 		return
 	}
 	if !symbolPattern.MatchString(input.Symbol) {
 		err = merry.New("symbol must be 1-15 chars using A-Z, 0-9, '.', or '-'").WithHTTPCode(http.StatusBadRequest)
-		return
-	}
-	err = tradingstrategy.ValidateType(input.StrategyTradeType)
-	if err != nil {
-		err = merry.Wrap(err).WithHTTPCode(http.StatusBadRequest)
 		return
 	}
 	if math.IsNaN(input.AllocationPercent) || math.IsInf(input.AllocationPercent, 0) {
@@ -103,8 +98,8 @@ func (handler *Handler) CreateBot(responseWriter http.ResponseWriter, request *h
 		BrokerAccountID:   account.Broker.ID,
 		BrokerType:        account.Broker.Type,
 		Symbol:            input.Symbol,
-		StrategyTradeType: input.StrategyTradeType,
 		AllocationPercent: input.AllocationPercent,
+		ScalpingParams:    input.ScalpingParams,
 		Status:            botstore.BotStatusStopped,
 		CreatedAt:         time.Now().UTC().Format(time.RFC3339),
 	}

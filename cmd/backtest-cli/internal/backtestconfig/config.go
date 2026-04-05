@@ -14,7 +14,6 @@ import (
 // environment variables.
 type Config struct {
 	Symbol              string
-	Strategy            string
 	Cash                int
 	Source              string
 	CacheEnabled        bool
@@ -60,7 +59,6 @@ type IndicatorConfig struct {
 func LoadFromEnv() Config {
 	cfg := Config{
 		Symbol:              config.EnvString("BACKTEST_SYMBOL", "SNDK"),
-		Strategy:            config.EnvString("BACKTEST_STRATEGY", "scalping"),
 		Cash:                config.EnvInt("BACKTEST_CASH", 100000),
 		Source:              config.EnvString("BACKTEST_DATA_SOURCE", "alpaca"),
 		CacheEnabled:        config.EnvBool("BACKTEST_CACHE_ENABLED", false),
@@ -130,11 +128,6 @@ func (config Config) validate() error {
 	}
 	if config.IndicatorWarmupBars < 0 {
 		return fmt.Errorf("BACKTEST_INDICATOR_WARMUP_BARS must be non-negative")
-	}
-
-	err := tradingstrategy.ValidateType(config.Strategy)
-	if err != nil {
-		return err
 	}
 
 	// Indicator constraints.

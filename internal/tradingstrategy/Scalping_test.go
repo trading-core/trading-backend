@@ -118,11 +118,3 @@ func TestScalpingEvaluate(t *testing.T) {
 	})
 }
 
-func TestScalpingType(t *testing.T) {
-	Convey("Given a scalping strategy", t, func() {
-		strategy := NewScalping()
-		Convey("When requesting type", func() {
-			So(strategy.Type(), ShouldEqual, StrategyTypeScalping)
-		})
-	})
-}

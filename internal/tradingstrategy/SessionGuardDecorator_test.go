@@ -48,9 +48,5 @@ func TestSessionGuardDecorator(t *testing.T) {
 			})
 		})
 
-		Convey("When reading type", func() {
-			decorated.typ = StrategyTypeScalping
-			So(decorator.Type(), ShouldEqual, StrategyTypeScalping)
-		})
 	})
 }

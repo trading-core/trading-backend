@@ -59,6 +59,3 @@ func (decorator *PositionSizingDecorator) Evaluate(input EvaluateInput) Decision
 	return decision
 }
 
-func (decorator *PositionSizingDecorator) Type() StrategyType {
-	return decorator.decorated.Type()
-}

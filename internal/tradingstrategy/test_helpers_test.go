@@ -3,13 +3,8 @@ package tradingstrategy
 import "time"
 
 type stubStrategy struct {
-	typ      StrategyType
 	decision Decision
 	calls    int
-}
-
-func (strategy *stubStrategy) Type() StrategyType {
-	return strategy.typ
 }
 
 func (strategy *stubStrategy) Evaluate(input EvaluateInput) Decision {

@@ -10,11 +10,10 @@ type EventFrame struct {
 }
 
 type BotDecisionRecordedEvent struct {
-	BotID        string  `json:"bot_id"`
-	Symbol       string  `json:"symbol"`
-	StrategyType string  `json:"strategy_type"`
-	Action       string  `json:"action"`
-	Reason       string  `json:"reason"`
-	Quantity     float64 `json:"quantity"`
-	Price        float64 `json:"price"`
+	BotID    string  `json:"bot_id"`
+	Symbol   string  `json:"symbol"`
+	Action   string  `json:"action"`
+	Reason   string  `json:"reason"`
+	Quantity float64 `json:"quantity"`
+	Price    float64 `json:"price"`
 }

@@ -200,13 +200,12 @@ func (actor *TradeActor) Run(ctx context.Context) {
 		payload := fatal.UnlessMarshal(EventFrame{
 			EventBase: eventsource.NewEventBase(EventTypeBotDecisionRecorded),
 			BotDecisionRecordedEvent: &BotDecisionRecordedEvent{
-				BotID:        actor.botID,
-				Symbol:       actor.marketState.Symbol(),
-				StrategyType: string(actor.tradingStrategy.Type()),
-				Action:       string(decision.Action),
-				Reason:       decision.Reason,
-				Quantity:     decision.Quantity,
-				Price:        input.Price,
+				BotID:    actor.botID,
+				Symbol:   actor.marketState.Symbol(),
+				Action:   string(decision.Action),
+				Reason:   decision.Reason,
+				Quantity: decision.Quantity,
+				Price:    input.Price,
 			},
 		})
 		_, err = actor.log.Append(payload)

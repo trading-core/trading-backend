@@ -15,6 +15,3 @@ func (strategy *PullbackStrategy) Evaluate(input EvaluateInput) Decision {
 	return Decision{Action: ActionNone}
 }
 
-func (strategy *PullbackStrategy) Type() StrategyType {
-	return StrategyTypePullbackTrading
-}

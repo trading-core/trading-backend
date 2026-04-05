@@ -35,8 +35,5 @@ func TestPullbackStrategy(t *testing.T) {
 			})
 		})
 
-		Convey("When reading strategy type", func() {
-			So(strategy.Type(), ShouldEqual, StrategyTypePullbackTrading)
-		})
 	})
 }

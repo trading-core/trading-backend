@@ -46,7 +46,7 @@ func main() {
 		TastyTradeClientFactory:        tastyTradeClientFactory,
 		TastyTradeSandboxClientFactory: tastyTradeSandboxClientFactory,
 	})
-	scalpingParams := tradingstrategy.ScalpingParams{
+	tradingParams := tradingstrategy.Parameters{
 		EntryMode:                config.EnvString("BOT_SCALPING_ENTRY_MODE", ""),
 		MaxPositionFraction:      config.EnvFloat64("BOT_SCALPING_MAX_POSITION_FRACTION", 0),
 		TakeProfitPct:            config.EnvFloat64("BOT_SCALPING_TAKE_PROFIT_PCT", 0),
@@ -65,10 +65,10 @@ func main() {
 		RiskPerTradePct:          config.EnvFloat64("BOT_SCALPING_RISK_PER_TRADE_PCT", 0),
 		BreakoutLookbackBars:     config.EnvInt("BOT_SCALPING_BREAKOUT_LOOKBACK_BARS", 0),
 	}
-	fatal.Unless(scalpingParams.MinRSI >= 0 && scalpingParams.MinRSI <= 100, "BOT_SCALPING_MIN_RSI must be in [0,100]")
-	fatal.Unless(scalpingParams.MinBollingerWidthPct >= 0, "BOT_SCALPING_MIN_BOLLINGER_WIDTH_PCT must be non-negative")
-	fatal.Unless(scalpingParams.StopLossPct >= 0, "BOT_SCALPING_STOP_LOSS_PCT must be non-negative")
-	fatal.Unless(scalpingParams.RiskPerTradePct >= 0, "BOT_SCALPING_RISK_PER_TRADE_PCT must be non-negative")
+	fatal.Unless(tradingParams.MinRSI >= 0 && tradingParams.MinRSI <= 100, "BOT_SCALPING_MIN_RSI must be in [0,100]")
+	fatal.Unless(tradingParams.MinBollingerWidthPct >= 0, "BOT_SCALPING_MIN_BOLLINGER_WIDTH_PCT must be non-negative")
+	fatal.Unless(tradingParams.StopLossPct >= 0, "BOT_SCALPING_STOP_LOSS_PCT must be non-negative")
+	fatal.Unless(tradingParams.RiskPerTradePct >= 0, "BOT_SCALPING_RISK_PER_TRADE_PCT must be non-negative")
 	rsiPeriod := config.EnvInt("BOT_RSI_PERIOD", 14)
 	macdFastPeriod := config.EnvInt("BOT_MACD_FAST_PERIOD", 12)
 	macdSlowPeriod := config.EnvInt("BOT_MACD_SLOW_PERIOD", 26)
@@ -103,7 +103,7 @@ func main() {
 		Log:                    log,
 		BotEventLogFactory:     logFactory,
 		BotChannelFunc:         botChannelFunc,
-		ScalpingParams:         scalpingParams,
+		TradingParams:          tradingParams,
 		RSIPeriod:              rsiPeriod,
 		MACDFastPeriod:         macdFastPeriod,
 		MACDSlowPeriod:         macdSlowPeriod,

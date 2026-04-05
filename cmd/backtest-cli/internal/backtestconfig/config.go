@@ -28,10 +28,10 @@ type Config struct {
 	Start     string // RFC 3339 start time (inclusive)
 	End       string // RFC 3339 end time (inclusive), may be empty
 
-	Alpaca     AlpacaConfig
-	TastyTrade TastyTradeConfig
-	Indicators IndicatorConfig
-	Scalping   tradingstrategy.ScalpingParams
+	Alpaca            AlpacaConfig
+	TastyTrade        TastyTradeConfig
+	Indicators        IndicatorConfig
+	TradingParameters tradingstrategy.Parameters
 }
 
 type AlpacaConfig struct {
@@ -89,7 +89,7 @@ func LoadFromEnv() Config {
 			BollingerPeriod:  config.EnvInt("BACKTEST_BOLLINGER_PERIOD", 20),
 			BollingerStdDev:  config.EnvFloat64("BACKTEST_BOLLINGER_STDDEV", 2.0),
 		},
-		Scalping: tradingstrategy.ScalpingParams{
+		TradingParameters: tradingstrategy.Parameters{
 			EntryMode:                config.EnvString("BACKTEST_SCALPING_ENTRY_MODE", ""),
 			MaxPositionFraction:      config.EnvFloat64("BACKTEST_MAX_POSITION_FRACTION", 0),
 			TakeProfitPct:            config.EnvFloat64("BACKTEST_TAKE_PROFIT_PCT", 0),
@@ -150,18 +150,18 @@ func (config Config) validate() error {
 		return fmt.Errorf("BACKTEST_BOLLINGER_STDDEV must be greater than zero")
 	}
 
-	// Scalping constraints.
-	if config.Scalping.MinRSI < 0 || config.Scalping.MinRSI > 100 {
-		return fmt.Errorf("BACKTEST_SCALPING_MIN_RSI must be in [0,100]")
+	// Trading parameters constraints.
+	if config.TradingParameters.MinRSI < 0 || config.TradingParameters.MinRSI > 100 {
+		return fmt.Errorf("BACKTEST_TRADING_PARAMETERS_MIN_RSI must be in [0,100]")
 	}
-	if config.Scalping.MinBollingerWidthPct < 0 {
-		return fmt.Errorf("BACKTEST_SCALPING_MIN_BOLLINGER_WIDTH_PCT must be non-negative")
+	if config.TradingParameters.MinBollingerWidthPct < 0 {
+		return fmt.Errorf("BACKTEST_TRADING_PARAMETERS_MIN_BOLLINGER_WIDTH_PCT must be non-negative")
 	}
-	if config.Scalping.StopLossPct < 0 {
-		return fmt.Errorf("BACKTEST_SCALPING_STOP_LOSS_PCT must be non-negative")
+	if config.TradingParameters.StopLossPct < 0 {
+		return fmt.Errorf("BACKTEST_TRADING_PARAMETERS_STOP_LOSS_PCT must be non-negative")
 	}
-	if config.Scalping.RiskPerTradePct < 0 {
-		return fmt.Errorf("BACKTEST_SCALPING_RISK_PER_TRADE_PCT must be non-negative")
+	if config.TradingParameters.RiskPerTradePct < 0 {
+		return fmt.Errorf("BACKTEST_TRADING_PARAMETERS_RISK_PER_TRADE_PCT must be non-negative")
 	}
 	return nil
 }

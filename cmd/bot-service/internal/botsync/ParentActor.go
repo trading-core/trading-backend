@@ -16,7 +16,7 @@ type ParentActor struct {
 	log                    eventsource.Log
 	botEventLogFactory     eventsource.LogFactory
 	botChannelFunc         func(botID string) string
-	scalpingParams         tradingstrategy.ScalpingParams
+	tradingParams          tradingstrategy.Parameters
 	rsiPeriod              int
 	macdFastPeriod         int
 	macdSlowPeriod         int
@@ -38,7 +38,7 @@ type NewParentActorInput struct {
 	BotChannelFunc                func(botID string) string
 	BrokerAccountClientFactory    broker.AccountClientFactory
 	BrokerMarketDataClientFactory broker.MarketDataClientFactory
-	ScalpingParams                tradingstrategy.ScalpingParams
+	TradingParams                 tradingstrategy.Parameters
 	RSIPeriod                     int
 	MACDFastPeriod                int
 	MACDSlowPeriod                int
@@ -54,7 +54,7 @@ func NewParentActor(input NewParentActorInput) *ParentActor {
 		log:                     input.Log,
 		botEventLogFactory:      input.BotEventLogFactory,
 		botChannelFunc:          input.BotChannelFunc,
-		scalpingParams:          input.ScalpingParams,
+		tradingParams:           input.TradingParams,
 		rsiPeriod:               input.RSIPeriod,
 		macdFastPeriod:          input.MACDFastPeriod,
 		macdSlowPeriod:          input.MACDSlowPeriod,
@@ -77,7 +77,7 @@ type TradeBot struct {
 	BrokerType        string
 	Symbol            string
 	AllocationPercent float64
-	ScalpingParams    *tradingstrategy.ScalpingParams
+	Parameters        *tradingstrategy.Parameters
 	IsActive          bool
 }
 
@@ -113,7 +113,7 @@ func (actor *ParentActor) applyCatchup(ctx context.Context, event *eventsource.E
 			BrokerType:        frame.BotCreatedEvent.BrokerType,
 			Symbol:            frame.BotCreatedEvent.Symbol,
 			AllocationPercent: frame.BotCreatedEvent.AllocationPercent,
-			ScalpingParams:    frame.BotCreatedEvent.ScalpingParams,
+			Parameters:        frame.BotCreatedEvent.TradingParameters,
 			IsActive:          false,
 		}
 		return
@@ -153,7 +153,7 @@ func (actor *ParentActor) applyBotCreatedEvent(ctx context.Context, event *botst
 		BrokerType:        event.BrokerType,
 		Symbol:            event.Symbol,
 		AllocationPercent: event.AllocationPercent,
-		ScalpingParams:    event.ScalpingParams,
+		Parameters:        event.TradingParameters,
 		IsActive:          false,
 	}
 	return nil
@@ -187,31 +187,26 @@ func (actor *ParentActor) startTradeActor(ctx context.Context, botID string) (er
 	if !ok {
 		return
 	}
-	// Per-bot params take precedence; fall back to actor-level (env-configured) params for older bots.
-	effectiveParams := actor.scalpingParams
-	if bot.ScalpingParams != nil {
-		effectiveParams = *bot.ScalpingParams
-	}
-	strategy := tradingstrategy.NewWithParams(effectiveParams)
+	strategy := tradingstrategy.FromParameters(bot.Parameters)
 	logger.Noticef(
 		"bot %s strategy config: entryMode=%s maxPosition=%.4f takeProfit=%.4f stopLoss=%.4f sessionStart=%d sessionEnd=%d minRSI=%.2f requireMACDAboveSignal=%t requireBollingerBreakout=%t minBollingerWidthPct=%.4f requireBollingerSqueeze=%t maxBollingerWidthPct=%.4f reentryCooldownMin=%d useVolatilityTP=%t volatilityTPMult=%.4f riskPerTradePct=%.4f rsiPeriod=%d macdFast=%d macdSlow=%d macdSignal=%d bollPeriod=%d bollStdDev=%.2f sessionInterval=%s indicatorResetInterval=%s",
 		botID,
-		effectiveParams.EntryMode,
-		effectiveParams.MaxPositionFraction,
-		effectiveParams.TakeProfitPct,
-		effectiveParams.StopLossPct,
-		effectiveParams.SessionStart,
-		effectiveParams.SessionEnd,
-		effectiveParams.MinRSI,
-		effectiveParams.RequireMACDSignal,
-		effectiveParams.RequireBollingerBreakout,
-		effectiveParams.MinBollingerWidthPct,
-		effectiveParams.RequireBollingerSqueeze,
-		effectiveParams.MaxBollingerWidthPct,
-		effectiveParams.ReentryCooldownMinutes,
-		effectiveParams.UseVolatilityTP,
-		effectiveParams.VolatilityTPMultiplier,
-		effectiveParams.RiskPerTradePct,
+		bot.Parameters.EntryMode,
+		bot.Parameters.MaxPositionFraction,
+		bot.Parameters.TakeProfitPct,
+		bot.Parameters.StopLossPct,
+		bot.Parameters.SessionStart,
+		bot.Parameters.SessionEnd,
+		bot.Parameters.MinRSI,
+		bot.Parameters.RequireMACDSignal,
+		bot.Parameters.RequireBollingerBreakout,
+		bot.Parameters.MinBollingerWidthPct,
+		bot.Parameters.RequireBollingerSqueeze,
+		bot.Parameters.MaxBollingerWidthPct,
+		bot.Parameters.ReentryCooldownMinutes,
+		bot.Parameters.UseVolatilityTP,
+		bot.Parameters.VolatilityTPMultiplier,
+		bot.Parameters.RiskPerTradePct,
 		actor.rsiPeriod,
 		actor.macdFastPeriod,
 		actor.macdSlowPeriod,
@@ -244,7 +239,7 @@ func (actor *ParentActor) startTradeActor(ctx context.Context, botID string) (er
 		IndicatorResetInterval: actor.indicatorResetInterval,
 		BotID:                  botID,
 		Log:                    log,
-		BreakoutLookbackBars:   effectiveParams.BreakoutLookbackBars,
+		BreakoutLookbackBars:   bot.Parameters.BreakoutLookbackBars,
 	})
 	logger.Noticef("Starting trading actor for bot %s", botID)
 	go tradeActor.Run(ctx)

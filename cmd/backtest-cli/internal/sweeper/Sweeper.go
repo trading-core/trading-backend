@@ -58,10 +58,10 @@ func (sweeper *Sweeper) Run(cfg backtestconfig.Config, prices []replay.PricePoin
 					for _, ws := range windowSizes {
 						run++
 						sweepCfg := cfg
-						sweepCfg.Scalping.TakeProfitPct = tp
-						sweepCfg.Scalping.MaxPositionFraction = pos
-						sweepCfg.Scalping.SessionStart = ss
-						sweepCfg.Scalping.SessionEnd = se
+						sweepCfg.TradingParameters.TakeProfitPct = tp
+						sweepCfg.TradingParameters.MaxPositionFraction = pos
+						sweepCfg.TradingParameters.SessionStart = ss
+						sweepCfg.TradingParameters.SessionEnd = se
 						var totalReturn float64
 						var winWindows, totalTrades, windows int
 						for i := 0; i+ws <= len(days); i++ {

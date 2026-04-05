@@ -74,9 +74,9 @@ type Strategy interface {
 	Evaluate(input EvaluateInput) Decision
 }
 
-// ScalpingParams allows callers to override default Scalping parameters.
+// Parameters allows callers to override default Scalping parameters.
 // Zero-valued fields are ignored and defaults are used instead.
-type ScalpingParams struct {
+type Parameters struct {
 	EntryMode                string  `json:"entry_mode,omitempty"`
 	MaxPositionFraction      float64 `json:"max_position_fraction,omitempty"`
 	TakeProfitPct            float64 `json:"take_profit_pct,omitempty"`
@@ -96,54 +96,50 @@ type ScalpingParams struct {
 	BreakoutLookbackBars     int     `json:"breakout_lookback_bars,omitempty"` // number of bars to lookback for breakout (1=session high, 5=5-bar high). Default 1.
 }
 
-func New() Strategy {
-	return NewScalping()
-}
-
-func NewWithParams(params ScalpingParams) Strategy {
+func FromParameters(parameters *Parameters) Strategy {
 	s := NewScalping()
-	if params.EntryMode != "" {
-		s.EntryMode = params.EntryMode
+	if parameters.EntryMode != "" {
+		s.EntryMode = parameters.EntryMode
 	}
-	if params.MaxPositionFraction > 0 {
-		s.MaxPositionFraction = params.MaxPositionFraction
+	if parameters.MaxPositionFraction > 0 {
+		s.MaxPositionFraction = parameters.MaxPositionFraction
 	}
-	if params.TakeProfitPct > 0 {
-		s.TakeProfitPct = params.TakeProfitPct
+	if parameters.TakeProfitPct > 0 {
+		s.TakeProfitPct = parameters.TakeProfitPct
 	}
-	if params.SessionStart > 0 {
-		s.SessionStart = params.SessionStart
+	if parameters.SessionStart > 0 {
+		s.SessionStart = parameters.SessionStart
 	}
-	if params.SessionEnd > 0 {
-		s.SessionEnd = params.SessionEnd
+	if parameters.SessionEnd > 0 {
+		s.SessionEnd = parameters.SessionEnd
 	}
-	if params.MinRSI > 0 {
-		s.MinRSI = params.MinRSI
+	if parameters.MinRSI > 0 {
+		s.MinRSI = parameters.MinRSI
 	}
-	if params.StopLossPct > 0 {
-		s.StopLossPct = params.StopLossPct
+	if parameters.StopLossPct > 0 {
+		s.StopLossPct = parameters.StopLossPct
 	}
-	s.RequireMACDSignal = params.RequireMACDSignal
-	s.RequireBollingerBreakout = params.RequireBollingerBreakout
-	if params.MinBollingerWidthPct > 0 {
-		s.MinBollingerWidthPct = params.MinBollingerWidthPct
+	s.RequireMACDSignal = parameters.RequireMACDSignal
+	s.RequireBollingerBreakout = parameters.RequireBollingerBreakout
+	if parameters.MinBollingerWidthPct > 0 {
+		s.MinBollingerWidthPct = parameters.MinBollingerWidthPct
 	}
-	s.RequireBollingerSqueeze = params.RequireBollingerSqueeze
-	if params.MaxBollingerWidthPct > 0 {
-		s.MaxBollingerWidthPct = params.MaxBollingerWidthPct
+	s.RequireBollingerSqueeze = parameters.RequireBollingerSqueeze
+	if parameters.MaxBollingerWidthPct > 0 {
+		s.MaxBollingerWidthPct = parameters.MaxBollingerWidthPct
 	}
-	if params.ReentryCooldownMinutes > 0 {
-		s.ReentryCooldownMinutes = params.ReentryCooldownMinutes
+	if parameters.ReentryCooldownMinutes > 0 {
+		s.ReentryCooldownMinutes = parameters.ReentryCooldownMinutes
 	}
-	s.UseVolatilityTP = params.UseVolatilityTP
-	if params.VolatilityTPMultiplier > 0 {
-		s.VolatilityTPMultiplier = params.VolatilityTPMultiplier
+	s.UseVolatilityTP = parameters.UseVolatilityTP
+	if parameters.VolatilityTPMultiplier > 0 {
+		s.VolatilityTPMultiplier = parameters.VolatilityTPMultiplier
 	}
-	if params.RiskPerTradePct > 0 {
-		s.RiskPerTradePct = params.RiskPerTradePct
+	if parameters.RiskPerTradePct > 0 {
+		s.RiskPerTradePct = parameters.RiskPerTradePct
 	}
-	if params.BreakoutLookbackBars > 0 {
-		s.BreakoutLookbackBars = params.BreakoutLookbackBars
+	if parameters.BreakoutLookbackBars > 0 {
+		s.BreakoutLookbackBars = parameters.BreakoutLookbackBars
 	}
 	return s
 }

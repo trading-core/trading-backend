@@ -45,7 +45,7 @@ func (store *EventSourcedCommandHandler) Create(ctx context.Context, bot *Bot) (
 			BrokerType:        bot.BrokerType,
 			Symbol:            bot.Symbol,
 			AllocationPercent: bot.AllocationPercent,
-			ScalpingParams:    bot.ScalpingParams,
+			TradingParameters: bot.TradingParameters,
 			Status:            bot.Status,
 			CreatedAt:         bot.CreatedAt,
 		},
@@ -133,7 +133,7 @@ func (store *EventSourcedCommandHandler) applyBotCreatedEvent(ctx context.Contex
 		BrokerType:        event.BrokerType,
 		Symbol:            event.Symbol,
 		AllocationPercent: event.AllocationPercent,
-		ScalpingParams:    event.ScalpingParams,
+		TradingParameters: event.TradingParameters,
 		Status:            event.Status,
 		CreatedAt:         event.CreatedAt,
 	}

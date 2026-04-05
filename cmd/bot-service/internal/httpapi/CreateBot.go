@@ -20,10 +20,10 @@ import (
 var symbolPattern = regexp.MustCompile(`^[A-Z][A-Z0-9.-]{0,14}$`)
 
 type CreateBotInput struct {
-	AccountID         string                          `json:"account_id"`
-	Symbol            string                          `json:"symbol"`
-	AllocationPercent float64                         `json:"allocation_percent"`
-	ScalpingParams    *tradingstrategy.ScalpingParams `json:"scalping_params,omitempty"`
+	AccountID         string                      `json:"account_id"`
+	Symbol            string                      `json:"symbol"`
+	AllocationPercent float64                     `json:"allocation_percent"`
+	TradingParameters *tradingstrategy.Parameters `json:"trading_params,omitempty"`
 }
 
 func (input *CreateBotInput) Validate() (err error) {
@@ -99,7 +99,7 @@ func (handler *Handler) CreateBot(responseWriter http.ResponseWriter, request *h
 		BrokerType:        account.Broker.Type,
 		Symbol:            input.Symbol,
 		AllocationPercent: input.AllocationPercent,
-		ScalpingParams:    input.ScalpingParams,
+		TradingParameters: input.TradingParameters,
 		Status:            botstore.BotStatusStopped,
 		CreatedAt:         time.Now().UTC().Format(time.RFC3339),
 	}

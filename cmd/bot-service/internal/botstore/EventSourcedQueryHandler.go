@@ -89,7 +89,7 @@ func (store *EventSourcedQueryHandler) applyBotCreatedEvent(ctx context.Context,
 		BrokerType:        event.BrokerType,
 		Symbol:            event.Symbol,
 		AllocationPercent: event.AllocationPercent,
-		ScalpingParams:    event.ScalpingParams,
+		TradingParameters: event.TradingParameters,
 		Status:            event.Status,
 		CreatedAt:         event.CreatedAt,
 	}

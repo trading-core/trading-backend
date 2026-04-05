@@ -29,7 +29,7 @@ type result struct {
 }
 
 func Run(cfg backtestconfig.Config, prices []replay.PricePoint, events []replay.Event) result {
-	strategy := tradingstrategy.NewWithParams(cfg.Scalping)
+	strategy := tradingstrategy.FromParameters(&cfg.TradingParameters)
 	rsiSeries := indicator.ComputeRSI(prices, cfg.Indicators.RSIPeriod)
 	macdSeries, macdSignalSeries := indicator.ComputeMACD(prices, cfg.Indicators.MACDFastPeriod, cfg.Indicators.MACDSlowPeriod, cfg.Indicators.MACDSignalPeriod)
 	bollUpperSeries, bollMiddleSeries, bollLowerSeries := indicator.ComputeBollingerBands(prices, cfg.Indicators.BollingerPeriod, cfg.Indicators.BollingerStdDev)
@@ -65,7 +65,7 @@ func Run(cfg backtestconfig.Config, prices []replay.PricePoint, events []replay.
 	}
 	replayState := replay.NewState(cfg.Symbol)
 
-	lookbackBars := cfg.Scalping.BreakoutLookbackBars
+	lookbackBars := cfg.TradingParameters.BreakoutLookbackBars
 	if lookbackBars <= 0 {
 		lookbackBars = 1
 	}
@@ -223,8 +223,8 @@ func Run(cfg backtestconfig.Config, prices []replay.PricePoint, events []replay.
 	endingValue := account.CashBalance + (account.PositionQuantity * lastPrice)
 	startingCash := cfg.StartingCash()
 	return result{
-		Symbol:       cfg.Symbol,
-		StartingCash: startingCash,
+		Symbol:        cfg.Symbol,
+		StartingCash:  startingCash,
 		EndingCash:    account.CashBalance,
 		EndingValue:   endingValue,
 		TotalReturn:   (endingValue - startingCash) / startingCash,

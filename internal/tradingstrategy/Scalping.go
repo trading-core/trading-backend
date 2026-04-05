@@ -72,10 +72,11 @@ func (strategy *Scalping) Evaluate(input EvaluateInput) Decision {
 }
 
 func (strategy *Scalping) newDecisionEngine() Strategy {
-	entrySignal := strategy.newEntrySignalStrategy()
-	entryDecision := NewEntryStrategyDecorator(NewEntryStrategyDecoratorInput{Decorated: entrySignal})
-	indicatorDecision := NewIndicatorFilterDecorator(NewIndicatorFilterDecoratorInput{
-		Decorated:                entryDecision,
+	var tradingStrategy Strategy
+	tradingStrategy = strategy.newEntrySignalStrategy()
+	tradingStrategy = NewEntryStrategyDecorator(NewEntryStrategyDecoratorInput{Decorated: tradingStrategy})
+	tradingStrategy = NewIndicatorFilterDecorator(NewIndicatorFilterDecoratorInput{
+		Decorated:                tradingStrategy,
 		MinRSI:                   strategy.MinRSI,
 		RequireMACDSignal:        strategy.RequireMACDSignal,
 		RequireBollingerBreakout: strategy.RequireBollingerBreakout,
@@ -83,26 +84,27 @@ func (strategy *Scalping) newDecisionEngine() Strategy {
 		RequireBollingerSqueeze:  strategy.RequireBollingerSqueeze,
 		MaxBollingerWidthPct:     strategy.MaxBollingerWidthPct,
 	})
-	sessionDecision := NewSessionGuardDecorator(NewSessionGuardDecoratorInput{
-		Decorated:              indicatorDecision,
+	tradingStrategy = NewSessionGuardDecorator(NewSessionGuardDecoratorInput{
+		Decorated:              tradingStrategy,
 		SessionStart:           strategy.SessionStart,
 		SessionEnd:             strategy.SessionEnd,
 		ReentryCooldownMinutes: strategy.ReentryCooldownMinutes,
 	})
-	sizingDecision := NewPositionSizingDecorator(NewPositionSizingDecoratorInput{
-		Decorated:           sessionDecision,
+	tradingStrategy = NewPositionSizingDecorator(NewPositionSizingDecoratorInput{
+		Decorated:           tradingStrategy,
 		MaxPositionFraction: strategy.MaxPositionFraction,
 		RiskPerTradePct:     strategy.RiskPerTradePct,
 		StopLossPct:         strategy.StopLossPct,
 	})
-	return NewExitStrategyDecorator(NewExitStrategyDecoratorInput{
-		Decorated:              sizingDecision,
+	tradingStrategy = NewExitStrategyDecorator(NewExitStrategyDecoratorInput{
+		Decorated:              tradingStrategy,
 		SessionEnd:             strategy.SessionEnd,
 		TakeProfitPct:          strategy.TakeProfitPct,
 		StopLossPct:            strategy.StopLossPct,
 		UseVolatilityTP:        strategy.UseVolatilityTP,
 		VolatilityTPMultiplier: strategy.VolatilityTPMultiplier,
 	})
+	return tradingStrategy
 }
 
 func (strategy *Scalping) newEntrySignalStrategy() Strategy {

@@ -13,7 +13,7 @@ import (
 type alpacaCandleStrategy struct{}
 
 func (strategy *alpacaCandleStrategy) Load(ctx context.Context, input LoadInput) (output *LoadOutput, err error) {
-	prices, err := strategy.loadCandlesFromAlpaca(ctx, alpacaLoadInput{
+	prices, err := strategy.loadCandlesFromAlpaca(ctx, loadCandlesFromAlpacaInput{
 		Symbol:    input.Symbol,
 		Timeframe: input.Timeframe,
 		Limit:     input.Alpaca.Limit,
@@ -50,7 +50,7 @@ func (strategy *alpacaCandleStrategy) getIndicatorPrices(ctx context.Context, in
 	if err != nil {
 		return
 	}
-	return strategy.loadCandlesFromAlpaca(ctx, alpacaLoadInput{
+	return strategy.loadCandlesFromAlpaca(ctx, loadCandlesFromAlpacaInput{
 		Symbol:    input.Symbol,
 		Timeframe: input.Timeframe,
 		Limit:     input.Alpaca.Limit,
@@ -60,7 +60,7 @@ func (strategy *alpacaCandleStrategy) getIndicatorPrices(ctx context.Context, in
 	})
 }
 
-type alpacaLoadInput struct {
+type loadCandlesFromAlpacaInput struct {
 	Symbol    string
 	Timeframe string
 	Limit     int
@@ -69,7 +69,7 @@ type alpacaLoadInput struct {
 	Feed      string
 }
 
-func (strategy *alpacaCandleStrategy) loadCandlesFromAlpaca(ctx context.Context, input alpacaLoadInput) (points []PricePoint, err error) {
+func (strategy *alpacaCandleStrategy) loadCandlesFromAlpaca(ctx context.Context, input loadCandlesFromAlpacaInput) (points []PricePoint, err error) {
 	client := alpaca.ClientFromEnv()
 	barsOutput, err := client.GetStockBars(ctx, alpaca.GetStockBarsInput{
 		Symbol:    input.Symbol,

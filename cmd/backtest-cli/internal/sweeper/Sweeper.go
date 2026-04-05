@@ -172,7 +172,7 @@ func splitByTradingDay(events []replay.Event, prices []replay.PricePoint) []trad
 	for _, d := range dates {
 		p := dayPrices[d]
 		if len(p) == 0 {
-			p = replay.PriceSeries(dayEvents[d])
+			p = replay.CandlesFromEvents(dayEvents[d])
 		}
 		if len(p) == 0 {
 			continue

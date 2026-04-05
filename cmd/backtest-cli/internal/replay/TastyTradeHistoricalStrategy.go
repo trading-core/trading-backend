@@ -51,36 +51,46 @@ func (strategy *tastyTradeHistoricalStrategy) Load(ctx context.Context, input Lo
 		err = fmt.Errorf("tastytrade returned no market-hours candle rows (symbol=%s interval=%s)", input.Symbol, input.Timeframe)
 		return
 	}
-	indicatorPrices := prices
-	if input.WarmupBars > 0 && !fromTime.IsZero() {
-		warmupStart, warmupErr := computeIndicatorWarmupStart(input.Start, input.Timeframe, input.WarmupBars)
-		if warmupErr == nil {
-			warmupFromTime, parseErr := parseOptionalTime(warmupStart)
-			if parseErr == nil {
-				warmupPrices, loadErr := strategy.loadCandlesFromTastyTrade(ctx, tastyTradeLoadInput{
-					Symbol:            input.Symbol,
-					BrokerType:        input.TastyTrade.BrokerType,
-					CandleInterval:    input.Timeframe,
-					FromTime:          warmupFromTime,
-					EndTime:           endTime,
-					CollectionTimeout: input.TastyTrade.CollectionTimeout,
-					MaxCandles:        input.TastyTrade.MaxCandles,
-				})
-				if loadErr == nil {
-					warmupPrices = filterToMarketHours(warmupPrices, input.Timeframe)
-					if len(warmupPrices) > len(prices) {
-						indicatorPrices = warmupPrices
-					}
-				}
-			}
-		}
+	indicatorPrices, err := strategy.getIndicatorPrices(ctx, input, fromTime, endTime, prices)
+	if err != nil {
+		err = fmt.Errorf("failed to get indicator prices: %w", err)
+		return
 	}
-	events := EventsFromCandles(input.Symbol, prices)
 	output = &LoadOutput{
 		Prices:          prices,
 		IndicatorPrices: indicatorPrices,
-		Events:          events,
+		Events:          EventsFromCandles(input.Symbol, prices),
 	}
+	return
+}
+
+func (strategy *tastyTradeHistoricalStrategy) getIndicatorPrices(ctx context.Context, input LoadInput, fromTime time.Time, endTime time.Time, prices []PricePoint) (indicatorPrices []PricePoint, err error) {
+	hasWarmupBarsAndStart := input.WarmupBars > 0 && !fromTime.IsZero()
+	if !hasWarmupBarsAndStart {
+		indicatorPrices = prices
+		return
+	}
+	warmupStart, err := computeIndicatorWarmupStart(input.Start, input.Timeframe, input.WarmupBars)
+	if err != nil {
+		return
+	}
+	warmupFromTime, err := parseOptionalTime(warmupStart)
+	if err != nil {
+		return
+	}
+	indicatorPrices, err = strategy.loadCandlesFromTastyTrade(ctx, tastyTradeLoadInput{
+		Symbol:            input.Symbol,
+		BrokerType:        input.TastyTrade.BrokerType,
+		CandleInterval:    input.Timeframe,
+		FromTime:          warmupFromTime,
+		EndTime:           endTime,
+		CollectionTimeout: input.TastyTrade.CollectionTimeout,
+		MaxCandles:        input.TastyTrade.MaxCandles,
+	})
+	if err != nil {
+		return
+	}
+	indicatorPrices = filterToMarketHours(indicatorPrices, input.Timeframe)
 	return
 }
 

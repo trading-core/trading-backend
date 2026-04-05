@@ -186,6 +186,9 @@ func Render(input RenderInput, outputPath string) error {
 		tickStep = 1
 	}
 	prevDay := ""
+	lastDayLabelRight := plotLeft - 1
+	const dayLabelMinGap = 14
+	const dayLabelLegendReserve = 110
 	for i, p := range prices {
 		day := p.At.In(tz).Format("2006-01-02")
 
@@ -193,8 +196,14 @@ func Render(input RenderInput, outputPath string) error {
 		if day != prevDay && prevDay != "" {
 			px := xToPixel(i)
 			drawLine(img, px, plotTop, px, plotBottom, sepColor)
-			// Label the new date just below the top of the plot.
-			drawText(img, day, px+4, plotTop+2, labelColor)
+			// Draw sparse day labels to keep the top legend area readable.
+			dayLabel := p.At.In(tz).Format("01-02")
+			labelX := px + 4
+			labelRight := labelX + len(dayLabel)*7
+			if labelX > lastDayLabelRight+dayLabelMinGap && labelRight < plotRight-dayLabelLegendReserve {
+				drawText(img, dayLabel, labelX, plotTop+2, labelColor)
+				lastDayLabelRight = labelRight
+			}
 		}
 		prevDay = day
 

@@ -15,14 +15,16 @@ type Strategy interface {
 }
 
 type LoadInput struct {
-	Source     string
-	Symbol     string
-	Timeframe  string // canonical candle interval, e.g. "1Min", "1Hour", "1Day"
-	Start      string // RFC 3339 start time (inclusive)
-	End        string // RFC 3339 end time (inclusive), may be empty
-	WarmupBars int
-	Alpaca     AlpacaInput
-	TastyTrade TastyTradeInput
+	Source       string
+	Symbol       string
+	Timeframe    string // canonical candle interval, e.g. "1Min", "1Hour", "1Day"
+	Start        string // RFC 3339 start time (inclusive)
+	End          string // RFC 3339 end time (inclusive), may be empty
+	WarmupBars   int
+	CacheEnabled bool
+	CacheDir     string
+	Alpaca       AlpacaInput
+	TastyTrade   TastyTradeInput
 }
 
 type AlpacaInput struct {
@@ -44,14 +46,16 @@ func (input LoadInput) SelectStrategy() (strategy Strategy, err error) {
 	switch source {
 	case "alpaca":
 		strategy = new(alpacaCandleStrategy)
-		return
 	case "tastytrade":
 		strategy = new(tastyTradeHistoricalStrategy)
-		return
 	default:
 		err = fmt.Errorf("unsupported BACKTEST_DATA_SOURCE: %s (valid values: alpaca, tastytrade)", input.Source)
 		return
 	}
+	if input.CacheEnabled {
+		strategy = &cacheDecorator{base: strategy}
+	}
+	return
 }
 
 type LoadOutput struct {

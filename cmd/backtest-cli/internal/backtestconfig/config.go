@@ -17,6 +17,8 @@ type Config struct {
 	Strategy            string
 	Cash                int
 	Source              string
+	CacheEnabled        bool
+	CacheDir            string
 	Sweep               bool
 	FillLatencyMS       int
 	BidAskSpreadPct     float64
@@ -61,6 +63,8 @@ func LoadFromEnv() Config {
 		Strategy:            config.EnvString("BACKTEST_STRATEGY", "scalping"),
 		Cash:                config.EnvInt("BACKTEST_CASH", 100000),
 		Source:              config.EnvString("BACKTEST_DATA_SOURCE", "alpaca"),
+		CacheEnabled:        config.EnvBool("BACKTEST_CACHE_ENABLED", false),
+		CacheDir:            config.EnvString("BACKTEST_CACHE_DIR", "./tmp/cache"),
 		Sweep:               config.EnvBool("BACKTEST_SWEEP", false),
 		FillLatencyMS:       config.EnvInt("BACKTEST_FILL_LATENCY_MS", 0),
 		BidAskSpreadPct:     config.EnvFloat64("BACKTEST_BID_ASK_SPREAD_PCT", 0),
@@ -172,12 +176,14 @@ func (config Config) validate() error {
 // ReplayInput builds the replay.LoadInput from config.
 func (config Config) ReplayInput() replay.LoadInput {
 	return replay.LoadInput{
-		Source:     config.Source,
-		Symbol:     config.Symbol,
-		Timeframe:  config.Timeframe,
-		Start:      config.Start,
-		End:        config.End,
-		WarmupBars: config.IndicatorWarmupBars,
+		Source:       config.Source,
+		Symbol:       config.Symbol,
+		Timeframe:    config.Timeframe,
+		Start:        config.Start,
+		End:          config.End,
+		WarmupBars:   config.IndicatorWarmupBars,
+		CacheEnabled: config.CacheEnabled,
+		CacheDir:     config.CacheDir,
 		Alpaca: replay.AlpacaInput{
 			Limit: config.Alpaca.Limit,
 			Feed:  config.Alpaca.Feed,

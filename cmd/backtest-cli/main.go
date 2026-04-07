@@ -143,8 +143,8 @@ func filterIndicatorSeriesToRange(points []indicator.Point, start time.Time, end
 
 func filterIndicatorToMarketHours(points []indicator.Point, tz *time.Location, timeframe string) []indicator.Point {
 	// For daily and weekly timeframes, don't filter to market hours (they need end-of-day/week closes).
-	// Only filter intraday (1Min, 5Min, etc.) to 9:30 AM - 4:00 PM.
-	if timeframe == "1Day" || timeframe == "1Week" {
+	// Only filter intraday (1h, 5m, etc.) to 9:30 AM - 4:00 PM.
+	if timeframe == "1d" || timeframe == "1w" {
 		return points
 	}
 	out := make([]indicator.Point, 0, len(points))

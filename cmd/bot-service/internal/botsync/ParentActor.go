@@ -180,7 +180,7 @@ func (actor *ParentActor) startTradeActor(ctx context.Context, botID string) (er
 	}
 	strategy := tradingstrategy.FromParameters(bot.Parameters)
 	logger.Noticef(
-		"bot %s strategy config: entryMode=%s timeframe=%s maxPosition=%.4f takeProfit=%.4f stopLoss=%.4f sessionStart=%d sessionEnd=%d minRSI=%.2f requireMACDAboveSignal=%t requireBollingerBreakout=%t minBollingerWidthPct=%.4f maxBollingerWidthPct=%.4f reentryCooldownMin=%d volatilityTPMult=%.4f rsiPeriod=%d macdFast=%d macdSlow=%d macdSignal=%d bollPeriod=%d bollStdDev=%.2f",
+		"bot %s strategy config: entryMode=%s timeframe=%s maxPosition=%.4f takeProfit=%.4f stopLoss=%.4f sessionStart=%d sessionEnd=%d reentryCooldownMin=%d volatilityTPMult=%.4f rsiPeriod=%d macdFast=%d macdSlow=%d macdSignal=%d bollPeriod=%d bollStdDev=%.2f",
 		botID,
 		bot.Parameters.EntryMode,
 		bot.Parameters.Timeframe,
@@ -189,11 +189,6 @@ func (actor *ParentActor) startTradeActor(ctx context.Context, botID string) (er
 		bot.Parameters.StopLossPct,
 		bot.Parameters.SessionStart,
 		bot.Parameters.SessionEnd,
-		bot.Parameters.MinRSI,
-		bot.Parameters.RequireMACDSignal,
-		bot.Parameters.RequireBollingerBreakout,
-		bot.Parameters.MinBollingerWidthPct,
-		bot.Parameters.MaxBollingerWidthPct,
 		bot.Parameters.ReentryCooldownMinutes,
 		bot.Parameters.VolatilityTPMultiplier,
 		actor.rsiPeriod,

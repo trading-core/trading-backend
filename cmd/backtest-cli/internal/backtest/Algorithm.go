@@ -1,6 +1,7 @@
 package backtest
 
 import (
+	"fmt"
 	"math"
 	"time"
 
@@ -31,12 +32,19 @@ type result struct {
 	TradeCount    int
 }
 
-func Run(cfg backtestconfig.Config, prices []replay.PricePoint, events []replay.Event) result {
+// Run simulates a backtest over the given prices and events.
+// indicatorPrices should include warmup bars before the backtest range so that
+// EMAs and other indicators are fully converged by the time the simulation begins.
+func Run(cfg backtestconfig.Config, prices []replay.PricePoint, indicatorPrices []replay.PricePoint, events []replay.Event) result {
+	if len(indicatorPrices) == 0 {
+		indicatorPrices = prices
+	}
+	warnIfInsufficientWarmup(len(indicatorPrices), cfg)
 	strategy := tradingstrategy.FromParameters(&cfg.TradingParameters)
-	rsiSeries := indicator.ComputeRSI(prices, cfg.Indicators.RSIPeriod)
-	macdSeries, macdSignalSeries := indicator.ComputeMACD(prices, cfg.Indicators.MACDFastPeriod, cfg.Indicators.MACDSlowPeriod, cfg.Indicators.MACDSignalPeriod)
-	bollUpperSeries, bollMiddleSeries, bollLowerSeries := indicator.ComputeBollingerBands(prices, cfg.Indicators.BollingerPeriod, cfg.Indicators.BollingerStdDev)
-	smaSeries := indicator.ComputeSMA(prices, cfg.Indicators.SMAPeriod)
+	rsiSeries := indicator.ComputeRSI(indicatorPrices, cfg.Indicators.RSIPeriod)
+	macdSeries, macdSignalSeries := indicator.ComputeMACD(indicatorPrices, cfg.Indicators.MACDFastPeriod, cfg.Indicators.MACDSlowPeriod, cfg.Indicators.MACDSignalPeriod)
+	bollUpperSeries, bollMiddleSeries, bollLowerSeries := indicator.ComputeBollingerBands(indicatorPrices, cfg.Indicators.BollingerPeriod, cfg.Indicators.BollingerStdDev)
+	smaSeries := indicator.ComputeSMA(indicatorPrices, cfg.Indicators.SMAPeriod)
 	rsiByTs := make(map[int64]float64, len(rsiSeries))
 	for _, p := range rsiSeries {
 		rsiByTs[p.At.Unix()] = p.Value
@@ -247,6 +255,29 @@ func Run(cfg backtestconfig.Config, prices []replay.PricePoint, events []replay.
 		SharpeRatio:   computeSharpe(returns),
 		WinRate:       computeWinRate(returns),
 		TradeCount:    len(returns),
+	}
+}
+
+// warnIfInsufficientWarmup prints a warning when indicatorBars is fewer than
+// the minimum required for each indicator to be fully converged. This commonly
+// happens with recently listed stocks (IPO/spin-off) where historical data
+// before the backtest start date simply does not exist.
+func warnIfInsufficientWarmup(indicatorBars int, cfg backtestconfig.Config) {
+	ind := cfg.Indicators
+	checks := []struct {
+		name    string
+		minBars int
+	}{
+		{"RSI(" + fmt.Sprintf("%d", ind.RSIPeriod) + ")", ind.RSIPeriod + 1},
+		{fmt.Sprintf("MACD(%d,%d,%d)", ind.MACDFastPeriod, ind.MACDSlowPeriod, ind.MACDSignalPeriod), ind.MACDSlowPeriod + ind.MACDSignalPeriod},
+		{"Bollinger(" + fmt.Sprintf("%d", ind.BollingerPeriod) + ")", ind.BollingerPeriod},
+		{"SMA(" + fmt.Sprintf("%d", ind.SMAPeriod) + ")", ind.SMAPeriod},
+	}
+	for _, c := range checks {
+		if indicatorBars < c.minBars {
+			fmt.Printf("WARNING: only %d indicator bars available, %s needs %d — indicator will be incomplete (IPO/spin-off with limited history?)\n",
+				indicatorBars, c.name, c.minBars)
+		}
 	}
 }
 

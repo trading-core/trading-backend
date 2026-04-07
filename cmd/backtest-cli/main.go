@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -35,7 +36,7 @@ func main() {
 }
 
 func RunTune(cfg backtestconfig.Config, loaded *replay.LoadOutput) {
-	result := backtest.Run(cfg, loaded.Prices, loaded.Events)
+	result := backtest.Run(cfg, loaded.Prices, loaded.IndicatorPrices, loaded.Events)
 	out := struct {
 		TotalReturn float64 `json:"total_return"`
 		Sharpe      float64 `json:"sharpe"`
@@ -53,7 +54,7 @@ func RunTune(cfg backtestconfig.Config, loaded *replay.LoadOutput) {
 }
 
 func RunBacktestAndPlot(cfg backtestconfig.Config, loaded *replay.LoadOutput, outputDir string) {
-	result := backtest.Run(cfg, loaded.Prices, loaded.Events)
+	result := backtest.Run(cfg, loaded.Prices, loaded.IndicatorPrices, loaded.Events)
 	plotStart := result.Prices[0].At
 	plotEnd := result.Prices[len(result.Prices)-1].At
 	rsiSeries := indicator.ComputeRSI(loaded.IndicatorPrices, cfg.Indicators.RSIPeriod)
@@ -87,6 +88,7 @@ func RunBacktestAndPlot(cfg backtestconfig.Config, loaded *replay.LoadOutput, ou
 		MACDSlow:    cfg.Indicators.MACDSlowPeriod,
 		MACDSignalN: cfg.Indicators.MACDSignalPeriod,
 		Timezone:    tz,
+		Timeframe:   cfg.TradingParameters.Timeframe,
 	}, outputCombinedPNG)
 	fatal.OnError(err)
 	outputPNG := fmt.Sprintf("%s/backtest.png", outputDir)
@@ -101,6 +103,7 @@ func RunBacktestAndPlot(cfg backtestconfig.Config, loaded *replay.LoadOutput, ou
 		SMA:         chartIndicatorPoints(smaForPlot),
 		SMAPeriod:   cfg.Indicators.SMAPeriod,
 		Timezone:    tz,
+		Timeframe:   cfg.TradingParameters.Timeframe,
 	}, outputPNG)
 	fatal.OnError(err)
 	outputIndicatorsPNG := fmt.Sprintf("%s/indicators.png", outputDir)
@@ -115,8 +118,25 @@ func RunBacktestAndPlot(cfg backtestconfig.Config, loaded *replay.LoadOutput, ou
 		MACDSlow:    cfg.Indicators.MACDSlowPeriod,
 		MACDSignalN: cfg.Indicators.MACDSignalPeriod,
 		Timezone:    tz,
+		Timeframe:   cfg.TradingParameters.Timeframe,
 	}, outputIndicatorsPNG)
 	fatal.OnError(err)
+
+	outputDecisionsTXT := fmt.Sprintf("%s/decisions.txt", outputDir)
+	decisionsFile, err := os.Create(outputDecisionsTXT)
+	fatal.OnError(err)
+	w := bufio.NewWriter(decisionsFile)
+	for _, d := range result.Decisions {
+		fmt.Fprintf(w, "%s  %-4s  price=%.4f  qty=%.4f  reason=%s\n",
+			d.At.In(tradingstrategy.USMarketLocation).Format("2006-01-02 15:04:05 MST"),
+			d.Action,
+			d.Price,
+			d.Quantity,
+			d.Reason,
+		)
+	}
+	fatal.OnError(w.Flush())
+	fatal.OnError(decisionsFile.Close())
 
 	fmt.Printf("Backtest complete for %s\n", result.Symbol)
 	fmt.Printf("Rows: %d\n", len(result.Prices))
@@ -128,6 +148,7 @@ func RunBacktestAndPlot(cfg backtestconfig.Config, loaded *replay.LoadOutput, ou
 	fmt.Printf("Combined image: %s\n", outputCombinedPNG)
 	fmt.Printf("Output image: %s\n", outputPNG)
 	fmt.Printf("Indicators image: %s\n", outputIndicatorsPNG)
+	fmt.Printf("Decisions file: %s\n", outputDecisionsTXT)
 }
 
 func filterIndicatorSeriesToRange(points []indicator.Point, start time.Time, end time.Time) []indicator.Point {

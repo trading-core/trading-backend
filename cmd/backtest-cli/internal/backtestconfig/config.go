@@ -109,7 +109,7 @@ func LoadFromEnv() Config {
 		// 	Timeframe:                config.EnvString("BACKTEST_TRADING_PARAMETER_TIMEFRAME", "1h"),
 		// },
 
-		TradingParameters: tradingstrategy.OptimizedParameters,
+		TradingParameters: tradingstrategy.BreakoutParameters,
 	}
 	if raw := os.Getenv("BACKTEST_PARAMS_JSON"); raw != "" {
 		var params tradingstrategy.Parameters
@@ -174,12 +174,6 @@ func (config Config) validate() error {
 	}
 	if config.TradingParameters.SessionStart >= config.TradingParameters.SessionEnd {
 		return fmt.Errorf("BACKTEST_TRADING_PARAMETERS_SESSION_START must be less than BACKTEST_TRADING_PARAMETERS_SESSION_END")
-	}
-	if config.TradingParameters.MinRSI < 0 || config.TradingParameters.MinRSI > 100 {
-		return fmt.Errorf("BACKTEST_TRADING_PARAMETERS_MIN_RSI must be in [0,100]")
-	}
-	if config.TradingParameters.MinBollingerWidthPct < 0 {
-		return fmt.Errorf("BACKTEST_TRADING_PARAMETERS_MIN_BOLLINGER_WIDTH_PCT must be non-negative")
 	}
 	if config.TradingParameters.StopLossPct < 0 {
 		return fmt.Errorf("BACKTEST_TRADING_PARAMETERS_STOP_LOSS_PCT must be non-negative")

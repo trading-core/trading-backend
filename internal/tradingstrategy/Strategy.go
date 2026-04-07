@@ -25,6 +25,10 @@ const (
 	ActionNone Action = "none"
 	ActionBuy  Action = "buy"
 	ActionSell Action = "sell"
+	// ActionVeto is a hard block emitted by guard strategies (session, system, balance).
+	// It propagates through a CompositeStrategy and overrides any vote result,
+	// unlike ActionNone which is a signal absence that participates in voting.
+	ActionVeto Action = "veto"
 )
 
 // EvaluateInput is the full decision context passed to a trading strategy.
@@ -66,9 +70,9 @@ type EvaluateInput struct {
 }
 
 type Decision struct {
-	Action   Action
-	Reason   string
-	Quantity float64
+	Action   Action  `json:"action"`
+	Reason   string  `json:"reason"`
+	Quantity float64 `json:"quantity"`
 }
 
 type Strategy interface {

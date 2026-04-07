@@ -33,7 +33,7 @@ func (decorator *PositionSizingDecorator) Evaluate(input EvaluateInput) Decision
 		buyingPower = input.CashBalance
 	}
 	if buyingPower <= 0 {
-		return Decision{Action: ActionNone, Reason: "no buying power available"}
+		return Decision{Action: ActionVeto, Reason: "no buying power available"}
 	}
 
 	decision := decorator.decorated.Evaluate(input)
@@ -55,7 +55,7 @@ func (decorator *PositionSizingDecorator) Evaluate(input EvaluateInput) Decision
 		qty = math.Floor(maxCapital / input.Price)
 	}
 	if qty < 1 {
-		return Decision{Action: ActionNone, Reason: "insufficient buying power for one share"}
+		return Decision{Action: ActionVeto, Reason: "insufficient buying power for one share"}
 	}
 	decision.Quantity = qty
 	return decision

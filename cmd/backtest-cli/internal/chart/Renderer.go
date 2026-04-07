@@ -38,6 +38,7 @@ type RenderInput struct {
 	SMA         []IndicatorPoint
 	SMAPeriod   int
 	Timezone    *time.Location
+	Timeframe   string // e.g. "1h", "1d"; controls x-axis label format and separator granularity
 }
 
 func Render(input RenderInput, outputPath string) error {
@@ -50,16 +51,24 @@ func Render(input RenderInput, outputPath string) error {
 		tz = time.UTC
 	}
 
-	// Filter prices and decisions to market hours (09:30–16:00 ET) so
-	// overnight gaps don't dominate the x-axis.
-	prices := filterMarketHours(input.Prices, tz)
-	if len(prices) == 0 {
-		prices = input.Prices // fallback if nothing passes the filter
-	}
-	decisions := filterDecisionMarketHours(input.Decisions, tz)
-	if len(decisions) == 0 && len(input.Decisions) > 0 {
-		// Daily/weekly bars often carry non-RTH timestamps; preserve markers.
+	daily := input.Timeframe == "1d" || input.Timeframe == "1w"
+
+	// For intraday charts, filter to market hours (09:30–16:00 ET) so overnight
+	// gaps don't dominate the x-axis. For daily/weekly, use all bars as-is.
+	var prices []PricePoint
+	var decisions []DecisionMarker
+	if daily {
+		prices = input.Prices
 		decisions = input.Decisions
+	} else {
+		prices = filterMarketHours(input.Prices, tz)
+		if len(prices) == 0 {
+			prices = input.Prices
+		}
+		decisions = filterDecisionMarketHours(input.Decisions, tz)
+		if len(decisions) == 0 && len(input.Decisions) > 0 {
+			decisions = input.Decisions
+		}
 	}
 
 	const (
@@ -182,40 +191,53 @@ func Render(input RenderInput, outputPath string) error {
 		drawText(img, label, plotLeft-len(label)*7-6, py-5, labelColor)
 	}
 
-	// Generate x-axis labels at regular index intervals, plus day separators.
+	// Generate x-axis labels at regular index intervals, plus separators.
+	// For daily timeframes: monthly separators with "Jan" labels; "Jan 02" tick labels.
+	// For intraday: daily separators with "MM-DD" labels; "15:04" tick labels.
 	tickStep := len(prices) / 10
 	if tickStep < 1 {
 		tickStep = 1
 	}
-	prevDay := ""
-	lastDayLabelRight := plotLeft - 1
-	const dayLabelMinGap = 14
-	const dayLabelLegendReserve = 110
+	prevPeriod := ""
+	lastSepLabelRight := plotLeft - 1
+	const sepLabelMinGap = 14
+	const sepLabelLegendReserve = 110
 	for i, p := range prices {
-		day := p.At.In(tz).Format("2006-01-02")
+		local := p.At.In(tz)
+		var period, sepLabel string
+		if daily {
+			period = local.Format("2006-01")
+			sepLabel = local.Format("Jan")
+		} else {
+			period = local.Format("2006-01-02")
+			sepLabel = local.Format("01-02")
+		}
 
-		// Draw a vertical separator at each day boundary.
-		if day != prevDay && prevDay != "" {
+		// Draw a vertical separator at each period boundary (month for daily, day for intraday).
+		if period != prevPeriod && prevPeriod != "" {
 			px := xToPixel(i)
 			drawLine(img, px, plotTop, px, plotBottom, sepColor)
-			// Draw sparse day labels to keep the top legend area readable.
-			dayLabel := p.At.In(tz).Format("01-02")
 			labelX := px + 4
-			labelRight := labelX + len(dayLabel)*7
-			if labelX > lastDayLabelRight+dayLabelMinGap && labelRight < plotRight-dayLabelLegendReserve {
-				drawText(img, dayLabel, labelX, plotTop+2, labelColor)
-				lastDayLabelRight = labelRight
+			labelRight := labelX + len(sepLabel)*7
+			if labelX > lastSepLabelRight+sepLabelMinGap && labelRight < plotRight-sepLabelLegendReserve {
+				drawText(img, sepLabel, labelX, plotTop+2, labelColor)
+				lastSepLabelRight = labelRight
 			}
 		}
-		prevDay = day
+		prevPeriod = period
 
-		// Regular time tick labels along the bottom.
+		// Regular tick labels along the bottom.
 		if i%tickStep == 0 {
 			px := xToPixel(i)
 			if px >= plotLeft && px <= plotRight {
 				drawLine(img, px, plotTop, px, plotBottom, gridColor)
 				drawLine(img, px, plotBottom, px, plotBottom+5, axisColor)
-				label := p.At.In(tz).Format("15:04")
+				var label string
+				if daily {
+					label = local.Format("Jan 02")
+				} else {
+					label = local.Format("15:04")
+				}
 				drawText(img, label, px-len(label)*7/2, plotBottom+12, labelColor)
 			}
 		}

@@ -20,7 +20,7 @@ func TestScalpingEvaluate(t *testing.T) {
 				Now:          nyTimeForTest(11, 0),
 			})
 			Convey("Then it waits", func() {
-				So(decision.Action, ShouldEqual, tradingstrategy.ActionNone)
+				So(decision.Action, ShouldEqual, tradingstrategy.ActionVeto)
 				So(decision.Reason, ShouldEqual, "waiting for open order to resolve")
 			})
 		})
@@ -47,29 +47,24 @@ func TestScalpingEvaluate(t *testing.T) {
 				BuyingPower: 0,
 			})
 			Convey("Then it does not enter", func() {
-				So(decision.Action, ShouldEqual, tradingstrategy.ActionNone)
+				So(decision.Action, ShouldEqual, tradingstrategy.ActionVeto)
 				So(decision.Reason, ShouldEqual, "no buying power available")
 			})
 		})
 
 		Convey("When pullback conditions are satisfied", func() {
-			rsi := 60.0
-			macd := 2.0
-			signal := 1.0
 			middle := 101.0
 			decision := strategy.Evaluate(tradingstrategy.EvaluateInput{
 				Price:       100,
 				BuyingPower: 1000,
-				RSI:         &rsi,
-				MACD:        &macd,
-				MACDSignal:  &signal,
 				BollMiddle:  &middle,
 				Now:         nyTimeForTest(11, 0),
 			})
+			// qty = floor(1000 * 0.25 / 100) = 2
 			Convey("Then it buys with size derived from allocation", func() {
 				So(decision.Action, ShouldEqual, tradingstrategy.ActionBuy)
 				So(decision.Reason, ShouldContainSubstring, "pullback")
-				So(decision.Quantity, ShouldEqual, 1)
+				So(decision.Quantity, ShouldEqual, 2)
 			})
 		})
 	})
@@ -79,23 +74,9 @@ func TestScalpingEvaluate(t *testing.T) {
 		strategy := tradingstrategy.FromParameters(params)
 
 		Convey("When breakout conditions are satisfied", func() {
-			rsi := 70.0
-			macd := 2.0
-			signal := 1.0
-			bollUpper := 100.0
-			bollMiddle := 99.0
-			bollLower := 98.0
-			bollWidth := 0.01 // 1% width
 			decision := strategy.Evaluate(tradingstrategy.EvaluateInput{
-				Price:             102,   // Must be > LookbackHighPrice (101)
-				BuyingPower:       10000, // Enough for at least 1 share at 102
-				RSI:               &rsi,
-				MACD:              &macd,
-				MACDSignal:        &signal,
-				BollUpper:         &bollUpper,
-				BollMiddle:        &bollMiddle,
-				BollLower:         &bollLower,
-				BollWidthPct:      &bollWidth,
+				Price:             102,   // above LookbackHighPrice (101)
+				BuyingPower:       10000,
 				SessionHighPrice:  100,
 				LookbackHighPrice: 101,
 				Now:               nyTimeForTest(11, 0),
@@ -114,22 +95,14 @@ func TestScalpingEvaluate(t *testing.T) {
 		Convey("When cooldown is active after stop loss", func() {
 			now := nyTimeForTest(11, 0)
 			lastStop := now.Add(-2 * time.Minute)
-			rsi := 70.0
-			macd := 2.0
-			signal := 1.0
-			middle := 101.0
 			decision := strategy.Evaluate(tradingstrategy.EvaluateInput{
 				Price:          100,
 				BuyingPower:    1000,
-				RSI:            &rsi,
-				MACD:           &macd,
-				MACDSignal:     &signal,
-				BollMiddle:     &middle,
 				LastStopLossAt: &lastStop,
 				Now:            now,
 			})
 			Convey("Then it prevents re-entry", func() {
-				So(decision.Action, ShouldEqual, tradingstrategy.ActionNone)
+				So(decision.Action, ShouldEqual, tradingstrategy.ActionVeto)
 				So(decision.Reason, ShouldEqual, "re-entry cooldown active")
 			})
 		})

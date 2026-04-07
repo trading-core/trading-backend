@@ -16,10 +16,10 @@ func NewSystemGuardDecorator(input NewSystemGuardDecoratorInput) *SystemGuardDec
 
 func (decorator *SystemGuardDecorator) Evaluate(input EvaluateInput) Decision {
 	if input.Price <= 0 {
-		return Decision{Action: ActionNone, Reason: "price unavailable"}
+		return Decision{Action: ActionVeto, Reason: "price unavailable"}
 	}
 	if input.HasOpenOrder {
-		return Decision{Action: ActionNone, Reason: "waiting for open order to resolve"}
+		return Decision{Action: ActionVeto, Reason: "waiting for open order to resolve"}
 	}
 	return decorator.decorated.Evaluate(input)
 }

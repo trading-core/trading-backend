@@ -106,7 +106,7 @@ func LoadFromEnv() Config {
 			ReentryCooldownMinutes:   config.EnvInt("BACKTEST_TRADING_PARAMETER_REENTRY_COOLDOWN_MINUTES", tradingstrategy.PullbackParameters.ReentryCooldownMinutes),
 			VolatilityTPMultiplier:   config.EnvFloat64("BACKTEST_TRADING_PARAMETER_VOLATILITY_TP_MULTIPLIER", 0),
 			BreakoutLookbackBars:     config.EnvInt("BACKTEST_TRADING_PARAMETER_BREAKOUT_LOOKBACK_BARS", tradingstrategy.PullbackParameters.BreakoutLookbackBars),
-			Timeframe:                config.EnvString("BACKTEST_TRADING_PARAMETER_TIMEFRAME", "1hour"),
+			Timeframe:                config.EnvString("BACKTEST_TRADING_PARAMETER_TIMEFRAME", "1h"),
 		},
 	}
 	if raw := os.Getenv("BACKTEST_PARAMS_JSON"); raw != "" {
@@ -185,12 +185,41 @@ func (config Config) validate() error {
 	return nil
 }
 
+// toAlpacaTimeframe converts a compact timeframe ("1h", "1d") to the format
+// Alpaca's bar API expects ("1Hour", "1Day").
+func toAlpacaTimeframe(tf string) string {
+	switch tf {
+	case "1m":
+		return "1Min"
+	case "5m":
+		return "5Min"
+	case "10m":
+		return "10Min"
+	case "15m":
+		return "15Min"
+	case "30m":
+		return "30Min"
+	case "1h":
+		return "1Hour"
+	case "2h":
+		return "2Hour"
+	case "4h":
+		return "4Hour"
+	case "1d":
+		return "1Day"
+	case "1w":
+		return "1Week"
+	default:
+		return tf
+	}
+}
+
 // ReplayInput builds the replay.LoadInput from config.
 func (config Config) ReplayInput() replay.LoadInput {
 	return replay.LoadInput{
 		Source:       config.Source,
 		Symbol:       config.Symbol,
-		Timeframe:    config.TradingParameters.Timeframe,
+		Timeframe:    toAlpacaTimeframe(config.TradingParameters.Timeframe),
 		Start:        config.Start,
 		End:          config.End,
 		WarmupBars:   config.IndicatorWarmupBars,

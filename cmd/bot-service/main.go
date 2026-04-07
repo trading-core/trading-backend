@@ -51,10 +51,8 @@ func main() {
 		MACDFastPeriod:         12,   // Default MACD fast period.
 		MACDSlowPeriod:         26,   // Default MACD slow period.
 		MACDSignalPeriod:       9,    // Default MACD signal period.
-		BollingerPeriod:        20,   // Common Bollinger Bands period.
-		BollingerStdDev:        2.0,  // Common Bollinger Bands standard deviation multiplier.
-		SessionInterval:        "1h", // Default session interval of 1 hour.
-		IndicatorResetInterval: "1h", // Default indicator reset interval of 1 day.
+		BollingerPeriod: 20,  // Common Bollinger Bands period.
+		BollingerStdDev: 2.0, // Common Bollinger Bands standard deviation multiplier.
 		BrokerAccountClientFactory: &brokerfactory.AccountClientFactory{
 			TastyTradeClientFactory:        tastyTradeClientFactory,
 			TastyTradeSandboxClientFactory: tastyTradeSandboxClientFactory,

@@ -67,6 +67,7 @@ func FromParameters(parameters *Parameters) Strategy {
 
 var PullbackParameters = Parameters{
 	EntryMode:                "pullback",
+	Timeframe:                "1h",
 	MaxPositionFraction:      0.25,
 	TakeProfitPct:            0.05,  // 5% fixed TP
 	StopLossPct:              0.025, // 2.5% trailing stop — gives mean-reversion room to dip before bouncing
@@ -83,6 +84,7 @@ var PullbackParameters = Parameters{
 
 var BreakoutParameters = Parameters{
 	EntryMode:                "breakout",
+	Timeframe:                "1h",
 	MaxPositionFraction:      0.1,
 	TakeProfitPct:            0.02,  // 2%
 	StopLossPct:              0.007, // 0.7%
@@ -101,6 +103,7 @@ var BreakoutParameters = Parameters{
 var OptimizedParameters = Parameters{
 	BreakoutLookbackBars:     1,
 	EntryMode:                "pullback",
+	Timeframe:                "1h",
 	MaxBollingerWidthPct:     0.022601651405415413,
 	MaxPositionFraction:      0.35322705439944385,
 	MinBollingerWidthPct:     0.0047729372721378605,

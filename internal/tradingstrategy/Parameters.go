@@ -69,14 +69,14 @@ var PullbackParameters = Parameters{
 	EntryMode:                "pullback",
 	Timeframe:                "1h",
 	MaxPositionFraction:      0.25,
-	TakeProfitPct:            0.05,  // 5% fixed TP
-	StopLossPct:              0.025, // 2.5% trailing stop — gives mean-reversion room to dip before bouncing
+	TakeProfitPct:            0.08,  // 8% fixed TP — raised from 5% to give positions room to run on hourly bars
+	StopLossPct:              0.04,  // 4% trailing stop — widened from 2.5% to absorb normal hourly noise without premature exits
 	SessionStart:             10,    // Start trading at 10:00 to avoid early volatility and false breakouts
-	SessionEnd:               15,    // Exit all positions by 15:00 to avoid end-of-day risk
+	SessionEnd:               16,    // Extended from 15:00 to 16:00 to allow positions a full trading day
 	MinRSI:                   35,
 	RequireMACDSignal:        false, // disabled: MACD signal in scoring mode caps score at 0.60 when it fails, blocking entries even with a clear pullback
 	RequireBollingerBreakout: false,
-	ReentryCooldownMinutes:   30,  // reduced: 90min was too long on hourly bars, missing recovery setups after stop-outs
+	ReentryCooldownMinutes:   15,  // reduced from 30min — allows faster re-entry on hourly bars after stop-outs
 	VolatilityTPMultiplier:   1.0, // 100% of Bollinger width for dynamic TP to capture larger moves during high volatility
 	BreakoutLookbackBars:     1,
 	RequirePriceAboveSMA:     false, // disabled: conflicts with pullback condition (price ≤ BollMiddle often means price ≤ SMA50 too)
@@ -86,15 +86,15 @@ var BreakoutParameters = Parameters{
 	EntryMode:                "breakout",
 	Timeframe:                "1h",
 	MaxPositionFraction:      0.1,
-	TakeProfitPct:            0.02,  // 2%
-	StopLossPct:              0.007, // 0.7%
+	TakeProfitPct:            0.05,  // 5% — raised from 2% so positions have a meaningful target before exiting
+	StopLossPct:              0.02,  // 2% — widened from 0.7% which was too tight for hourly bars on volatile stocks
 	SessionStart:             9,     // Start trading at 9:00 to catch early breakouts
-	SessionEnd:               15,    // Exit all positions by 15:00 to avoid end-of-day risk
+	SessionEnd:               16,    // Extended from 15:00 to 16:00 to allow full trading day
 	MinRSI:                   55,    // Require bullish momentum for breakout entries
 	RequireMACDSignal:        true,  // Require positive MACD signal for breakout entries
 	RequireBollingerBreakout: true,  // Require price above upper Bollinger Band for breakout entries
 	MinBollingerWidthPct:     0.007, // Minimum 0.7% Bollinger width to confirm breakout volatility
-	MaxBollingerWidthPct:     0.03,  // Maximum 3% Bollinger width to avoid extreme volatility
+	MaxBollingerWidthPct:     0.05,  // Widened from 3% to 5% — avoids filtering out high-momentum breakouts
 	ReentryCooldownMinutes:   5,     // 5-minute cooldown before re-entering after an exit to avoid overtrading on volatile breakouts
 	VolatilityTPMultiplier:   1.0,
 	BreakoutLookbackBars:     5, // 5-bar lookback — long enough to filter noise, short enough to catch early moves
@@ -108,13 +108,13 @@ var OptimizedParameters = Parameters{
 	MaxPositionFraction:      0.35322705439944385,
 	MinBollingerWidthPct:     0.0047729372721378605,
 	MinRSI:                   35.93228775844128,
-	ReentryCooldownMinutes:   90,
+	ReentryCooldownMinutes:   30,  // reduced from 90min — was too long on hourly bars, blocking valid re-entries
 	RequireBollingerBreakout: false,
 	RequireMACDSignal:        false,
 	RequirePriceAboveSMA:     true,
 	SessionEnd:               16,
-	SessionStart:             11,
-	StopLossPct:              0.021593698844776812,
-	TakeProfitPct:            0.009812974895691324,
+	SessionStart:             10,  // moved earlier from 11 to recover one more hour of trading window
+	StopLossPct:              0.035, // widened from 2.16% — ~1% was unreachable target given noise levels
+	TakeProfitPct:            0.04,  // raised from ~1% — was too tight to hold positions through normal retracements
 	VolatilityTPMultiplier:   0.7971496019830628,
 }

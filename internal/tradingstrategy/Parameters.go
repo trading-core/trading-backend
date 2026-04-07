@@ -29,15 +29,30 @@ func FromParameters(parameters *Parameters) Strategy {
 	default:
 		panic("unknown strategy entry mode " + parameters.EntryMode)
 	}
-	tradingStrategy = NewIndicatorFilterDecorator(NewIndicatorFilterDecoratorInput{
-		Decorated:                tradingStrategy,
-		MinRSI:                   parameters.MinRSI,
-		RequireMACDSignal:        parameters.RequireMACDSignal,
-		RequireBollingerBreakout: parameters.RequireBollingerBreakout,
-		MinBollingerWidthPct:     parameters.MinBollingerWidthPct,
-		MaxBollingerWidthPct:     parameters.MaxBollingerWidthPct,
-		RequirePriceAboveSMA:     parameters.RequirePriceAboveSMA,
-	})
+	if parameters.RequirePriceAboveSMA {
+		tradingStrategy = NewSMAFilterDecorator(NewSMAFilterDecoratorInput{
+			Decorated: tradingStrategy,
+		})
+	}
+	if parameters.RequireBollingerBreakout || parameters.MinBollingerWidthPct > 0 || parameters.MaxBollingerWidthPct > 0 {
+		tradingStrategy = NewBollingerFilterDecorator(NewBollingerFilterDecoratorInput{
+			Decorated:       tradingStrategy,
+			RequireBreakout: parameters.RequireBollingerBreakout,
+			MinWidthPct:     parameters.MinBollingerWidthPct,
+			MaxWidthPct:     parameters.MaxBollingerWidthPct,
+		})
+	}
+	if parameters.RequireMACDSignal {
+		tradingStrategy = NewMACDFilterDecorator(NewMACDFilterDecoratorInput{
+			Decorated: tradingStrategy,
+		})
+	}
+	if parameters.MinRSI > 0 {
+		tradingStrategy = NewRSIFilterDecorator(NewRSIFilterDecoratorInput{
+			Decorated: tradingStrategy,
+			MinRSI:    parameters.MinRSI,
+		})
+	}
 	tradingStrategy = NewEntryStrategyDecorator(NewEntryStrategyDecoratorInput{
 		Decorated: tradingStrategy,
 	})

@@ -1,88 +1,25 @@
 package tradingstrategy
 
-type IndicatorFilterDecorator struct {
-	minRSI                   float64
-	requireMACDSignal        bool
-	requireBollingerBreakout bool
-	minBollingerWidthPct     float64
-	maxBollingerWidthPct     float64
-	requirePriceAboveSMA     bool
-	decorated                Strategy
+type SMAFilterDecorator struct {
+	decorated Strategy
 }
 
-type NewIndicatorFilterDecoratorInput struct {
-	Decorated                Strategy
-	MinRSI                   float64
-	RequireMACDSignal        bool
-	RequireBollingerBreakout bool
-	MinBollingerWidthPct     float64
-	MaxBollingerWidthPct     float64
-	RequirePriceAboveSMA     bool
+type NewSMAFilterDecoratorInput struct {
+	Decorated Strategy
 }
 
-func NewIndicatorFilterDecorator(input NewIndicatorFilterDecoratorInput) *IndicatorFilterDecorator {
-	return &IndicatorFilterDecorator{
-		decorated:                input.Decorated,
-		minRSI:                   input.MinRSI,
-		requireMACDSignal:        input.RequireMACDSignal,
-		requireBollingerBreakout: input.RequireBollingerBreakout,
-		minBollingerWidthPct:     input.MinBollingerWidthPct,
-		maxBollingerWidthPct:     input.MaxBollingerWidthPct,
-		requirePriceAboveSMA:     input.RequirePriceAboveSMA,
+func NewSMAFilterDecorator(input NewSMAFilterDecoratorInput) *SMAFilterDecorator {
+	return &SMAFilterDecorator{
+		decorated: input.Decorated,
 	}
 }
 
-func (decorator *IndicatorFilterDecorator) Evaluate(input EvaluateInput) Decision {
-	if input.RSI == nil {
-		return Decision{Action: ActionNone, Reason: "rsi unavailable"}
+func (decorator *SMAFilterDecorator) Evaluate(input EvaluateInput) Decision {
+	if input.SMA == nil {
+		return Decision{Action: ActionNone, Reason: "sma unavailable"}
 	}
-	if *input.RSI < decorator.minRSI {
-		return Decision{Action: ActionNone, Reason: "rsi below threshold"}
+	if input.Price <= *input.SMA {
+		return Decision{Action: ActionNone, Reason: "price below sma"}
 	}
-
-	if decorator.requireMACDSignal {
-		if input.MACD == nil || input.MACDSignal == nil {
-			return Decision{Action: ActionNone, Reason: "macd unavailable"}
-		}
-		if *input.MACD <= *input.MACDSignal {
-			return Decision{Action: ActionNone, Reason: "macd below signal"}
-		}
-	}
-
-	if decorator.requireBollingerBreakout {
-		if input.BollUpper == nil || input.BollMiddle == nil || input.BollLower == nil {
-			return Decision{Action: ActionNone, Reason: "bollinger unavailable"}
-		}
-		if input.Price <= *input.BollUpper {
-			return Decision{Action: ActionNone, Reason: "price below upper bollinger"}
-		}
-		if decorator.minBollingerWidthPct > 0 {
-			if input.BollWidthPct == nil {
-				return Decision{Action: ActionNone, Reason: "bollinger width unavailable"}
-			}
-			if *input.BollWidthPct < decorator.minBollingerWidthPct {
-				return Decision{Action: ActionNone, Reason: "bollinger width too narrow"}
-			}
-		}
-	}
-
-	if decorator.maxBollingerWidthPct > 0 {
-		if input.BollWidthPct == nil {
-			return Decision{Action: ActionNone, Reason: "bollinger width unavailable"}
-		}
-		if *input.BollWidthPct >= decorator.maxBollingerWidthPct {
-			return Decision{Action: ActionNone, Reason: "bollinger not in squeeze"}
-		}
-	}
-
-	if decorator.requirePriceAboveSMA {
-		if input.SMA == nil {
-			return Decision{Action: ActionNone, Reason: "sma unavailable"}
-		}
-		if input.Price <= *input.SMA {
-			return Decision{Action: ActionNone, Reason: "price below sma"}
-		}
-	}
-
 	return decorator.decorated.Evaluate(input)
 }

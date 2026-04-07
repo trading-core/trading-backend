@@ -5,6 +5,7 @@ type ExitStrategyDecorator struct {
 	takeProfitPct          float64
 	stopLossPct            float64
 	volatilityTPMultiplier float64
+	overboughtRSI          float64
 	decorated              Strategy
 }
 
@@ -14,6 +15,7 @@ type NewExitStrategyDecoratorInput struct {
 	TakeProfitPct          float64 // e.g. 0.02 for 2% TP
 	StopLossPct            float64 // e.g. 0.01 for 1% trailing stop
 	VolatilityTPMultiplier float64 // multiplier for Bollinger width to calculate dynamic TP
+	OverboughtRSI          float64 // RSI level at which to exit (e.g. 70 for mean-reversion)
 }
 
 func NewExitStrategyDecorator(input NewExitStrategyDecoratorInput) *ExitStrategyDecorator {
@@ -23,6 +25,7 @@ func NewExitStrategyDecorator(input NewExitStrategyDecoratorInput) *ExitStrategy
 		takeProfitPct:          input.TakeProfitPct,
 		stopLossPct:            input.StopLossPct,
 		volatilityTPMultiplier: input.VolatilityTPMultiplier,
+		overboughtRSI:          input.OverboughtRSI,
 	}
 }
 
@@ -33,6 +36,9 @@ func (decorator *ExitStrategyDecorator) Evaluate(input EvaluateInput) Decision {
 	hour := input.Now.In(USMarketLocation).Hour()
 	if decorator.sessionEnd > 0 && hour >= decorator.sessionEnd {
 		return Decision{Action: ActionSell, Reason: "forced end-of-day exit", Quantity: input.PositionQuantity}
+	}
+	if decorator.overboughtRSI > 0 && input.RSI != nil && *input.RSI >= decorator.overboughtRSI {
+		return Decision{Action: ActionSell, Reason: "rsi overbought", Quantity: input.PositionQuantity}
 	}
 	if decorator.takeProfitPct > 0 && input.EntryPrice > 0 {
 		effectiveTP := decorator.takeProfitPct

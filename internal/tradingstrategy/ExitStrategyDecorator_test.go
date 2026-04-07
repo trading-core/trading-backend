@@ -66,6 +66,25 @@ func TestExitStrategyDecorator(t *testing.T) {
 			})
 		})
 
+		Convey("When RSI hits overbought level", func() {
+			rsi := 72.0
+			decorator := tradingstrategy.NewExitStrategyDecorator(tradingstrategy.NewExitStrategyDecoratorInput{
+				OverboughtRSI: 70,
+			})
+			decision := decorator.Evaluate(tradingstrategy.EvaluateInput{
+				PositionQuantity: 3,
+				EntryPrice:       100,
+				Price:            105,
+				RSI:              &rsi,
+				Now:              nyTimeForTest(11, 0),
+			})
+			Convey("Then it exits via RSI overbought signal", func() {
+				So(decision.Action, ShouldEqual, tradingstrategy.ActionSell)
+				So(decision.Reason, ShouldEqual, "rsi overbought")
+				So(decision.Quantity, ShouldEqual, 3)
+			})
+		})
+
 		Convey("When trailing stop is triggered", func() {
 			decorator := tradingstrategy.NewExitStrategyDecorator(tradingstrategy.NewExitStrategyDecoratorInput{
 				StopLossPct: 0.10,

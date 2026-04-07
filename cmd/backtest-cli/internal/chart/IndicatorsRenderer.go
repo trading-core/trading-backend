@@ -18,8 +18,8 @@ type IndicatorPoint struct {
 }
 
 type RenderIndicatorsInput struct {
-	Symbol   string
-	Timeline []time.Time
+	Symbol      string
+	Timeline    []time.Time
 	RSI         []IndicatorPoint
 	MACD        []IndicatorPoint
 	MACDSignal  []IndicatorPoint
@@ -28,6 +28,7 @@ type RenderIndicatorsInput struct {
 	MACDSlow    int
 	MACDSignalN int
 	Timezone    *time.Location
+	Timeframe   string // e.g. "1h", "1d"; controls x-axis label format
 }
 
 func RenderIndicators(input RenderIndicatorsInput, outputPath string) error {
@@ -138,6 +139,14 @@ func RenderIndicators(input RenderIndicatorsInput, outputPath string) error {
 
 	// MACD panel.
 	macdMin, macdMax := rangeForSeries(input.MACD, input.MACDSignal)
+	// Extend range to fit histogram bars (MACD − Signal can exceed either series alone).
+	histMin, histMax := macdHistogramExtrema(input.MACD, input.MACDSignal)
+	if histMin < macdMin {
+		macdMin = histMin
+	}
+	if histMax > macdMax {
+		macdMax = histMax
+	}
 	if macdMin == macdMax {
 		macdMax = macdMin + 1
 	}
@@ -158,8 +167,11 @@ func RenderIndicators(input RenderIndicatorsInput, outputPath string) error {
 	drawLine(img, plotLeft, macdTop, plotLeft, macdBottom, axisColor)
 	drawLine(img, plotLeft, macdBottom, plotRight, macdBottom, axisColor)
 	drawText(img, "MACD", plotLeft, macdTop-18, labelColor)
+	drawMACDHistogram(img, input.MACD, input.MACDSignal, closestIndex, xToPixel, macdY)
 	drawIndicatorLine(img, input.MACD, closestIndex, xToPixel, macdY, macdColor)
 	drawIndicatorLine(img, input.MACDSignal, closestIndex, xToPixel, macdY, signalColor)
+
+	daily := input.Timeframe == "1d" || input.Timeframe == "1w"
 
 	// Shared x-axis labels at the bottom.
 	tickStep := len(input.Timeline) / 10
@@ -173,7 +185,12 @@ func RenderIndicators(input RenderIndicatorsInput, outputPath string) error {
 		px := xToPixel(i)
 		drawLine(img, px, macdBottom, px, axisBottom, gridColor)
 		drawLine(img, px, axisBottom, px, axisBottom+5, axisColor)
-		label := ts.In(tz).Format("01-02 15:04")
+		var label string
+		if daily {
+			label = ts.In(tz).Format("Jan 02")
+		} else {
+			label = ts.In(tz).Format("01-02 15:04")
+		}
 		drawText(img, label, px-len(label)*7/2, axisBottom+12, labelColor)
 	}
 	// Legend.
@@ -198,6 +215,115 @@ func RenderIndicators(input RenderIndicatorsInput, outputPath string) error {
 	}
 	defer f.Close()
 	return png.Encode(f, img)
+}
+
+// drawMACDHistogram draws histogram bars (MACD − Signal) behind the MACD lines.
+// Bars are colored by direction and momentum, matching TradingView convention:
+//   - rising positive  → strong bull (teal)
+//   - falling positive → weak bull   (light teal)
+//   - falling negative → strong bear (red)
+//   - rising negative  → weak bear   (light red)
+func drawMACDHistogram(img *image.RGBA, macd []IndicatorPoint, signal []IndicatorPoint, closestIndex func(int64) int, xToPixel func(int) int, yToPixel func(float64) int) {
+	if len(macd) == 0 || len(signal) == 0 {
+		return
+	}
+	sigByTs := make(map[int64]float64, len(signal))
+	for _, p := range signal {
+		sigByTs[p.At.Unix()] = p.Value
+	}
+	type bar struct {
+		x     int
+		value float64
+	}
+	bars := make([]bar, 0, len(macd))
+	for _, p := range macd {
+		sig, ok := sigByTs[p.At.Unix()]
+		if !ok {
+			continue
+		}
+		bars = append(bars, bar{x: xToPixel(closestIndex(p.At.Unix())), value: p.Value - sig})
+	}
+	if len(bars) == 0 {
+		return
+	}
+	barHalf := 1
+	if len(bars) > 1 {
+		span := bars[len(bars)-1].x - bars[0].x
+		if span > 0 {
+			barHalf = span / len(bars) / 3
+		}
+		if barHalf < 1 {
+			barHalf = 1
+		}
+		if barHalf > 6 {
+			barHalf = 6
+		}
+	}
+	zeroY := yToPixel(0)
+	var (
+		strongBull = color.RGBA{R: 34, G: 180, B: 34, A: 255}   // green
+		weakBull   = color.RGBA{R: 144, G: 220, B: 144, A: 255} // light green
+		strongBear = color.RGBA{R: 220, G: 40, B: 40, A: 255}   // red
+		weakBear   = color.RGBA{R: 240, G: 160, B: 160, A: 255} // light red
+	)
+	for i, b := range bars {
+		prevVal := b.value
+		if i > 0 {
+			prevVal = bars[i-1].value
+		}
+		var c color.RGBA
+		switch {
+		case b.value >= 0 && b.value >= prevVal:
+			c = strongBull
+		case b.value >= 0:
+			c = weakBull
+		case b.value < 0 && b.value <= prevVal:
+			c = strongBear
+		default:
+			c = weakBear
+		}
+		top, bot := yToPixel(b.value), zeroY
+		if top > bot {
+			top, bot = bot, top
+		}
+		for y := top; y <= bot; y++ {
+			for dx := -barHalf; dx <= barHalf; dx++ {
+				if pt := image.Pt(b.x+dx, y); pt.In(img.Bounds()) {
+					img.Set(b.x+dx, y, c)
+				}
+			}
+		}
+	}
+}
+
+// macdHistogramExtrema returns the min and max of (MACD − Signal) across matched timestamps.
+// Used to extend the y-axis range so histogram bars don't get clipped.
+func macdHistogramExtrema(macd []IndicatorPoint, signal []IndicatorPoint) (float64, float64) {
+	sigByTs := make(map[int64]float64, len(signal))
+	for _, p := range signal {
+		sigByTs[p.At.Unix()] = p.Value
+	}
+	minV, maxV := 0.0, 0.0
+	first := true
+	for _, p := range macd {
+		sig, ok := sigByTs[p.At.Unix()]
+		if !ok {
+			continue
+		}
+		h := p.Value - sig
+		if first {
+			minV, maxV = h, h
+			first = false
+		} else {
+			if h < minV {
+				minV = h
+			}
+			if h > maxV {
+				maxV = h
+			}
+		}
+	}
+	return minV, maxV
 }
 
 func drawIndicatorLine(img *image.RGBA, points []IndicatorPoint, closestIndex func(ts int64) int, xToPixel func(int) int, yToPixel func(float64) int, c color.Color) {

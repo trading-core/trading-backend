@@ -17,7 +17,7 @@ func TestPositionSizingDecorator(t *testing.T) {
 			})
 			decision := decorator.Evaluate(tradingstrategy.EvaluateInput{Price: 100})
 			Convey("Then it blocks entry", func() {
-				So(decision.Action, ShouldEqual, tradingstrategy.ActionNone)
+				So(decision.Action, ShouldEqual, tradingstrategy.ActionVeto)
 				So(decision.Reason, ShouldEqual, "no buying power available")
 			})
 		})

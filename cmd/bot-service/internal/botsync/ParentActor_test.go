@@ -9,6 +9,7 @@ import (
 	"github.com/kduong/trading-backend/internal/broker"
 	"github.com/kduong/trading-backend/internal/eventsource"
 	"github.com/kduong/trading-backend/internal/iterator"
+	"github.com/kduong/trading-backend/internal/tradingstrategy"
 	. "github.com/smartystreets/goconvey/convey"
 )
 
@@ -28,12 +29,14 @@ func TestParentActorStatusUpdates(t *testing.T) {
 			BrokerMarketDataClientFactory: marketFactory,
 		})
 
+		params := tradingstrategy.PullbackParameters
 		err := actor.applyBotCreatedEvent(ctx, &botstore.BotCreatedEvent{
-			BotID:           "bot-1",
-			AccountID:       "acct-1",
-			BrokerAccountID: "broker-1",
-			BrokerType:      string(broker.AccountTypeTastyTrade),
-			Symbol:          "AAPL",
+			BotID:             "bot-1",
+			AccountID:         "acct-1",
+			BrokerAccountID:   "broker-1",
+			BrokerType:        string(broker.AccountTypeTastyTrade),
+			Symbol:            "AAPL",
+			TradingParameters: &params,
 		})
 		So(err, ShouldBeNil)
 

@@ -29,6 +29,7 @@ type RenderCombinedInput struct {
 	MACDSlow    int
 	MACDSignalN int
 	Timezone    *time.Location
+	Timeframe   string // e.g. "1h", "1d"; controls x-axis label format and separator granularity
 }
 
 func RenderCombined(input RenderCombinedInput, outputPath string) error {
@@ -71,14 +72,22 @@ func RenderCombined(input RenderCombinedInput, outputPath string) error {
 	macdBottom := macdTop + macdH
 	axisBottom := height - bottomPad
 
-	prices := filterMarketHours(input.Prices, tz)
-	if len(prices) == 0 {
+	daily := input.Timeframe == "1d" || input.Timeframe == "1w"
+
+	var prices []PricePoint
+	var decisions []DecisionMarker
+	if daily {
 		prices = input.Prices
-	}
-	decisions := filterDecisionMarketHours(input.Decisions, tz)
-	if len(decisions) == 0 && len(input.Decisions) > 0 {
-		// Daily/weekly bars often carry non-RTH timestamps; preserve markers.
 		decisions = input.Decisions
+	} else {
+		prices = filterMarketHours(input.Prices, tz)
+		if len(prices) == 0 {
+			prices = input.Prices
+		}
+		decisions = filterDecisionMarketHours(input.Decisions, tz)
+		if len(decisions) == 0 && len(input.Decisions) > 0 {
+			decisions = input.Decisions
+		}
 	}
 
 	tsToIndex := make(map[int64]int, len(prices))
@@ -121,6 +130,7 @@ func RenderCombined(input RenderCombinedInput, outputPath string) error {
 		bollLow      = color.RGBA{R: 24, G: 144, B: 104, A: 255}
 		buyColor     = color.RGBA{R: 25, G: 170, B: 70, A: 255}
 		sellColor    = color.RGBA{R: 220, G: 40, B: 40, A: 255}
+		sepColor     = color.RGBA{R: 180, G: 180, B: 180, A: 255}
 		rsiColor     = color.RGBA{R: 160, G: 70, B: 30, A: 255}
 		macdColor    = color.RGBA{R: 35, G: 120, B: 230, A: 255}
 		signalColor  = color.RGBA{R: 220, G: 40, B: 40, A: 255}
@@ -202,6 +212,14 @@ func RenderCombined(input RenderCombinedInput, outputPath string) error {
 
 	// MACD panel.
 	macdMin, macdMax := rangeForSeries(input.MACD, input.MACDSignal)
+	// Extend range to fit histogram bars (MACD − Signal can exceed either series alone).
+	histMin, histMax := macdHistogramExtrema(input.MACD, input.MACDSignal)
+	if histMin < macdMin {
+		macdMin = histMin
+	}
+	if histMax > macdMax {
+		macdMax = histMax
+	}
 	if macdMax == macdMin {
 		macdMax = macdMin + 1
 	}
@@ -222,22 +240,52 @@ func RenderCombined(input RenderCombinedInput, outputPath string) error {
 	drawLine(img, plotLeft, macdTop, plotLeft, macdBottom, axisColor)
 	drawLine(img, plotLeft, macdBottom, plotRight, macdBottom, axisColor)
 	drawText(img, "MACD", plotLeft, macdTop-18, labelColor)
+	drawMACDHistogram(img, input.MACD, input.MACDSignal, closestIndex, xToPixel, macdY)
 	drawIndicatorLine(img, input.MACD, closestIndex, xToPixel, macdY, macdColor)
 	drawIndicatorLine(img, input.MACDSignal, closestIndex, xToPixel, macdY, signalColor)
 
-	// Shared x-axis.
+	// Shared x-axis: monthly separators for daily bars, daily separators for intraday.
 	tickStep := len(prices) / 10
 	if tickStep < 1 {
 		tickStep = 1
 	}
+	prevPeriod := ""
+	lastSepLabelRight := plotLeft - 1
+	const sepLabelMinGap = 14
 	for i, p := range prices {
+		local := p.At.In(tz)
+		var period, sepLabel string
+		if daily {
+			period = local.Format("2006-01")
+			sepLabel = local.Format("Jan")
+		} else {
+			period = local.Format("2006-01-02")
+			sepLabel = local.Format("01-02")
+		}
+		if period != prevPeriod && prevPeriod != "" {
+			px := xToPixel(i)
+			drawLine(img, px, priceTop, px, macdBottom, sepColor)
+			labelX := px + 4
+			labelRight := labelX + len(sepLabel)*7
+			if labelX > lastSepLabelRight+sepLabelMinGap {
+				drawText(img, sepLabel, labelX, priceTop+2, labelColor)
+				lastSepLabelRight = labelRight
+			}
+		}
+		prevPeriod = period
+
 		if i%tickStep != 0 {
 			continue
 		}
 		px := xToPixel(i)
 		drawLine(img, px, macdBottom, px, axisBottom, gridColor)
 		drawLine(img, px, axisBottom, px, axisBottom+5, axisColor)
-		label := p.At.In(tz).Format("01-02 15:04")
+		var label string
+		if daily {
+			label = local.Format("Jan 02")
+		} else {
+			label = local.Format("01-02 15:04")
+		}
 		drawText(img, label, px-len(label)*7/2, axisBottom+12, labelColor)
 	}
 

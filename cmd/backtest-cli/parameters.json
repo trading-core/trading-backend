@@ -1,0 +1,14 @@
+{
+    "timeframe": "1d",
+    "max_position_fraction": 0.25,
+    "take_profit_pct": 0.08,
+    "stop_loss_pct": 0.04,
+    "session_start": 0,
+    "session_end": 0,
+    "reentry_cooldown_minutes": 0,
+    "oversold_rsi": 30,
+    "overbought_rsi": 70,
+    "volatility_tp_multiplier": 1.0,
+    "bollinger_min_width_pct": 0.015,
+    "bollinger_max_width_pct": 0.12
+}

@@ -91,25 +91,6 @@ func LoadFromEnv() Config {
 			BollingerStdDev:  config.EnvFloat64("BACKTEST_BOLLINGER_STDDEV", 2.0),
 			SMAPeriod:        config.EnvInt("BACKTEST_SMA_PERIOD", 50),
 		},
-		// TradingParameters: tradingstrategy.Parameters{
-		// 	EntryMode:                config.EnvString("BACKTEST_TRADING_PARAMETER_ENTRY_MODE", "pullback"),
-		// 	MaxPositionFraction:      config.EnvFloat64("BACKTEST_TRADING_PARAMETER_MAX_POSITION_FRACTION", tradingstrategy.PullbackParameters.MaxPositionFraction),
-		// 	TakeProfitPct:            config.EnvFloat64("BACKTEST_TRADING_PARAMETER_TAKE_PROFIT_PCT", tradingstrategy.PullbackParameters.TakeProfitPct),
-		// 	StopLossPct:              config.EnvFloat64("BACKTEST_TRADING_PARAMETER_STOP_LOSS_PCT", tradingstrategy.PullbackParameters.StopLossPct),
-		// 	SessionStart:             config.EnvInt("BACKTEST_TRADING_PARAMETER_SESSION_START", tradingstrategy.PullbackParameters.SessionStart),
-		// 	SessionEnd:               config.EnvInt("BACKTEST_TRADING_PARAMETER_SESSION_END", tradingstrategy.PullbackParameters.SessionEnd),
-		// 	MinRSI:                   config.EnvFloat64("BACKTEST_TRADING_PARAMETER_MIN_RSI", tradingstrategy.PullbackParameters.MinRSI),
-		// 	RequireMACDSignal:        config.EnvBool("BACKTEST_TRADING_PARAMETER_REQUIRE_MACD_ABOVE_SIGNAL", true),
-		// 	RequireBollingerBreakout: config.EnvBool("BACKTEST_TRADING_PARAMETER_REQUIRE_BOLLINGER_BREAKOUT", false),
-		// 	MinBollingerWidthPct:     config.EnvFloat64("BACKTEST_TRADING_PARAMETER_MIN_BOLLINGER_WIDTH_PCT", 0),
-		// 	MaxBollingerWidthPct:     config.EnvFloat64("BACKTEST_TRADING_PARAMETER_MAX_BOLLINGER_WIDTH_PCT", tradingstrategy.PullbackParameters.MaxBollingerWidthPct),
-		// 	ReentryCooldownMinutes:   config.EnvInt("BACKTEST_TRADING_PARAMETER_REENTRY_COOLDOWN_MINUTES", tradingstrategy.PullbackParameters.ReentryCooldownMinutes),
-		// 	VolatilityTPMultiplier:   config.EnvFloat64("BACKTEST_TRADING_PARAMETER_VOLATILITY_TP_MULTIPLIER", 0),
-		// 	BreakoutLookbackBars:     config.EnvInt("BACKTEST_TRADING_PARAMETER_BREAKOUT_LOOKBACK_BARS", tradingstrategy.PullbackParameters.BreakoutLookbackBars),
-		// 	Timeframe:                config.EnvString("BACKTEST_TRADING_PARAMETER_TIMEFRAME", "1h"),
-		// },
-
-		TradingParameters: tradingstrategy.BreakoutParameters,
 	}
 	if raw := os.Getenv("BACKTEST_PARAMS_JSON"); raw != "" {
 		var params tradingstrategy.Parameters
@@ -166,14 +147,16 @@ func (config Config) validate() error {
 	if config.TradingParameters.MaxPositionFraction <= 0 || config.TradingParameters.MaxPositionFraction > 1 {
 		return fmt.Errorf("BACKTEST_TRADING_PARAMETERS_MAX_POSITION_FRACTION must be in (0,1]")
 	}
-	if config.TradingParameters.SessionStart < 0 || config.TradingParameters.SessionStart > 23 {
-		return fmt.Errorf("BACKTEST_TRADING_PARAMETERS_SESSION_START must be in [0,23]")
-	}
-	if config.TradingParameters.SessionEnd < 1 || config.TradingParameters.SessionEnd > 24 {
-		return fmt.Errorf("BACKTEST_TRADING_PARAMETERS_SESSION_END must be in [1,24]")
-	}
-	if config.TradingParameters.SessionStart >= config.TradingParameters.SessionEnd {
-		return fmt.Errorf("BACKTEST_TRADING_PARAMETERS_SESSION_START must be less than BACKTEST_TRADING_PARAMETERS_SESSION_END")
+	if sessionEnd := config.TradingParameters.SessionEnd; sessionEnd > 0 {
+		if config.TradingParameters.SessionStart < 0 || config.TradingParameters.SessionStart > 23 {
+			return fmt.Errorf("BACKTEST_TRADING_PARAMETERS_SESSION_START must be in [0,23]")
+		}
+		if sessionEnd < 1 || sessionEnd > 24 {
+			return fmt.Errorf("BACKTEST_TRADING_PARAMETERS_SESSION_END must be in [1,24]")
+		}
+		if config.TradingParameters.SessionStart >= sessionEnd {
+			return fmt.Errorf("BACKTEST_TRADING_PARAMETERS_SESSION_START must be less than BACKTEST_TRADING_PARAMETERS_SESSION_END")
+		}
 	}
 	if config.TradingParameters.StopLossPct < 0 {
 		return fmt.Errorf("BACKTEST_TRADING_PARAMETERS_STOP_LOSS_PCT must be non-negative")

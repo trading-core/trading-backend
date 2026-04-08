@@ -22,9 +22,11 @@ type PricePoint struct {
 }
 
 type DecisionMarker struct {
-	At    time.Time
-	Price float64
-	IsBuy bool
+	At       time.Time
+	Price    float64
+	Quantity float64
+	IsBuy    bool
+	Reason   string
 }
 
 type RenderInput struct {

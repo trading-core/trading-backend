@@ -35,13 +35,6 @@ func TestTrendEntryStrategy(t *testing.T) {
 			So(decision.Action, ShouldEqual, tradingstrategy.ActionBuy)
 		})
 
-		Convey("When already in a position", func() {
-			input := fullInput
-			input.PositionQuantity = 5
-			decision := strategy.Evaluate(input)
-			So(decision.Action, ShouldEqual, tradingstrategy.ActionNone)
-		})
-
 		Convey("When MACD is not above signal", func() {
 			input := fullInput
 			low := 0.5

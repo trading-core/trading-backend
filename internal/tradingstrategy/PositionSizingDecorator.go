@@ -28,6 +28,9 @@ func NewPositionSizingDecorator(input NewPositionSizingDecoratorInput) *Position
 }
 
 func (decorator *PositionSizingDecorator) Evaluate(input EvaluateInput) Decision {
+	if input.PositionQuantity > 0 {
+		return Decision{Action: ActionNone, Reason: "already in position"}
+	}
 	buyingPower := input.BuyingPower
 	if buyingPower <= 0 {
 		buyingPower = input.CashBalance

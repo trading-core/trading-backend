@@ -71,16 +71,16 @@ func TestOverboughtExitStrategy(t *testing.T) {
 			input := fullInput
 			input.BollUpper = nil
 			decision := strategy.Evaluate(input)
-			// missing bollinger skips that check — RSI and MACD still block/pass
-			So(decision.Action, ShouldEqual, tradingstrategy.ActionSell)
+			So(decision.Action, ShouldEqual, tradingstrategy.ActionNone)
+			So(decision.Reason, ShouldEqual, "bollinger unavailable")
 		})
 
 		Convey("When RSI data is missing", func() {
 			input := fullInput
 			input.RSI = nil
 			decision := strategy.Evaluate(input)
-			// missing RSI skips that check
-			So(decision.Action, ShouldEqual, tradingstrategy.ActionSell)
+			So(decision.Action, ShouldEqual, tradingstrategy.ActionNone)
+			So(decision.Reason, ShouldEqual, "rsi unavailable")
 		})
 	})
 }

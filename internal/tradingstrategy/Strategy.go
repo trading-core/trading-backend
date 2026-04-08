@@ -65,8 +65,10 @@ type EvaluateInput struct {
 	HasOpenOrder      bool
 	EntryPrice        float64
 	HighSinceEntry    float64
-	LastStopLossAt    *time.Time
-	Now               time.Time
+	LastStopLossAt       *time.Time
+	LastOverboughtExitAt *time.Time
+	MACDAboveSinceEntry  bool
+	Now                  time.Time
 }
 
 type Decision struct {

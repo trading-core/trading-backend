@@ -1,8 +1,9 @@
 package tradingstrategy
 
-// OverboughtExitStrategy emits a sell when the position is held and multiple
-// overbought signals agree: price at or above the upper Bollinger band, RSI above
-// the overbought threshold, and MACD crossing below its signal line.
+// OverboughtExitStrategy emits a sell when the position is held and overbought
+// signals agree: price at or above the upper Bollinger band and RSI above the
+// overbought threshold. MACD is intentionally excluded — it lags at price peaks
+// and would delay the exit until after the trailing stop has already fired.
 //
 // Both Bollinger upper band and RSI (when configured) must be present — missing
 // indicator data returns ActionNone rather than silently passing the check.
@@ -41,10 +42,5 @@ func (strategy *OverboughtExitStrategy) Evaluate(input EvaluateInput) Decision {
 		}
 	}
 
-	// MACD: must be below or crossing below its signal line.
-	if input.MACD != nil && input.MACDSignal != nil && *input.MACD > *input.MACDSignal {
-		return Decision{Action: ActionNone, Reason: "macd still above signal"}
-	}
-
-	return Decision{Action: ActionSell, Reason: "overbought exit: upper bollinger; rsi overbought; macd below signal", Quantity: input.PositionQuantity}
+	return Decision{Action: ActionSell, Reason: "overbought exit: upper bollinger; rsi overbought", Quantity: input.PositionQuantity}
 }

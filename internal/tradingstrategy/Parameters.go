@@ -19,12 +19,14 @@ type Parameters struct {
 //
 //	SystemGuard (veto on bad market data)
 //	└── FirstMatch:
-//	      SessionGuard      — veto outside session window (intraday only; disable with zero values)
-//	      TakeProfitStrategy — exit when profit target reached
-//	      OverboughtExitStrategy — exit when overbought signals converge
+//	      SessionGuard           — veto outside session window (intraday only; disable with zero values)
+//	      TakeProfitStrategy      — exit when profit target reached
+//	      OverboughtExitStrategy  — exit when RSI overbought + price at upper Bollinger
+//	      MACDCrossExitStrategy   — exit when MACD crosses below signal (trend reversal)
+//	      TrailingStopStrategy    — last-resort exit; disabled when stop_loss_pct=0
 //	      PositionSizingDecorator
 //	        └── FirstMatch (entry signals, evaluated when flat):
-//	              TrendEntryStrategy   — MACD + SMA + Bollinger momentum entry
+//	              TrendEntryStrategy    — MACD + SMA momentum entry
 //	              OversoldEntryStrategy — RSI + lower Bollinger mean-reversion entry
 func FromParameters(parameters *Parameters) Strategy {
 	var strategy Strategy
@@ -56,6 +58,7 @@ func FromParameters(parameters *Parameters) Strategy {
 		NewOverboughtExitStrategy(NewOverboughtExitStrategyInput{
 			OverboughtRSI: parameters.OverboughtRSI,
 		}),
+		NewMACDCrossExitStrategy(),
 		NewTrailingStopStrategy(NewTrailingStopStrategyInput{
 			StopLossPct: parameters.StopLossPct,
 		}),

@@ -15,16 +15,11 @@ func TestOverboughtExitStrategy(t *testing.T) {
 
 		upper := 100.0
 		rsi := 75.0
-		macd := 1.0
-		signal := 2.0 // macd < signal → bearish
-
 		fullInput := tradingstrategy.EvaluateInput{
 			Price:            105,
 			PositionQuantity: 10,
 			BollUpper:        &upper,
 			RSI:              &rsi,
-			MACD:             &macd,
-			MACDSignal:       &signal,
 		}
 
 		Convey("When not holding a position", func() {
@@ -58,13 +53,14 @@ func TestOverboughtExitStrategy(t *testing.T) {
 			So(decision.Reason, ShouldEqual, "rsi not overbought")
 		})
 
-		Convey("When MACD is still above signal", func() {
+		Convey("When MACD is above signal, exit fires anyway (MACD lags at peaks)", func() {
 			input := fullInput
-			highMACD := 3.0
-			input.MACD = &highMACD
+			macd := 3.0
+			signal := 1.0
+			input.MACD = &macd
+			input.MACDSignal = &signal
 			decision := strategy.Evaluate(input)
-			So(decision.Action, ShouldEqual, tradingstrategy.ActionNone)
-			So(decision.Reason, ShouldEqual, "macd still above signal")
+			So(decision.Action, ShouldEqual, tradingstrategy.ActionSell)
 		})
 
 		Convey("When bollinger data is missing", func() {

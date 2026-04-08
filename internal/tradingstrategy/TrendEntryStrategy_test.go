@@ -53,13 +53,12 @@ func TestTrendEntryStrategy(t *testing.T) {
 			So(decision.Reason, ShouldEqual, "price not above sma")
 		})
 
-		Convey("When price is at or above upper Bollinger", func() {
+		Convey("When price is at or above upper Bollinger, entry is still allowed (breakout)", func() {
 			input := fullInput
 			lowUpper := 95.0
 			input.BollUpper = &lowUpper
 			decision := strategy.Evaluate(input)
-			So(decision.Action, ShouldEqual, tradingstrategy.ActionNone)
-			So(decision.Reason, ShouldEqual, "price at or above upper bollinger")
+			So(decision.Action, ShouldEqual, tradingstrategy.ActionBuy)
 		})
 
 		Convey("When Bollinger width is too narrow", func() {
@@ -89,7 +88,7 @@ func TestTrendEntryStrategy(t *testing.T) {
 			So(decision.Reason, ShouldEqual, "macd unavailable")
 		})
 
-		Convey("When Bollinger upper is missing, price check is skipped", func() {
+		Convey("When Bollinger upper is missing, entry is still allowed", func() {
 			input := fullInput
 			input.BollUpper = nil
 			decision := strategy.Evaluate(input)

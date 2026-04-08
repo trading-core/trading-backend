@@ -85,13 +85,15 @@ func Run(cfg backtestconfig.Config, prices []replay.PricePoint, indicatorPrices 
 	lookbackBars := 1
 
 	var (
-		decisions      []DecisionPoint
-		pending        *pendingOrder
-		lastSnapshot   tradingstrategy.MarketSnapshot
-		highSinceEntry float64
-		lastStopLossAt *time.Time
-		recentHighs    []float64 // circular buffer of recent highs
-		recentLows     []float64 // circular buffer of recent lows
+		decisions              []DecisionPoint
+		pending                *pendingOrder
+		lastSnapshot           tradingstrategy.MarketSnapshot
+		highSinceEntry         float64
+		lastStopLossAt         *time.Time
+		lastOverboughtExitAt   *time.Time
+		macdAboveSinceEntry    bool
+		recentHighs            []float64 // circular buffer of recent highs
+		recentLows             []float64 // circular buffer of recent lows
 	)
 
 	for _, event := range events {
@@ -101,14 +103,21 @@ func Run(cfg backtestconfig.Config, prices []replay.PricePoint, indicatorPrices 
 		if pending != nil && !event.At.Before(pending.FillAt) {
 			prevPos := account.PositionQuantity
 			wasStop := pending.Reason == "trailing stop triggered"
+			wasOverboughtExit := pending.Reason == "overbought exit: upper bollinger; rsi overbought"
 			applyPendingFill(pending, snapshot, event, &account, &decisions, cfg.BidAskSpreadPct)
 			if account.PositionQuantity > prevPos {
 				highSinceEntry = account.EntryPrice
+				macdAboveSinceEntry = false
 			} else if account.PositionQuantity < prevPos {
 				highSinceEntry = 0
+				macdAboveSinceEntry = false
 				if wasStop {
 					t := event.At
 					lastStopLossAt = &t
+				}
+				if wasOverboughtExit {
+					t := event.At
+					lastOverboughtExitAt = &t
 				}
 			}
 			pending = nil
@@ -144,12 +153,23 @@ func Run(cfg backtestconfig.Config, prices []replay.PricePoint, indicatorPrices 
 			}
 		}
 
-		// Track trailing high while in position.
-		if account.PositionQuantity > 0 && input.Price > highSinceEntry {
-			highSinceEntry = input.Price
+		// Track trailing high and MACD confirmation while in position.
+		if account.PositionQuantity > 0 {
+			if input.Price > highSinceEntry {
+				highSinceEntry = input.Price
+			}
+			if macd, ok := macdByTs[event.At.Unix()]; ok {
+				if signal, ok := macdSignalByTs[event.At.Unix()]; ok {
+					if macd > signal {
+						macdAboveSinceEntry = true
+					}
+				}
+			}
 		}
 		input.HighSinceEntry = highSinceEntry
 		input.LastStopLossAt = lastStopLossAt
+		input.LastOverboughtExitAt = lastOverboughtExitAt
+		input.MACDAboveSinceEntry = macdAboveSinceEntry
 		if v, ok := rsiByTs[event.At.Unix()]; ok {
 			value := v
 			input.RSI = &value
@@ -215,14 +235,21 @@ func Run(cfg backtestconfig.Config, prices []replay.PricePoint, indicatorPrices 
 		if !event.At.Before(pending.FillAt) {
 			prevPos := account.PositionQuantity
 			wasStop := pending.Reason == "trailing stop triggered"
+			wasOverboughtExit := pending.Reason == "overbought exit: upper bollinger; rsi overbought"
 			applyPendingFill(pending, snapshot, event, &account, &decisions, cfg.BidAskSpreadPct)
 			if account.PositionQuantity > prevPos {
 				highSinceEntry = account.EntryPrice
+				macdAboveSinceEntry = false
 			} else if account.PositionQuantity < prevPos {
 				highSinceEntry = 0
+				macdAboveSinceEntry = false
 				if wasStop {
 					t := event.At
 					lastStopLossAt = &t
+				}
+				if wasOverboughtExit {
+					t := event.At
+					lastOverboughtExitAt = &t
 				}
 			}
 			pending = nil

@@ -1,9 +1,12 @@
 package tradingstrategy
 
-// OversoldEntryStrategy emits a buy when not in a position and multiple oversold
-// signals agree: price at or below the lower Bollinger band, RSI below the oversold
-// threshold, and MACD crossing above its signal line (momentum turning).
-// All three indicator conditions must be met; missing data skips that check.
+// OversoldEntryStrategy emits a buy when not in a position and price is at or
+// below the lower Bollinger band with RSI confirming oversold conditions.
+// MACD is intentionally excluded: during a deep selloff MACD is almost always
+// below its signal line, so requiring a crossover would defeat mean-reversion entries.
+//
+// Both Bollinger lower band and RSI (when configured) must be present — missing
+// indicator data returns ActionNone rather than silently passing the check.
 type OversoldEntryStrategy struct {
 	oversoldRSI float64
 }
@@ -21,20 +24,23 @@ func (strategy *OversoldEntryStrategy) Evaluate(input EvaluateInput) Decision {
 		return Decision{Action: ActionNone}
 	}
 
-	// Bollinger lower band: price must be at or below it.
-	if input.BollLower != nil && input.Price > *input.BollLower {
+	// Bollinger lower band is the primary signal — require it to be present.
+	if input.BollLower == nil {
+		return Decision{Action: ActionNone, Reason: "bollinger unavailable"}
+	}
+	if input.Price > *input.BollLower {
 		return Decision{Action: ActionNone, Reason: "price above lower bollinger"}
 	}
 
-	// RSI: must be below the oversold threshold.
-	if strategy.oversoldRSI > 0 && input.RSI != nil && *input.RSI > strategy.oversoldRSI {
-		return Decision{Action: ActionNone, Reason: "rsi not oversold"}
+	// RSI confirmation — require it when a threshold is configured.
+	if strategy.oversoldRSI > 0 {
+		if input.RSI == nil {
+			return Decision{Action: ActionNone, Reason: "rsi unavailable"}
+		}
+		if *input.RSI > strategy.oversoldRSI {
+			return Decision{Action: ActionNone, Reason: "rsi not oversold"}
+		}
 	}
 
-	// MACD: must be crossing above or already above its signal line.
-	if input.MACD != nil && input.MACDSignal != nil && *input.MACD < *input.MACDSignal {
-		return Decision{Action: ActionNone, Reason: "macd still below signal"}
-	}
-
-	return Decision{Action: ActionBuy, Reason: "oversold entry: lower bollinger; rsi oversold; macd above signal"}
+	return Decision{Action: ActionBuy, Reason: "oversold entry: lower bollinger; rsi oversold"}
 }

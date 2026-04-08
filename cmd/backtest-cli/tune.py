@@ -3,7 +3,7 @@
 Bayesian hyperparameter tuning for trading strategy parameters using Optuna.
 
 Usage:
-    python tune.py [--entry-mode pullback|breakout] [--symbols SPY,NVDA,QQQ] [--trials 300]
+    python tune.py [--symbols SPY,NVDA,QQQ] [--trials 300]
 
 When multiple symbols are given the objective is the minimum adjusted Sharpe across all
 symbols, so the optimiser is forced to find parameters that generalise rather than
@@ -16,7 +16,7 @@ Requirements:
     pip install optuna
 
 Environment variables (inherited from shell):
-    BACKTEST_START, BACKTEST_END, BACKTEST_TIMEFRAME, BACKTEST_DATA_SOURCE,
+    BACKTEST_START, BACKTEST_END, BACKTEST_DATA_SOURCE,
     BACKTEST_CACHE_DIR, ALPACA_* credentials, etc.
 """
 
@@ -34,49 +34,28 @@ optuna.logging.set_verbosity(optuna.logging.WARNING)
 MIN_TRADES = 5  # per-symbol minimum; fewer completed trades → -inf for that symbol
 
 
-def suggest_params(trial: optuna.Trial, entry_mode: str) -> dict:
-    """Build a full Parameters struct for one trial."""
-    indicator_weight = trial.suggest_float("indicator_weight", 0.1, 0.9)
-
-    # RSI range differs meaningfully between modes, so suggest it here per-mode.
-    # The range is consistent within a study because entry_mode is fixed per study.
-    if entry_mode == "breakout":
-        min_rsi = trial.suggest_float("min_rsi", 40.0, 75.0)
-    else:
-        min_rsi = trial.suggest_float("min_rsi", 25.0, 65.0)
-
-    params = {
-        "entry_mode": entry_mode,
+def suggest_params(trial: optuna.Trial) -> dict:
+    """Build a Parameters struct for one trial, matching tradingstrategy.Parameters."""
+    return {
+        "timeframe": "1d",
         "max_position_fraction": trial.suggest_float("max_position_fraction", 0.05, 0.50),
-        "take_profit_pct": trial.suggest_float("take_profit_pct", 0.005, 0.10),
-        "stop_loss_pct": trial.suggest_float("stop_loss_pct", 0.003, 0.05),
-        "session_start": trial.suggest_int("session_start", 9, 12),
-        "session_end": trial.suggest_int("session_end", 13, 16),
-        "min_rsi": min_rsi,
-        "require_macd_signal": trial.suggest_categorical("require_macd_signal", [True, False]),
-        "reentry_cooldown_minutes": trial.suggest_int("reentry_cooldown_minutes", 0, 90),
-        "use_volatility_tp": trial.suggest_categorical("use_volatility_tp", [True, False]),
-        "volatility_tp_multiplier": trial.suggest_float("volatility_tp_multiplier", 0.3, 2.0),
-        "score_buy_threshold": trial.suggest_float("score_buy_threshold", 0.40, 0.80),
-        "indicator_weight": indicator_weight,
-        "entry_signal_weight": round(1.0 - indicator_weight, 6),
-        "risk_per_trade_pct": 0.0,
-        "require_price_above_sma": trial.suggest_categorical("require_price_above_sma", [True, False]),
-        "min_bollinger_width_pct": trial.suggest_float("min_bollinger_width_pct", 0.002, 0.03),
-        "max_bollinger_width_pct": trial.suggest_float("max_bollinger_width_pct", 0.01, 0.05),
-        "require_bollinger_squeeze": trial.suggest_categorical("require_bollinger_squeeze", [True, False]),
+        "take_profit_pct": trial.suggest_float("take_profit_pct", 0.02, 0.15),
+        "stop_loss_pct": trial.suggest_float("stop_loss_pct", 0.01, 0.08),
+        # Sessions are disabled for daily candles (0 = disabled).
+        "session_start": 0,
+        "session_end": 0,
+        "reentry_cooldown_minutes": 0,
+        # OversoldEntryStrategy threshold — price must be below lower Bollinger AND RSI below this.
+        "oversold_rsi": trial.suggest_float("oversold_rsi", 20.0, 40.0),
+        # OverboughtExitStrategy threshold — RSI must be above this to trigger exit.
+        "overbought_rsi": trial.suggest_float("overbought_rsi", 60.0, 80.0),
+        # Dynamic take-profit based on Bollinger band width. 0 disables.
+        "volatility_tp_multiplier": trial.suggest_float("volatility_tp_multiplier", 0.0, 2.0),
+        # TrendEntryStrategy: Bollinger band width must be within [min, max].
+        # min filters low-volatility noise; max prevents entering during extreme expansion.
+        "bollinger_min_width_pct": trial.suggest_float("bollinger_min_width_pct", 0.005, 0.05),
+        "bollinger_max_width_pct": trial.suggest_float("bollinger_max_width_pct", 0.05, 0.35),
     }
-
-    if entry_mode == "breakout":
-        params["require_bollinger_breakout"] = trial.suggest_categorical(
-            "require_bollinger_breakout", [True, False]
-        )
-        params["breakout_lookback_bars"] = trial.suggest_int("breakout_lookback_bars", 1, 10)
-    else:
-        params["require_bollinger_breakout"] = False
-        params["breakout_lookback_bars"] = 1
-
-    return params
 
 
 def run_backtest(binary: str, symbol: str, params: dict, base_env: dict) -> dict | None:
@@ -111,11 +90,10 @@ def adjusted_sharpe(sharpe: float, trades: int) -> float:
 def objective(
     trial: optuna.Trial,
     binary: str,
-    entry_mode: str,
     symbols: list[str],
     base_env: dict,
 ) -> float:
-    params = suggest_params(trial, entry_mode)
+    params = suggest_params(trial)
 
     per_symbol: dict[str, dict] = {}
     scores: list[float] = []
@@ -136,14 +114,12 @@ def objective(
         else:
             scores.append(adjusted_sharpe(sharpe, trades))
 
-    # Store per-symbol breakdown for inspection in the summary.
     for symbol, m in per_symbol.items():
         trial.set_user_attr(f"{symbol}:sharpe", m.get("sharpe", 0.0))
         trial.set_user_attr(f"{symbol}:trades", m.get("trades", 0))
         trial.set_user_attr(f"{symbol}:return", m.get("total_return", 0.0))
         trial.set_user_attr(f"{symbol}:win_rate", m.get("win_rate", 0.0))
 
-    # Aggregates for the summary table.
     valid_metrics = [m for m in per_symbol.values() if m.get("trades", 0) >= MIN_TRADES]
     if valid_metrics:
         trial.set_user_attr("avg_sharpe", sum(m["sharpe"] for m in valid_metrics) / len(valid_metrics))
@@ -166,7 +142,6 @@ def find_binary(path: str) -> str:
 
 def main():
     parser = argparse.ArgumentParser(description="Bayesian tuning for trading strategy parameters")
-    parser.add_argument("--entry-mode", choices=["pullback", "breakout"], default="pullback")
     parser.add_argument(
         "--symbols",
         default=None,
@@ -190,14 +165,12 @@ def main():
             sys.exit(1)
         symbols = [env_sym]
 
-    # Inherit the current environment; force cache on so data is fetched only once.
     base_env = {**os.environ, "BACKTEST_CACHE_ENABLED": "true"}
 
-    print(f"entry_mode : {args.entry_mode}")
-    print(f"symbols    : {', '.join(symbols)}")
-    print(f"trials     : {args.trials}")
-    print(f"binary     : {binary}")
-    print(f"objective  : min adjusted Sharpe across all symbols (bottleneck)")
+    print(f"symbols  : {', '.join(symbols)}")
+    print(f"trials   : {args.trials}")
+    print(f"binary   : {binary}")
+    print(f"objective: min adjusted Sharpe across all symbols (bottleneck)")
     print()
 
     study = optuna.create_study(
@@ -207,7 +180,7 @@ def main():
     )
 
     study.optimize(
-        lambda trial: objective(trial, binary, args.entry_mode, symbols, base_env),
+        lambda trial: objective(trial, binary, symbols, base_env),
         n_trials=args.trials,
         n_jobs=args.jobs,
         show_progress_bar=True,
@@ -234,7 +207,7 @@ def main():
         )
     print()
     print("  Parameters:")
-    best_params = suggest_params(optuna.trial.FixedTrial(best.params), args.entry_mode)
+    best_params = suggest_params(optuna.trial.FixedTrial(best.params))
     for k, v in sorted(best_params.items()):
         print(f"    {k}: {v}")
 
@@ -243,7 +216,6 @@ def main():
             json.dump(best_params, f, indent=2)
         print(f"\nBest params written to {args.output}")
 
-    # Top 10 summary
     top = sorted(valid, key=lambda t: t.value, reverse=True)[:10]
     print(f"\n--- Top 10 trials ---")
     sym_cols = "  ".join(f"{s:>10}" for s in symbols)

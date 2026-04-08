@@ -3,6 +3,7 @@ package backtest
 import (
 	"fmt"
 	"math"
+	"os"
 	"time"
 
 	"github.com/kduong/trading-backend/cmd/backtest-cli/internal/backtestconfig"
@@ -271,7 +272,7 @@ func warnIfInsufficientWarmup(indicatorBars int, cfg backtestconfig.Config) {
 	}
 	for _, c := range checks {
 		if indicatorBars < c.minBars {
-			fmt.Printf("WARNING: only %d indicator bars available, %s needs %d — indicator will be incomplete (IPO/spin-off with limited history?)\n",
+			fmt.Fprintf(os.Stderr, "WARNING: only %d indicator bars available, %s needs %d — indicator will be incomplete (IPO/spin-off with limited history?)\n",
 				indicatorBars, c.name, c.minBars)
 		}
 	}

@@ -15,16 +15,12 @@ func TestOversoldEntryStrategy(t *testing.T) {
 
 		lower := 100.0
 		rsi := 25.0
-		macd := 2.0
-		signal := 1.0 // macd > signal → bullish crossover
 
 		fullInput := tradingstrategy.EvaluateInput{
 			Price:            95,
 			PositionQuantity: 0,
 			BollLower:        &lower,
 			RSI:              &rsi,
-			MACD:             &macd,
-			MACDSignal:       &signal,
 		}
 
 		Convey("When already in a position", func() {
@@ -57,29 +53,30 @@ func TestOversoldEntryStrategy(t *testing.T) {
 			So(decision.Reason, ShouldEqual, "rsi not oversold")
 		})
 
-		Convey("When MACD is still below signal", func() {
+		Convey("When MACD is below signal it still fires (MACD not required for mean-reversion)", func() {
 			input := fullInput
 			lowMACD := 0.5
+			highSignal := 1.0
 			input.MACD = &lowMACD
+			input.MACDSignal = &highSignal
 			decision := strategy.Evaluate(input)
-			So(decision.Action, ShouldEqual, tradingstrategy.ActionNone)
-			So(decision.Reason, ShouldEqual, "macd still below signal")
+			So(decision.Action, ShouldEqual, tradingstrategy.ActionBuy)
 		})
 
 		Convey("When bollinger data is missing", func() {
 			input := fullInput
 			input.BollLower = nil
 			decision := strategy.Evaluate(input)
-			// missing bollinger skips that check
-			So(decision.Action, ShouldEqual, tradingstrategy.ActionBuy)
+			So(decision.Action, ShouldEqual, tradingstrategy.ActionNone)
+			So(decision.Reason, ShouldEqual, "bollinger unavailable")
 		})
 
 		Convey("When RSI data is missing", func() {
 			input := fullInput
 			input.RSI = nil
 			decision := strategy.Evaluate(input)
-			// missing RSI skips that check
-			So(decision.Action, ShouldEqual, tradingstrategy.ActionBuy)
+			So(decision.Action, ShouldEqual, tradingstrategy.ActionNone)
+			So(decision.Reason, ShouldEqual, "rsi unavailable")
 		})
 	})
 }

@@ -3,7 +3,9 @@ package tradingstrategy
 // OverboughtExitStrategy emits a sell when the position is held and multiple
 // overbought signals agree: price at or above the upper Bollinger band, RSI above
 // the overbought threshold, and MACD crossing below its signal line.
-// All three indicator conditions must be met; missing data skips that check.
+//
+// Both Bollinger upper band and RSI (when configured) must be present — missing
+// indicator data returns ActionNone rather than silently passing the check.
 type OverboughtExitStrategy struct {
 	overboughtRSI float64
 }
@@ -21,14 +23,22 @@ func (strategy *OverboughtExitStrategy) Evaluate(input EvaluateInput) Decision {
 		return Decision{Action: ActionNone}
 	}
 
-	// Bollinger upper band: price must be at or above it.
-	if input.BollUpper != nil && input.Price < *input.BollUpper {
+	// Bollinger upper band is the primary signal — require it to be present.
+	if input.BollUpper == nil {
+		return Decision{Action: ActionNone, Reason: "bollinger unavailable"}
+	}
+	if input.Price < *input.BollUpper {
 		return Decision{Action: ActionNone, Reason: "price below upper bollinger"}
 	}
 
-	// RSI: must be above the overbought threshold.
-	if strategy.overboughtRSI > 0 && input.RSI != nil && *input.RSI < strategy.overboughtRSI {
-		return Decision{Action: ActionNone, Reason: "rsi not overbought"}
+	// RSI confirmation — require it when a threshold is configured.
+	if strategy.overboughtRSI > 0 {
+		if input.RSI == nil {
+			return Decision{Action: ActionNone, Reason: "rsi unavailable"}
+		}
+		if *input.RSI < strategy.overboughtRSI {
+			return Decision{Action: ActionNone, Reason: "rsi not overbought"}
+		}
 	}
 
 	// MACD: must be below or crossing below its signal line.

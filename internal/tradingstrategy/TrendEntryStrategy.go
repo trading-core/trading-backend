@@ -26,10 +26,6 @@ func NewTrendEntryStrategy(input NewTrendEntryStrategyInput) *TrendEntryStrategy
 }
 
 func (s *TrendEntryStrategy) Evaluate(input EvaluateInput) Decision {
-	if input.PositionQuantity > 0 {
-		return Decision{Action: ActionNone}
-	}
-
 	// MACD must be above signal.
 	if input.MACD == nil || input.MACDSignal == nil {
 		return Decision{Action: ActionNone, Reason: "macd unavailable"}

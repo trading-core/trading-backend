@@ -122,6 +122,35 @@ func RunBacktestAndPlot(cfg backtestconfig.Config, loaded *replay.LoadOutput, ou
 	}, outputIndicatorsPNG)
 	fatal.OnError(err)
 
+	outputHTML := fmt.Sprintf("%s/report.html", outputDir)
+	err = chart.RenderHTMLReport(chart.RenderHTMLReportInput{
+		Symbol:       result.Symbol,
+		TotalReturn:  result.TotalReturn,
+		StartingCash: result.StartingCash,
+		EndingCash:   result.EndingCash,
+		EndingValue:  result.EndingValue,
+		TradeCount:   result.TradeCount,
+		WinRate:      result.WinRate,
+		SharpeRatio:  result.SharpeRatio,
+		Prices:       chartPrices(result.Prices),
+		Decisions:    chartDecisions(result.Decisions),
+		BollUpper:    chartIndicatorPoints(bollUpperForPlot),
+		BollMiddle:   chartIndicatorPoints(bollMiddleForPlot),
+		BollLower:    chartIndicatorPoints(bollLowerForPlot),
+		SMA:          chartIndicatorPoints(smaForPlot),
+		RSI:          chartIndicatorPoints(rsiForPlot),
+		MACD:         chartIndicatorPoints(macdForPlot),
+		MACDSignal:   chartIndicatorPoints(macdSignalForPlot),
+		SMAPeriod:    cfg.Indicators.SMAPeriod,
+		RSIPeriod:    cfg.Indicators.RSIPeriod,
+		MACDFast:     cfg.Indicators.MACDFastPeriod,
+		MACDSlow:     cfg.Indicators.MACDSlowPeriod,
+		MACDSignalN:  cfg.Indicators.MACDSignalPeriod,
+		Timezone:     tz,
+		Timeframe:    cfg.TradingParameters.Timeframe,
+	}, outputHTML)
+	fatal.OnError(err)
+
 	outputDecisionsTXT := fmt.Sprintf("%s/decisions.txt", outputDir)
 	decisionsFile, err := os.Create(outputDecisionsTXT)
 	fatal.OnError(err)
@@ -145,6 +174,7 @@ func RunBacktestAndPlot(cfg backtestconfig.Config, loaded *replay.LoadOutput, ou
 	fmt.Printf("Ending cash: %.2f\n", result.EndingCash)
 	fmt.Printf("Ending value: %.2f\n", result.EndingValue)
 	fmt.Printf("Total return: %.2f%%\n", result.TotalReturn*100)
+	fmt.Printf("HTML report: %s\n", outputHTML)
 	fmt.Printf("Combined image: %s\n", outputCombinedPNG)
 	fmt.Printf("Output image: %s\n", outputPNG)
 	fmt.Printf("Indicators image: %s\n", outputIndicatorsPNG)
@@ -208,9 +238,11 @@ func chartDecisions(decisions []backtest.DecisionPoint) []chart.DecisionMarker {
 	out := make([]chart.DecisionMarker, len(decisions))
 	for i, d := range decisions {
 		out[i] = chart.DecisionMarker{
-			At:    d.At,
-			Price: d.Price,
-			IsBuy: d.Action == tradingstrategy.ActionBuy,
+			At:       d.At,
+			Price:    d.Price,
+			Quantity: d.Quantity,
+			IsBuy:    d.Action == tradingstrategy.ActionBuy,
+			Reason:   d.Reason,
 		}
 	}
 	return out

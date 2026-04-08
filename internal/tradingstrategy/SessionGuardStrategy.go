@@ -48,10 +48,13 @@ func (strategy *SessionGuardStrategy) Evaluate(input EvaluateInput) Decision {
 			return Decision{Action: ActionVeto, Reason: "outside trading session window"}
 		}
 	}
-	if strategy.reentryCooldownMinutes > 0 && input.LastStopLossAt != nil {
-		cooldownEnd := input.LastStopLossAt.Add(time.Duration(strategy.reentryCooldownMinutes) * time.Minute)
-		if input.Now.Before(cooldownEnd) {
-			return Decision{Action: ActionVeto, Reason: "re-entry cooldown active"}
+	if strategy.reentryCooldownMinutes > 0 {
+		cooldown := time.Duration(strategy.reentryCooldownMinutes) * time.Minute
+		if input.LastStopLossAt != nil && input.Now.Before(input.LastStopLossAt.Add(cooldown)) {
+			return Decision{Action: ActionVeto, Reason: "re-entry cooldown active after stop-loss"}
+		}
+		if input.LastOverboughtExitAt != nil && input.Now.Before(input.LastOverboughtExitAt.Add(cooldown)) {
+			return Decision{Action: ActionVeto, Reason: "re-entry cooldown active after overbought exit"}
 		}
 	}
 	return Decision{Action: ActionNone, Reason: "within trading session window"}

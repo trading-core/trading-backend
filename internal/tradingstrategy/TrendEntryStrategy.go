@@ -1,7 +1,7 @@
 package tradingstrategy
 
-// TrendEntryStrategy buys when momentum, trend, and Bollinger conditions all agree:
-// MACD above signal, price above SMA, and price below the upper Bollinger band.
+// TrendEntryStrategy buys when momentum and trend conditions agree:
+// MACD above signal and price above SMA.
 // Optional Bollinger width thresholds filter out low-volatility squeezes or
 // excessive band expansion.
 //
@@ -42,11 +42,6 @@ func (s *TrendEntryStrategy) Evaluate(input EvaluateInput) Decision {
 		return Decision{Action: ActionNone, Reason: "price not above sma"}
 	}
 
-	// Price must be below the upper Bollinger band (not overbought).
-	if input.BollUpper != nil && input.Price >= *input.BollUpper {
-		return Decision{Action: ActionNone, Reason: "price at or above upper bollinger"}
-	}
-
 	// Optional: band must be wide enough (avoids low-volatility false signals).
 	if s.minBollingerWidthPct > 0 {
 		if input.BollWidthPct == nil {
@@ -67,5 +62,5 @@ func (s *TrendEntryStrategy) Evaluate(input EvaluateInput) Decision {
 		}
 	}
 
-	return Decision{Action: ActionBuy, Reason: "trend entry: macd above signal; price above sma; bollinger conditions met"}
+	return Decision{Action: ActionBuy, Reason: "trend entry: macd above signal; price above sma"}
 }

@@ -43,7 +43,7 @@ func TestSessionGuardStrategy(t *testing.T) {
 			decision := strategy.Evaluate(tradingstrategy.EvaluateInput{Now: now, LastStopLossAt: &lastStop})
 			Convey("Then it vetoes", func() {
 				So(decision.Action, ShouldEqual, tradingstrategy.ActionVeto)
-				So(decision.Reason, ShouldEqual, "re-entry cooldown active")
+				So(decision.Reason, ShouldEqual, "re-entry cooldown active after stop-loss")
 			})
 		})
 

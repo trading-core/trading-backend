@@ -81,10 +81,7 @@ func Run(cfg backtestconfig.Config, prices []replay.PricePoint, indicatorPrices 
 	}
 	replayState := replay.NewState(cfg.Symbol)
 
-	lookbackBars := cfg.TradingParameters.BreakoutLookbackBars
-	if lookbackBars <= 0 {
-		lookbackBars = 1
-	}
+	lookbackBars := 1
 
 	var (
 		decisions      []DecisionPoint
@@ -185,7 +182,6 @@ func Run(cfg backtestconfig.Config, prices []replay.PricePoint, indicatorPrices 
 			input.BollWidthPct = &value
 		}
 		decision := strategy.Evaluate(input)
-
 		if decision.Action == tradingstrategy.ActionNone {
 			continue
 		}

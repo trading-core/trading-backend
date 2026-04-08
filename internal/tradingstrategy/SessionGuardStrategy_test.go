@@ -17,11 +17,23 @@ func TestSessionGuardStrategy(t *testing.T) {
 			Timeframe:              "1h",
 		})
 
-		Convey("When outside the trading window", func() {
+		Convey("When outside the trading window and flat", func() {
 			decision := strategy.Evaluate(tradingstrategy.EvaluateInput{Now: nyTimeForTest(9, 59)})
 			Convey("Then it vetoes", func() {
 				So(decision.Action, ShouldEqual, tradingstrategy.ActionVeto)
 				So(decision.Reason, ShouldEqual, "outside trading session window")
+			})
+		})
+
+		Convey("When outside the trading window and in position", func() {
+			decision := strategy.Evaluate(tradingstrategy.EvaluateInput{
+				Now:              nyTimeForTest(15, 0),
+				PositionQuantity: 5,
+			})
+			Convey("Then it forces an end-of-day exit", func() {
+				So(decision.Action, ShouldEqual, tradingstrategy.ActionSell)
+				So(decision.Reason, ShouldEqual, "forced end-of-day exit")
+				So(decision.Quantity, ShouldEqual, 5)
 			})
 		})
 

@@ -180,9 +180,8 @@ func (actor *ParentActor) startTradeActor(ctx context.Context, botID string) (er
 	}
 	strategy := tradingstrategy.FromParameters(bot.Parameters)
 	logger.Noticef(
-		"bot %s strategy config: entryMode=%s timeframe=%s maxPosition=%.4f takeProfit=%.4f stopLoss=%.4f sessionStart=%d sessionEnd=%d reentryCooldownMin=%d volatilityTPMult=%.4f rsiPeriod=%d macdFast=%d macdSlow=%d macdSignal=%d bollPeriod=%d bollStdDev=%.2f",
+		"bot %s strategy config: timeframe=%s maxPosition=%.4f takeProfit=%.4f stopLoss=%.4f sessionStart=%d sessionEnd=%d reentryCooldownMin=%d volatilityTPMult=%.4f rsiPeriod=%d macdFast=%d macdSlow=%d macdSignal=%d bollPeriod=%d bollStdDev=%.2f",
 		botID,
-		bot.Parameters.EntryMode,
 		bot.Parameters.Timeframe,
 		bot.Parameters.MaxPositionFraction,
 		bot.Parameters.TakeProfitPct,
@@ -221,7 +220,7 @@ func (actor *ParentActor) startTradeActor(ctx context.Context, botID string) (er
 		IndicatorResetInterval: bot.Parameters.Timeframe,
 		BotID:                  botID,
 		Log:                    log,
-		BreakoutLookbackBars:   bot.Parameters.BreakoutLookbackBars,
+		BreakoutLookbackBars:   1,
 	})
 	logger.Noticef("Starting trading actor for bot %s", botID)
 	go tradeActor.Run(ctx)

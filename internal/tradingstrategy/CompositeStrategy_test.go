@@ -10,89 +10,52 @@ import (
 func TestCompositeStrategy(t *testing.T) {
 	Convey("Given a composite strategy", t, func() {
 
-		Convey("When a single strategy is composed", func() {
-			s := &stubStrategy{decision: tradingstrategy.Decision{Action: tradingstrategy.ActionBuy, Reason: "signal"}}
-			composite := tradingstrategy.NewCompositeStrategy(s)
-			decision := composite.Evaluate(tradingstrategy.EvaluateInput{})
-			Convey("Then it passes through the decision", func() {
+		Convey("When the first strategy fires", func() {
+			s1 := &stubStrategy{decision: tradingstrategy.Decision{Action: tradingstrategy.ActionBuy, Reason: "first"}}
+			s2 := &stubStrategy{decision: tradingstrategy.Decision{Action: tradingstrategy.ActionBuy, Reason: "second"}}
+			fm := tradingstrategy.NewCompositeStrategy(s1, s2)
+			decision := fm.Evaluate(tradingstrategy.EvaluateInput{})
+			Convey("Then it returns immediately without evaluating the rest", func() {
 				So(decision.Action, ShouldEqual, tradingstrategy.ActionBuy)
-				So(decision.Reason, ShouldContainSubstring, "signal")
+				So(decision.Reason, ShouldEqual, "first")
+				So(s2.calls, ShouldEqual, 0)
 			})
 		})
 
-		Convey("When all strategies agree on Buy", func() {
-			composite := tradingstrategy.NewCompositeStrategy(
-				&stubStrategy{decision: tradingstrategy.Decision{Action: tradingstrategy.ActionBuy, Reason: "a"}},
-				&stubStrategy{decision: tradingstrategy.Decision{Action: tradingstrategy.ActionBuy, Reason: "b"}},
-				&stubStrategy{decision: tradingstrategy.Decision{Action: tradingstrategy.ActionBuy, Reason: "c"}},
-			)
-			decision := composite.Evaluate(tradingstrategy.EvaluateInput{})
-			Convey("Then Buy wins unanimously", func() {
+		Convey("When the first strategy abstains and the second fires", func() {
+			s1 := &stubStrategy{decision: tradingstrategy.Decision{Action: tradingstrategy.ActionNone}}
+			s2 := &stubStrategy{decision: tradingstrategy.Decision{Action: tradingstrategy.ActionBuy, Reason: "second"}}
+			fm := tradingstrategy.NewCompositeStrategy(s1, s2)
+			decision := fm.Evaluate(tradingstrategy.EvaluateInput{})
+			Convey("Then it returns the second match", func() {
 				So(decision.Action, ShouldEqual, tradingstrategy.ActionBuy)
-				So(decision.Reason, ShouldEqual, "a; b; c")
+				So(decision.Reason, ShouldEqual, "second")
 			})
 		})
 
-		Convey("When the majority vote for Buy", func() {
-			composite := tradingstrategy.NewCompositeStrategy(
-				&stubStrategy{decision: tradingstrategy.Decision{Action: tradingstrategy.ActionBuy, Reason: "a"}},
-				&stubStrategy{decision: tradingstrategy.Decision{Action: tradingstrategy.ActionBuy, Reason: "b"}},
-				&stubStrategy{decision: tradingstrategy.Decision{Action: tradingstrategy.ActionNone, Reason: "c"}},
+		Convey("When all strategies abstain", func() {
+			fm := tradingstrategy.NewCompositeStrategy(
+				&stubStrategy{decision: tradingstrategy.Decision{Action: tradingstrategy.ActionNone}},
+				&stubStrategy{decision: tradingstrategy.Decision{Action: tradingstrategy.ActionNone}},
 			)
-			decision := composite.Evaluate(tradingstrategy.EvaluateInput{})
-			Convey("Then Buy wins by plurality", func() {
-				So(decision.Action, ShouldEqual, tradingstrategy.ActionBuy)
-				So(decision.Reason, ShouldEqual, "a; b")
-			})
-		})
-
-		Convey("When the majority vote for Sell", func() {
-			composite := tradingstrategy.NewCompositeStrategy(
-				&stubStrategy{decision: tradingstrategy.Decision{Action: tradingstrategy.ActionSell, Reason: "x"}},
-				&stubStrategy{decision: tradingstrategy.Decision{Action: tradingstrategy.ActionSell, Reason: "y"}},
-				&stubStrategy{decision: tradingstrategy.Decision{Action: tradingstrategy.ActionBuy, Reason: "z"}},
-			)
-			decision := composite.Evaluate(tradingstrategy.EvaluateInput{})
-			Convey("Then Sell wins by plurality", func() {
-				So(decision.Action, ShouldEqual, tradingstrategy.ActionSell)
-				So(decision.Reason, ShouldEqual, "x; y")
-			})
-		})
-
-		Convey("When Buy and Sell are tied", func() {
-			composite := tradingstrategy.NewCompositeStrategy(
-				&stubStrategy{decision: tradingstrategy.Decision{Action: tradingstrategy.ActionBuy, Reason: "a"}},
-				&stubStrategy{decision: tradingstrategy.Decision{Action: tradingstrategy.ActionSell, Reason: "b"}},
-			)
-			decision := composite.Evaluate(tradingstrategy.EvaluateInput{})
+			decision := fm.Evaluate(tradingstrategy.EvaluateInput{})
 			Convey("Then no action is taken", func() {
 				So(decision.Action, ShouldEqual, tradingstrategy.ActionNone)
 			})
 		})
 
-		Convey("When all strategies return None", func() {
-			composite := tradingstrategy.NewCompositeStrategy(
+		Convey("When a strategy vetoes", func() {
+			s3 := &stubStrategy{decision: tradingstrategy.Decision{Action: tradingstrategy.ActionBuy, Reason: "third"}}
+			fm := tradingstrategy.NewCompositeStrategy(
 				&stubStrategy{decision: tradingstrategy.Decision{Action: tradingstrategy.ActionNone}},
-				&stubStrategy{decision: tradingstrategy.Decision{Action: tradingstrategy.ActionNone}},
-			)
-			decision := composite.Evaluate(tradingstrategy.EvaluateInput{})
-			Convey("Then no action is taken", func() {
-				So(decision.Action, ShouldEqual, tradingstrategy.ActionNone)
-			})
-		})
-
-		Convey("When one strategy returns Veto", func() {
-			third := &stubStrategy{decision: tradingstrategy.Decision{Action: tradingstrategy.ActionBuy, Reason: "signal"}}
-			composite := tradingstrategy.NewCompositeStrategy(
-				&stubStrategy{decision: tradingstrategy.Decision{Action: tradingstrategy.ActionBuy, Reason: "a"}},
 				&stubStrategy{decision: tradingstrategy.Decision{Action: tradingstrategy.ActionVeto, Reason: "blocked"}},
-				third,
+				s3,
 			)
-			decision := composite.Evaluate(tradingstrategy.EvaluateInput{})
-			Convey("Then Veto overrides all votes and short-circuits", func() {
+			decision := fm.Evaluate(tradingstrategy.EvaluateInput{})
+			Convey("Then veto short-circuits and later strategies are not evaluated", func() {
 				So(decision.Action, ShouldEqual, tradingstrategy.ActionVeto)
 				So(decision.Reason, ShouldEqual, "blocked")
-				So(third.calls, ShouldEqual, 0)
+				So(s3.calls, ShouldEqual, 0)
 			})
 		})
 

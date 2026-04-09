@@ -284,9 +284,18 @@ report.decisions.forEach(d => {
   tbody.appendChild(tr);
 });
 
-// ── Data helpers ─────────────────────────────────────────────────────────────
-const xv = pts => pts.map(p => p.t);
-const yv = pts => pts.map(p => p.v);
+// ── Data alignment ────────────────────────────────────────────────────────────
+// All traces share priceDates as the x-axis (category type).
+// This mirrors the PNG's index-based approach: no weekend/holiday gaps,
+// MACD histogram bars are gapless, and bargap:0 works correctly.
+const priceDates = report.prices.map(p => p.t);
+const priceIdx = Object.create(null);
+priceDates.forEach((d, i) => { priceIdx[d] = i; });
+function align(pts) {
+  const ys = new Array(priceDates.length).fill(null);
+  pts.forEach(p => { const i = priceIdx[p.t]; if (i !== undefined) ys[i] = p.v; });
+  return ys;
+}
 
 // ── Decision markers ─────────────────────────────────────────────────────────
 const buys  = report.decisions.filter(d =>  d.is_buy);
@@ -296,34 +305,35 @@ function hoverText(d) {
     ' × ' + fmtQty(d.qty) + '<br>' + d.reason + '<br>' + d.t;
 }
 
-// ── MACD histogram ───────────────────────────────────────────────────────────
-const macdMap = {};
-report.macd.forEach(p => { macdMap[p.t] = p.v; });
-const histX = [], histY = [], histColors = [];
-report.macd_signal.forEach(p => {
-  if (macdMap[p.t] !== undefined) {
-    const h = macdMap[p.t] - p.v;
-    histX.push(p.t);
-    histY.push(h);
-    histColors.push(h >= 0 ? 'rgba(25,160,70,0.6)' : 'rgba(210,40,40,0.6)');
+// ── MACD histogram (bar trace, TradingView 4-colour style) ───────────────────
+// Bar traces on category axes respect bargap:0 perfectly — no gaps possible.
+const macdValMap = Object.create(null), sigValMap = Object.create(null);
+report.macd.forEach(p => { macdValMap[p.t] = p.v; });
+report.macd_signal.forEach(p => { sigValMap[p.t] = p.v; });
+const histVals   = new Array(priceDates.length).fill(null);
+const histColors = new Array(priceDates.length).fill('rgba(0,0,0,0)');
+let prevH = null;
+priceDates.forEach((d, i) => {
+  if (macdValMap[d] === undefined || sigValMap[d] === undefined) return;
+  const h = macdValMap[d] - sigValMap[d];
+  histVals[i] = h;
+  if (h >= 0) {
+    histColors[i] = (prevH !== null && h >= prevH) ? 'rgba(34,180,34,0.75)' : 'rgba(144,220,144,0.75)';
+  } else {
+    histColors[i] = (prevH !== null && h <= prevH) ? 'rgba(220,40,40,0.75)' : 'rgba(240,160,160,0.75)';
   }
+  prevH = h;
 });
-// bargap:0 is ignored on date-type axes; use explicit bar width instead.
-// Find the minimum interval between consecutive bars (= 1 trading day in ms)
-// so bars fill each trading day without spanning weekend gaps.
-let barWidthMs = 86400000; // fallback: 1 day
-for (let i = 1; i < histX.length; i++) {
-  const gap = new Date(histX[i]).getTime() - new Date(histX[i-1]).getTime();
-  if (gap < barWidthMs) barWidthMs = gap;
-}
 
 // ── Shared layout helpers ────────────────────────────────────────────────────
 const ML = 70, MR = 30;
 const xAxisBase = {
-  type: 'date', showgrid: true, gridcolor: '#e8e8e8',
+  type: 'category',   // index-based: no weekend/holiday gaps, matches PNG behaviour
+  showgrid: true, gridcolor: '#e8e8e8',
   zeroline: false, rangeslider: {visible: false},
   showspikes: true, spikemode: 'across', spikecolor: '#999',
   spikethickness: 1, spikedash: 'dot',
+  nticks: 12,
 };
 const config = {
   responsive: true, displayModeBar: true,
@@ -335,15 +345,15 @@ function panelH(id) { return document.getElementById(id).offsetHeight; }
 
 // ── Plot: Price ───────────────────────────────────────────────────────────────
 Plotly.newPlot('panel-price', [
-  { x:xv(report.prices),      y:yv(report.prices),      mode:'lines', type:'scatter', name:'Price',
+  { x:priceDates, y:report.prices.map(p=>p.v), mode:'lines', type:'scatter', name:'Price',
     line:{color:'#2378e6',width:1.5} },
-  { x:xv(report.boll_upper),  y:yv(report.boll_upper),  mode:'lines', type:'scatter', name:'BB Upper',
+  { x:priceDates, y:align(report.boll_upper),  mode:'lines', type:'scatter', name:'BB Upper',
     line:{color:'#b85a18',width:1,dash:'dot'} },
-  { x:xv(report.boll_middle), y:yv(report.boll_middle), mode:'lines', type:'scatter', name:'BB Mid',
+  { x:priceDates, y:align(report.boll_middle), mode:'lines', type:'scatter', name:'BB Mid',
     line:{color:'#777',width:1,dash:'dash'} },
-  { x:xv(report.boll_lower),  y:yv(report.boll_lower),  mode:'lines', type:'scatter', name:'BB Lower',
+  { x:priceDates, y:align(report.boll_lower),  mode:'lines', type:'scatter', name:'BB Lower',
     line:{color:'#189068',width:1,dash:'dot'} },
-  { x:xv(report.sma), y:yv(report.sma), mode:'lines', type:'scatter',
+  { x:priceDates, y:align(report.sma), mode:'lines', type:'scatter',
     name:'SMA('+report.sma_period+')', line:{color:'#8230c8',width:1.2} },
   { x:buys.map(d=>d.t),  y:buys.map(d=>d.price),  mode:'markers', type:'scatter', name:'Buy',
     marker:{symbol:'triangle-up', color:'#1a7a3a', size:12, line:{color:'#0d5c28',width:1.5}},
@@ -364,7 +374,7 @@ Plotly.newPlot('panel-price', [
 
 // ── Plot: RSI ────────────────────────────────────────────────────────────────
 Plotly.newPlot('panel-rsi', [
-  { x:xv(report.rsi), y:yv(report.rsi), mode:'lines', type:'scatter', name:'RSI',
+  { x:priceDates, y:align(report.rsi), mode:'lines', type:'scatter', name:'RSI',
     line:{color:'#a0461e',width:1.5}, showlegend:false },
 ], {
   paper_bgcolor:'#fff', plot_bgcolor:'#fff',
@@ -384,11 +394,11 @@ Plotly.newPlot('panel-rsi', [
 
 // ── Plot: MACD ───────────────────────────────────────────────────────────────
 Plotly.newPlot('panel-macd', [
-  { x:histX, y:histY, type:'bar', name:'Histogram', width:barWidthMs,
+  { x:priceDates, y:histVals, type:'bar', name:'Histogram',
     marker:{color:histColors, line:{width:0}}, showlegend:false },
-  { x:xv(report.macd),        y:yv(report.macd),        mode:'lines', type:'scatter', name:'MACD',
+  { x:priceDates, y:align(report.macd),        mode:'lines', type:'scatter', name:'MACD',
     line:{color:'#2378e6',width:1.5}, showlegend:false },
-  { x:xv(report.macd_signal), y:yv(report.macd_signal), mode:'lines', type:'scatter', name:'Signal',
+  { x:priceDates, y:align(report.macd_signal), mode:'lines', type:'scatter', name:'Signal',
     line:{color:'#dc2828',width:1.5}, showlegend:false },
 ], {
   paper_bgcolor:'#fff', plot_bgcolor:'#fff',

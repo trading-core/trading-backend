@@ -34,5 +34,8 @@ func (strategy *OverboughtExitStrategy) Evaluate(input EvaluateInput) Decision {
 	if input.LookbackHighPrice > 0 && input.Price > input.LookbackHighPrice {
 		return Decision{Action: ActionNone, Reason: "rsi overbought but price breaking out above lookback high"}
 	}
-	return Decision{Action: ActionSell, Reason: "overbought exit: rsi overbought", Quantity: input.PositionQuantity}
+	if input.BollUpper != nil && input.Price >= *input.BollUpper {
+		return Decision{Action: ActionSell, Reason: "overbought exit: price at upper bollinger", Quantity: input.PositionQuantity}
+	}
+	return Decision{Action: ActionNone}
 }

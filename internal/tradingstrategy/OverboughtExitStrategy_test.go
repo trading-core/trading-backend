@@ -8,19 +8,63 @@ import (
 )
 
 func TestOverboughtExitStrategy(t *testing.T) {
-	Convey("Given an overbought exit strategy", t, func() {
+	Convey("Given an overbought exit strategy with RSI threshold 70", t, func() {
+		overboughtRSI := 75.0
+		normalRSI := 60.0
 		strategy := tradingstrategy.NewOverboughtExitStrategy(tradingstrategy.NewOverboughtExitStrategyInput{
 			OverboughtRSI: 70,
 		})
-
-		upper := 100.0
-		rsi := 75.0
 		fullInput := tradingstrategy.EvaluateInput{
-			Price:            105,
+			Price:            100,
 			PositionQuantity: 10,
-			BollUpper:        &upper,
-			RSI:              &rsi,
+			RSI:              &overboughtRSI,
 		}
+
+		Convey("When RSI is overbought and price is not making a new lookback high, exit fires", func() {
+			decision := strategy.Evaluate(fullInput)
+			So(decision.Action, ShouldEqual, tradingstrategy.ActionSell)
+			So(decision.Reason, ShouldEqual, "overbought exit: rsi overbought")
+			So(decision.Quantity, ShouldEqual, 10)
+		})
+
+		Convey("When RSI is overbought and price is above the lookback high, hold (genuine breakout)", func() {
+			lookbackHigh := 95.0
+			input := fullInput
+			input.LookbackHighPrice = lookbackHigh // price 100 > lookback 95
+			decision := strategy.Evaluate(input)
+			So(decision.Action, ShouldEqual, tradingstrategy.ActionNone)
+			So(decision.Reason, ShouldContainSubstring, "breaking out above lookback high")
+		})
+
+		Convey("When RSI is overbought and price equals the lookback high, exit fires (not a new high)", func() {
+			input := fullInput
+			input.LookbackHighPrice = fullInput.Price
+			decision := strategy.Evaluate(input)
+			So(decision.Action, ShouldEqual, tradingstrategy.ActionSell)
+		})
+
+		Convey("When RSI is overbought and lookback high is zero (disabled), exit fires", func() {
+			input := fullInput
+			input.LookbackHighPrice = 0
+			decision := strategy.Evaluate(input)
+			So(decision.Action, ShouldEqual, tradingstrategy.ActionSell)
+		})
+
+		Convey("When RSI is not overbought, exit does not fire", func() {
+			input := fullInput
+			input.RSI = &normalRSI
+			decision := strategy.Evaluate(input)
+			So(decision.Action, ShouldEqual, tradingstrategy.ActionNone)
+			So(decision.Reason, ShouldEqual, "rsi not overbought")
+		})
+
+		Convey("When RSI data is missing, exit does not fire", func() {
+			input := fullInput
+			input.RSI = nil
+			decision := strategy.Evaluate(input)
+			So(decision.Action, ShouldEqual, tradingstrategy.ActionNone)
+			So(decision.Reason, ShouldEqual, "rsi unavailable")
+		})
 
 		Convey("When not holding a position", func() {
 			input := fullInput
@@ -28,55 +72,18 @@ func TestOverboughtExitStrategy(t *testing.T) {
 			decision := strategy.Evaluate(input)
 			So(decision.Action, ShouldEqual, tradingstrategy.ActionNone)
 		})
+	})
 
-		Convey("When all overbought conditions are met", func() {
-			decision := strategy.Evaluate(fullInput)
-			So(decision.Action, ShouldEqual, tradingstrategy.ActionSell)
-			So(decision.Quantity, ShouldEqual, 10)
+	Convey("Given an overbought exit strategy with OverboughtRSI=0 (disabled)", t, func() {
+		strategy := tradingstrategy.NewOverboughtExitStrategy(tradingstrategy.NewOverboughtExitStrategyInput{})
+		rsi := 80.0
+		decision := strategy.Evaluate(tradingstrategy.EvaluateInput{
+			Price:            100,
+			PositionQuantity: 10,
+			RSI:              &rsi,
 		})
-
-		Convey("When price is below upper bollinger", func() {
-			input := fullInput
-			below := 110.0 // upper band above price
-			input.BollUpper = &below
-			decision := strategy.Evaluate(input)
+		Convey("Then it abstains", func() {
 			So(decision.Action, ShouldEqual, tradingstrategy.ActionNone)
-			So(decision.Reason, ShouldEqual, "price below upper bollinger")
-		})
-
-		Convey("When RSI is not overbought", func() {
-			input := fullInput
-			lowRSI := 60.0
-			input.RSI = &lowRSI
-			decision := strategy.Evaluate(input)
-			So(decision.Action, ShouldEqual, tradingstrategy.ActionNone)
-			So(decision.Reason, ShouldEqual, "rsi not overbought")
-		})
-
-		Convey("When MACD is above signal, exit fires anyway (MACD lags at peaks)", func() {
-			input := fullInput
-			macd := 3.0
-			signal := 1.0
-			input.MACD = &macd
-			input.MACDSignal = &signal
-			decision := strategy.Evaluate(input)
-			So(decision.Action, ShouldEqual, tradingstrategy.ActionSell)
-		})
-
-		Convey("When bollinger data is missing", func() {
-			input := fullInput
-			input.BollUpper = nil
-			decision := strategy.Evaluate(input)
-			So(decision.Action, ShouldEqual, tradingstrategy.ActionNone)
-			So(decision.Reason, ShouldEqual, "bollinger unavailable")
-		})
-
-		Convey("When RSI data is missing", func() {
-			input := fullInput
-			input.RSI = nil
-			decision := strategy.Evaluate(input)
-			So(decision.Action, ShouldEqual, tradingstrategy.ActionNone)
-			So(decision.Reason, ShouldEqual, "rsi unavailable")
 		})
 	})
 }

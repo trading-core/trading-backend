@@ -67,7 +67,6 @@ type EvaluateInput struct {
 	HighSinceEntry    float64
 	LastStopLossAt       *time.Time
 	LastOverboughtExitAt *time.Time
-	MACDAboveSinceEntry  bool
 	Now                  time.Time
 }
 

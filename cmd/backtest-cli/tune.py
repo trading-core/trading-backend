@@ -39,7 +39,6 @@ def suggest_params(trial: optuna.Trial) -> dict:
     return {
         "timeframe": "1d",
         "max_position_fraction": trial.suggest_float("max_position_fraction", 0.05, 0.50),
-        "take_profit_pct": trial.suggest_float("take_profit_pct", 0.02, 0.15),
         "stop_loss_pct": trial.suggest_float("stop_loss_pct", 0.01, 0.08),
         # Sessions are disabled for daily candles (0 = disabled).
         "session_start": 0,
@@ -47,14 +46,14 @@ def suggest_params(trial: optuna.Trial) -> dict:
         "reentry_cooldown_minutes": 0,
         # OversoldEntryStrategy threshold — price must be below lower Bollinger AND RSI below this.
         "oversold_rsi": trial.suggest_float("oversold_rsi", 20.0, 40.0),
-        # OverboughtExitStrategy threshold — RSI must be above this to trigger exit.
+        # OverboughtExitStrategy threshold — RSI must be above this to trigger exit (also blocks trend entries).
         "overbought_rsi": trial.suggest_float("overbought_rsi", 60.0, 80.0),
-        # Dynamic take-profit based on Bollinger band width. 0 disables.
-        "volatility_tp_multiplier": trial.suggest_float("volatility_tp_multiplier", 0.0, 2.0),
         # TrendEntryStrategy: Bollinger band width must be within [min, max].
         # min filters low-volatility noise; max prevents entering during extreme expansion.
-        "bollinger_min_width_pct": trial.suggest_float("bollinger_min_width_pct", 0.005, 0.05),
+        "bollinger_min_width_pct": trial.suggest_float("bollinger_min_width_pct", 0, 0.05),
         "bollinger_max_width_pct": trial.suggest_float("bollinger_max_width_pct", 0.05, 0.35),
+        # BreakoutEntryStrategy: N-bar high lookback window. 0 or 1 disables.
+        "lookback_bars": trial.suggest_int("lookback_bars", 0, 50),
     }
 
 

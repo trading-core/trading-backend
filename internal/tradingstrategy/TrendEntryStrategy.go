@@ -11,17 +11,20 @@ package tradingstrategy
 type TrendEntryStrategy struct {
 	minBollingerWidthPct float64
 	maxBollingerWidthPct float64
+	overboughtRSI        float64
 }
 
 type NewTrendEntryStrategyInput struct {
 	MinBollingerWidthPct float64 // minimum band width required; 0 disables
 	MaxBollingerWidthPct float64 // maximum band width (squeeze filter); 0 disables
+	OverboughtRSI        float64 // RSI threshold above which entry is blocked; 0 disables
 }
 
 func NewTrendEntryStrategy(input NewTrendEntryStrategyInput) *TrendEntryStrategy {
 	return &TrendEntryStrategy{
 		minBollingerWidthPct: input.MinBollingerWidthPct,
 		maxBollingerWidthPct: input.MaxBollingerWidthPct,
+		overboughtRSI:        input.OverboughtRSI,
 	}
 }
 
@@ -59,6 +62,22 @@ func (s *TrendEntryStrategy) Evaluate(input EvaluateInput) Decision {
 		}
 		if *input.BollWidthPct >= s.maxBollingerWidthPct {
 			return Decision{Action: ActionNone, Reason: "bollinger not in squeeze"}
+		}
+	}
+
+	// Reject entries when price is at or above the upper Bollinger band —
+	// entering an already-overextended move increases reversal risk.
+	if input.BollUpper != nil && input.Price >= *input.BollUpper {
+		return Decision{Action: ActionNone, Reason: "price at or above upper bollinger"}
+	}
+
+	// Reject entries when RSI is overbought — momentum may be exhausted.
+	if s.overboughtRSI > 0 {
+		if input.RSI == nil {
+			return Decision{Action: ActionNone, Reason: "rsi unavailable"}
+		}
+		if *input.RSI >= s.overboughtRSI {
+			return Decision{Action: ActionNone, Reason: "rsi overbought"}
 		}
 	}
 

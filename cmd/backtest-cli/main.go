@@ -61,6 +61,7 @@ func RunBacktestAndPlot(cfg backtestconfig.Config, loaded *replay.LoadOutput, ou
 	macdSeries, macdSignalSeries := indicator.ComputeMACD(loaded.IndicatorPrices, cfg.Indicators.MACDFastPeriod, cfg.Indicators.MACDSlowPeriod, cfg.Indicators.MACDSignalPeriod)
 	bollUpperSeries, bollMiddleSeries, bollLowerSeries := indicator.ComputeBollingerBands(loaded.IndicatorPrices, cfg.Indicators.BollingerPeriod, cfg.Indicators.BollingerStdDev)
 	smaSeries := indicator.ComputeSMA(loaded.IndicatorPrices, cfg.Indicators.SMAPeriod)
+	atrSeries := indicator.ComputeATR(loaded.IndicatorPrices, cfg.Indicators.ATRPeriod)
 	tz := tradingstrategy.USMarketLocation
 	rsiForPlot := filterIndicatorToMarketHours(filterIndicatorSeriesToRange(rsiSeries, plotStart, plotEnd), tz, cfg.TradingParameters.Timeframe)
 	macdForPlot := filterIndicatorToMarketHours(filterIndicatorSeriesToRange(macdSeries, plotStart, plotEnd), tz, cfg.TradingParameters.Timeframe)
@@ -69,6 +70,7 @@ func RunBacktestAndPlot(cfg backtestconfig.Config, loaded *replay.LoadOutput, ou
 	bollMiddleForPlot := filterIndicatorToMarketHours(filterIndicatorSeriesToRange(bollMiddleSeries, plotStart, plotEnd), tz, cfg.TradingParameters.Timeframe)
 	bollLowerForPlot := filterIndicatorToMarketHours(filterIndicatorSeriesToRange(bollLowerSeries, plotStart, plotEnd), tz, cfg.TradingParameters.Timeframe)
 	smaForPlot := filterIndicatorToMarketHours(filterIndicatorSeriesToRange(smaSeries, plotStart, plotEnd), tz, cfg.TradingParameters.Timeframe)
+	atrForPlot := filterIndicatorToMarketHours(filterIndicatorSeriesToRange(atrSeries, plotStart, plotEnd), tz, cfg.TradingParameters.Timeframe)
 	outputCombinedPNG := fmt.Sprintf("%s/backtest-with-indicators.png", outputDir)
 	err := chart.RenderCombined(chart.RenderCombinedInput{
 		Symbol:      result.Symbol,
@@ -83,10 +85,12 @@ func RunBacktestAndPlot(cfg backtestconfig.Config, loaded *replay.LoadOutput, ou
 		RSI:         chartIndicatorPoints(rsiForPlot),
 		MACD:        chartIndicatorPoints(macdForPlot),
 		MACDSignal:  chartIndicatorPoints(macdSignalForPlot),
+		ATR:         chartIndicatorPoints(atrForPlot),
 		RSIPeriod:   cfg.Indicators.RSIPeriod,
 		MACDFast:    cfg.Indicators.MACDFastPeriod,
 		MACDSlow:    cfg.Indicators.MACDSlowPeriod,
 		MACDSignalN: cfg.Indicators.MACDSignalPeriod,
+		ATRPeriod:   cfg.Indicators.ATRPeriod,
 		Timezone:    tz,
 		Timeframe:   cfg.TradingParameters.Timeframe,
 	}, outputCombinedPNG)
@@ -113,10 +117,12 @@ func RunBacktestAndPlot(cfg backtestconfig.Config, loaded *replay.LoadOutput, ou
 		RSI:         chartIndicatorPoints(rsiForPlot),
 		MACD:        chartIndicatorPoints(macdForPlot),
 		MACDSignal:  chartIndicatorPoints(macdSignalForPlot),
+		ATR:         chartIndicatorPoints(atrForPlot),
 		RSIPeriod:   cfg.Indicators.RSIPeriod,
 		MACDFast:    cfg.Indicators.MACDFastPeriod,
 		MACDSlow:    cfg.Indicators.MACDSlowPeriod,
 		MACDSignalN: cfg.Indicators.MACDSignalPeriod,
+		ATRPeriod:   cfg.Indicators.ATRPeriod,
 		Timezone:    tz,
 		Timeframe:   cfg.TradingParameters.Timeframe,
 	}, outputIndicatorsPNG)
@@ -141,11 +147,13 @@ func RunBacktestAndPlot(cfg backtestconfig.Config, loaded *replay.LoadOutput, ou
 		RSI:          chartIndicatorPoints(rsiForPlot),
 		MACD:         chartIndicatorPoints(macdForPlot),
 		MACDSignal:   chartIndicatorPoints(macdSignalForPlot),
+		ATR:          chartIndicatorPoints(atrForPlot),
 		SMAPeriod:    cfg.Indicators.SMAPeriod,
 		RSIPeriod:    cfg.Indicators.RSIPeriod,
 		MACDFast:     cfg.Indicators.MACDFastPeriod,
 		MACDSlow:     cfg.Indicators.MACDSlowPeriod,
 		MACDSignalN:  cfg.Indicators.MACDSignalPeriod,
+		ATRPeriod:    cfg.Indicators.ATRPeriod,
 		Timezone:     tz,
 		Timeframe:    cfg.TradingParameters.Timeframe,
 	}, outputHTML)

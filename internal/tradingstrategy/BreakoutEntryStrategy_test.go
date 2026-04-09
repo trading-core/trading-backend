@@ -71,40 +71,4 @@ func TestBreakoutEntryStrategy(t *testing.T) {
 			So(decision.Reason, ShouldEqual, "breakout entry disabled")
 		})
 	})
-
-	Convey("Given a breakout entry strategy with a Bollinger width filter", t, func() {
-		width := 0.05
-		strategy := tradingstrategy.NewBreakoutEntryStrategy(tradingstrategy.NewBreakoutEntryStrategyInput{
-			LookbackBars:         20,
-			MinBollingerWidthPct: 0.03,
-		})
-		fullInput := tradingstrategy.EvaluateInput{
-			Price:             105,
-			LookbackHighPrice: 100,
-			PositionQuantity:  0,
-			BollWidthPct:      &width,
-		}
-
-		Convey("When Bollinger width meets the minimum", func() {
-			decision := strategy.Evaluate(fullInput)
-			So(decision.Action, ShouldEqual, tradingstrategy.ActionBuy)
-		})
-
-		Convey("When Bollinger width is too narrow", func() {
-			narrow := 0.01
-			input := fullInput
-			input.BollWidthPct = &narrow
-			decision := strategy.Evaluate(input)
-			So(decision.Action, ShouldEqual, tradingstrategy.ActionNone)
-			So(decision.Reason, ShouldEqual, "bollinger width too narrow")
-		})
-
-		Convey("When Bollinger width data is missing", func() {
-			input := fullInput
-			input.BollWidthPct = nil
-			decision := strategy.Evaluate(input)
-			So(decision.Action, ShouldEqual, tradingstrategy.ActionNone)
-			So(decision.Reason, ShouldEqual, "bollinger width unavailable")
-		})
-	})
 }

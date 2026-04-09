@@ -7,7 +7,7 @@ import (
 type PositionSizingDecorator struct {
 	maxPositionFraction float64
 	riskPerTradePct     float64
-	stopLossPct         float64
+	atrMultiplier       float64
 	decorated           Strategy
 }
 
@@ -15,7 +15,7 @@ type NewPositionSizingDecoratorInput struct {
 	Decorated           Strategy
 	MaxPositionFraction float64
 	RiskPerTradePct     float64
-	StopLossPct         float64
+	ATRMultiplier       float64
 }
 
 func NewPositionSizingDecorator(input NewPositionSizingDecoratorInput) *PositionSizingDecorator {
@@ -23,7 +23,7 @@ func NewPositionSizingDecorator(input NewPositionSizingDecoratorInput) *Position
 		decorated:           input.Decorated,
 		maxPositionFraction: input.MaxPositionFraction,
 		riskPerTradePct:     input.RiskPerTradePct,
-		stopLossPct:         input.StopLossPct,
+		atrMultiplier:       input.ATRMultiplier,
 	}
 }
 
@@ -45,9 +45,9 @@ func (decorator *PositionSizingDecorator) Evaluate(input EvaluateInput) Decision
 	}
 
 	var qty float64
-	if decorator.riskPerTradePct > 0 && decorator.stopLossPct > 0 {
+	if decorator.riskPerTradePct > 0 && decorator.atrMultiplier > 0 && input.ATR != nil {
 		riskAmount := buyingPower * decorator.riskPerTradePct
-		stopDistance := input.Price * decorator.stopLossPct
+		stopDistance := *input.ATR * decorator.atrMultiplier
 		qty = math.Floor(riskAmount / stopDistance)
 		maxQty := math.Floor(buyingPower * decorator.maxPositionFraction / input.Price)
 		if qty > maxQty {

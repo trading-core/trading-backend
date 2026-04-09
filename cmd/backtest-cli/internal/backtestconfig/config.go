@@ -54,6 +54,7 @@ type IndicatorConfig struct {
 	BollingerPeriod  int
 	BollingerStdDev  float64
 	SMAPeriod        int
+	ATRPeriod        int
 }
 
 // LoadFromEnv reads all backtest configuration from environment variables and
@@ -90,6 +91,7 @@ func LoadFromEnv() Config {
 			BollingerPeriod:  config.EnvInt("BACKTEST_BOLLINGER_PERIOD", 20),
 			BollingerStdDev:  config.EnvFloat64("BACKTEST_BOLLINGER_STDDEV", 2.0),
 			SMAPeriod:        config.EnvInt("BACKTEST_SMA_PERIOD", 50),
+			ATRPeriod:        config.EnvInt("BACKTEST_ATR_PERIOD", 14),
 		},
 	}
 	if raw := os.Getenv("BACKTEST_PARAMS_JSON"); raw != "" {
@@ -142,6 +144,9 @@ func (config Config) validate() error {
 	if config.Indicators.SMAPeriod < 2 {
 		return fmt.Errorf("BACKTEST_SMA_PERIOD must be at least 2")
 	}
+	if config.Indicators.ATRPeriod < 2 {
+		return fmt.Errorf("BACKTEST_ATR_PERIOD must be at least 2")
+	}
 
 	// Trading parameters constraints.
 	if config.TradingParameters.MaxPositionFraction <= 0 || config.TradingParameters.MaxPositionFraction > 1 {
@@ -158,8 +163,8 @@ func (config Config) validate() error {
 			return fmt.Errorf("BACKTEST_TRADING_PARAMETERS_SESSION_START must be less than BACKTEST_TRADING_PARAMETERS_SESSION_END")
 		}
 	}
-	if config.TradingParameters.StopLossPct < 0 {
-		return fmt.Errorf("BACKTEST_TRADING_PARAMETERS_STOP_LOSS_PCT must be non-negative")
+	if config.TradingParameters.ATRMultiplier < 0 {
+		return fmt.Errorf("BACKTEST_TRADING_PARAMETERS_ATR_MULTIPLIER must be non-negative")
 	}
 	return nil
 }

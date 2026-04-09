@@ -22,5 +22,5 @@ func (composite *CompositeStrategy) Evaluate(input EvaluateInput) Decision {
 			return decision
 		}
 	}
-	return Decision{Action: ActionNone}
+	return Decision{Action: ActionNone, Reason: "no strategy fired"}
 }

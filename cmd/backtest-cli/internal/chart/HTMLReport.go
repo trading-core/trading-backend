@@ -28,11 +28,13 @@ type RenderHTMLReportInput struct {
 	RSI          []IndicatorPoint
 	MACD         []IndicatorPoint
 	MACDSignal   []IndicatorPoint
+	ATR          []IndicatorPoint
 	SMAPeriod    int
 	RSIPeriod    int
 	MACDFast     int
 	MACDSlow     int
 	MACDSignalN  int
+	ATRPeriod    int
 	Timezone     *time.Location
 	Timeframe    string
 }
@@ -67,12 +69,14 @@ type htmlReportData struct {
 	RSI          []htmlPoint    `json:"rsi"`
 	MACD         []htmlPoint    `json:"macd"`
 	MACDSignal   []htmlPoint    `json:"macd_signal"`
+	ATR          []htmlPoint    `json:"atr"`
 	Decisions    []htmlDecision `json:"decisions"`
 	SMAPeriod    int            `json:"sma_period"`
 	RSIPeriod    int            `json:"rsi_period"`
 	MACDFast     int            `json:"macd_fast"`
 	MACDSlow     int            `json:"macd_slow"`
 	MACDSignalN  int            `json:"macd_signal_n"`
+	ATRPeriod    int            `json:"atr_period"`
 }
 
 func toHTMLPoints(pts []IndicatorPoint, tz *time.Location) []htmlPoint {
@@ -126,12 +130,14 @@ func RenderHTMLReport(input RenderHTMLReportInput, outputPath string) error {
 		RSI:          toHTMLPoints(input.RSI, tz),
 		MACD:         toHTMLPoints(input.MACD, tz),
 		MACDSignal:   toHTMLPoints(input.MACDSignal, tz),
+		ATR:          toHTMLPoints(input.ATR, tz),
 		Decisions:    decisions,
 		SMAPeriod:    input.SMAPeriod,
 		RSIPeriod:    input.RSIPeriod,
 		MACDFast:     input.MACDFast,
 		MACDSlow:     input.MACDSlow,
 		MACDSignalN:  input.MACDSignalN,
+		ATRPeriod:    input.ATRPeriod,
 	}
 
 	dataJSON, err := json.Marshal(data)
@@ -187,6 +193,7 @@ const htmlReportTemplate = `<!DOCTYPE html>
   #panel-price { height: 480px; }
   #panel-rsi   { height: 480px; }
   #panel-macd  { height: 480px; }
+  #panel-atr   { height: 200px; }
 
   .drag-handle {
     width: 100%; height: 6px; cursor: ns-resize;
@@ -238,6 +245,8 @@ const htmlReportTemplate = `<!DOCTYPE html>
   <div class="drag-handle" data-resizes="panel-rsi"></div>
   <div id="panel-macd"  class="panel"></div>
   <div class="drag-handle" data-resizes="panel-macd"></div>
+  <div id="panel-atr"   class="panel"></div>
+  <div class="drag-handle" data-resizes="panel-atr"></div>
 </div>
 
 <div class="decisions-section">
@@ -255,7 +264,8 @@ const report = {{.DataJSON}};
 document.getElementById('hdr-symbol').textContent = report.symbol;
 document.getElementById('hdr-sub').textContent =
   'RSI(' + report.rsi_period + ')  MACD(' + report.macd_fast + ',' +
-  report.macd_slow + ',' + report.macd_signal_n + ')  SMA(' + report.sma_period + ')';
+  report.macd_slow + ',' + report.macd_signal_n + ')  SMA(' + report.sma_period + ')' +
+  '  ATR(' + report.atr_period + ')';
 
 function fmt$(v)  { return '$' + v.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:4}); }
 function fmtPct(v){ return (v >= 0 ? '+' : '') + (v * 100).toFixed(2) + '%'; }
@@ -426,31 +436,48 @@ const plotMACD = Plotly.newPlot('panel-macd', [
     line:{color:'#dc2828',width:1.5}, showlegend:false },
 ], {
   paper_bgcolor:'#fff', plot_bgcolor:'#fff',
-  margin:{l:ML, r:MR, t:6, b:40},
+  margin:{l:ML, r:MR, t:6, b:0},
   height: panelH('panel-macd'),
   bargap: 0,
-  xaxis: Object.assign({}, xAxisBase, {showticklabels:true}),
+  xaxis: Object.assign({}, xAxisBase, {showticklabels:false}),
   yaxis: {showgrid:true, gridcolor:'#e8e8e8', zeroline:true, zerolinecolor:'#bbb',
           title:{text:'MACD',standoff:8}},
   hoverlabel: hoverLabel, hovermode:'x',
   dragmode: 'pan',
 }, configNoBar);
 
+// ── Plot: ATR ────────────────────────────────────────────────────────────────
+const plotATR = Plotly.newPlot('panel-atr', [
+  { x:priceDates, y:align(report.atr), mode:'lines', type:'scatter',
+    name:'ATR('+report.atr_period+')',
+    line:{color:'#14a0a0',width:1.5}, showlegend:false },
+], {
+  paper_bgcolor:'#fff', plot_bgcolor:'#fff',
+  margin:{l:ML, r:MR, t:6, b:40},
+  height: panelH('panel-atr'),
+  xaxis: Object.assign({}, xAxisBase, {showticklabels:true}),
+  yaxis: {showgrid:true, gridcolor:'#e8e8e8', zeroline:false,
+          title:{text:'ATR('+report.atr_period+')',standoff:8}},
+  hoverlabel: hoverLabel, hovermode:'x',
+  dragmode: 'pan',
+}, configNoBar);
+
 // ── Initial x-axis alignment ──────────────────────────────────────────────────
-// Each chart auto-ranges independently on first render. Sync RSI and MACD to
-// the price panel's computed range once all three plots have finished.
-Promise.all([plotPrice, plotRSI, plotMACD]).then(() => {
+// Each chart auto-ranges independently on first render. Sync all panels to
+// the price panel's computed range once all plots have finished.
+Promise.all([plotPrice, plotRSI, plotMACD, plotATR]).then(() => {
   const range = document.getElementById('panel-price')._fullLayout.xaxis.range;
   if (range) {
     Plotly.relayout('panel-rsi',  {'xaxis.range': range});
     Plotly.relayout('panel-macd', {'xaxis.range': range});
+    Plotly.relayout('panel-atr',  {'xaxis.range': range});
   }
 });
 
-// ── X-axis sync across all three panels ──────────────────────────────────────
+// ── X-axis sync across all four panels ───────────────────────────────────────
 // Sync is batched to one animation frame so rapid pan/zoom events don't stack
 // up relayout calls and freeze the browser.
-const PANEL_IDS = ['panel-price', 'panel-rsi', 'panel-macd'];
+const PANEL_IDS = ['panel-price', 'panel-rsi', 'panel-macd', 'panel-atr'];
 let syncing = false;
 let syncRaf  = null;   // pending rAF id
 let syncSrc  = null;   // panel that triggered the latest update

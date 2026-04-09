@@ -180,11 +180,11 @@ func (actor *ParentActor) startTradeActor(ctx context.Context, botID string) (er
 	}
 	strategy := tradingstrategy.FromParameters(bot.Parameters)
 	logger.Noticef(
-		"bot %s strategy config: timeframe=%s maxPosition=%.4f stopLoss=%.4f sessionStart=%d sessionEnd=%d reentryCooldownMin=%d rsiPeriod=%d macdFast=%d macdSlow=%d macdSignal=%d bollPeriod=%d bollStdDev=%.2f",
+		"bot %s strategy config: timeframe=%s maxPosition=%.4f atrMultiplier=%.4f sessionStart=%d sessionEnd=%d reentryCooldownMin=%d rsiPeriod=%d macdFast=%d macdSlow=%d macdSignal=%d bollPeriod=%d bollStdDev=%.2f",
 		botID,
 		bot.Parameters.Timeframe,
 		bot.Parameters.MaxPositionFraction,
-		bot.Parameters.StopLossPct,
+		bot.Parameters.ATRMultiplier,
 		bot.Parameters.SessionStart,
 		bot.Parameters.SessionEnd,
 		bot.Parameters.ReentryCooldownMinutes,

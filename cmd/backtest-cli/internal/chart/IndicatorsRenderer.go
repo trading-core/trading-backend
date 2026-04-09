@@ -23,10 +23,12 @@ type RenderIndicatorsInput struct {
 	RSI         []IndicatorPoint
 	MACD        []IndicatorPoint
 	MACDSignal  []IndicatorPoint
+	ATR         []IndicatorPoint
 	RSIPeriod   int
 	MACDFast    int
 	MACDSlow    int
 	MACDSignalN int
+	ATRPeriod   int
 	Timezone    *time.Location
 	Timeframe   string // e.g. "1h", "1d"; controls x-axis label format
 }
@@ -43,7 +45,7 @@ func RenderIndicators(input RenderIndicatorsInput, outputPath string) error {
 
 	const (
 		width      = 1400
-		height     = 760
+		height     = 964
 		leftPad    = 82
 		rightPad   = 30
 		topPad     = 46
@@ -51,6 +53,7 @@ func RenderIndicators(input RenderIndicatorsInput, outputPath string) error {
 		panelGap   = 24
 		rsiHeight  = 260
 		macdHeight = 260
+		atrHeight  = 180
 	)
 
 	img := image.NewRGBA(image.Rect(0, 0, width, height))
@@ -67,6 +70,8 @@ func RenderIndicators(input RenderIndicatorsInput, outputPath string) error {
 	rsiBottom := rsiTop + rsiHeight
 	macdTop := rsiBottom + panelGap
 	macdBottom := macdTop + macdHeight
+	atrTop := macdBottom + panelGap
+	atrBottom := atrTop + atrHeight
 	axisBottom := height - bottomPad
 
 	tsToIndex := make(map[int64]int, len(input.Timeline))
@@ -108,6 +113,7 @@ func RenderIndicators(input RenderIndicatorsInput, outputPath string) error {
 		macdColor    = color.RGBA{R: 35, G: 120, B: 230, A: 255}
 		signalColor  = color.RGBA{R: 220, G: 40, B: 40, A: 255}
 		neutralColor = color.RGBA{R: 130, G: 130, B: 130, A: 255}
+		atrColor     = color.RGBA{R: 20, G: 160, B: 160, A: 255}
 	)
 
 	firstDate := input.Timeline[0].In(tz).Format("2006-01-02")
@@ -171,6 +177,31 @@ func RenderIndicators(input RenderIndicatorsInput, outputPath string) error {
 	drawIndicatorLine(img, input.MACD, closestIndex, xToPixel, macdY, macdColor)
 	drawIndicatorLine(img, input.MACDSignal, closestIndex, xToPixel, macdY, signalColor)
 
+	// ATR panel.
+	atrMin, atrMax := rangeForSeries(input.ATR, []IndicatorPoint{})
+	if atrMin == atrMax {
+		atrMax = atrMin + 1
+	}
+	atrMargin := (atrMax - atrMin) * 0.15
+	atrMin -= atrMargin
+	if atrMin < 0 {
+		atrMin = 0
+	}
+	atrMax += atrMargin
+	atrYFn := func(v float64) int {
+		fraction := (v - atrMin) / (atrMax - atrMin)
+		return atrBottom - int(fraction*float64(atrBottom-atrTop))
+	}
+	for _, tick := range niceTickValues(atrMin, atrMax, 4) {
+		py := atrYFn(tick)
+		drawLine(img, plotLeft, py, plotRight, py, gridColor)
+		drawText(img, fmt.Sprintf("%.2f", tick), plotLeft-46, py-5, labelColor)
+	}
+	drawLine(img, plotLeft, atrTop, plotLeft, atrBottom, axisColor)
+	drawLine(img, plotLeft, atrBottom, plotRight, atrBottom, axisColor)
+	drawText(img, fmt.Sprintf("ATR(%d)", input.ATRPeriod), plotLeft, atrTop-18, labelColor)
+	drawIndicatorLine(img, input.ATR, closestIndex, xToPixel, atrYFn, atrColor)
+
 	daily := input.Timeframe == "1d" || input.Timeframe == "1w"
 
 	// Shared x-axis labels at the bottom.
@@ -183,7 +214,7 @@ func RenderIndicators(input RenderIndicatorsInput, outputPath string) error {
 			continue
 		}
 		px := xToPixel(i)
-		drawLine(img, px, macdBottom, px, axisBottom, gridColor)
+		drawLine(img, px, atrBottom, px, axisBottom, gridColor)
 		drawLine(img, px, axisBottom, px, axisBottom+5, axisColor)
 		var label string
 		if daily {

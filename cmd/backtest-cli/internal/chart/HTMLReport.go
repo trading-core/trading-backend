@@ -345,7 +345,7 @@ const hoverLabel = { bgcolor:'#1a1a2e', bordercolor:'#555', font:{color:'#fff', 
 function panelH(id) { return document.getElementById(id).offsetHeight; }
 
 // ── Plot: Price ───────────────────────────────────────────────────────────────
-Plotly.newPlot('panel-price', [
+const plotPrice = Plotly.newPlot('panel-price', [
   { x:priceDates, y:report.prices.map(p=>p.v), mode:'lines', type:'scatter', name:'Price',
     line:{color:'#2378e6',width:1.5} },
   { x:priceDates, y:align(report.boll_upper),  mode:'lines', type:'scatter', name:'BB Upper',
@@ -374,7 +374,7 @@ Plotly.newPlot('panel-price', [
   dragmode: 'pan',
 }, config);
 
-// ── Plot: RSI ────────────────────────────────────────────────────────────────
+// ── Plot: RSI ───────────────────────────────────────────────────────────────
 const rsiAligned = align(report.rsi);
 // Clamp RSI to above 70 (so fill between the 70 line and RSI only where overbought)
 const rsiOB = rsiAligned.map(v => v !== null ? Math.max(v, 70) : null);
@@ -383,7 +383,7 @@ const rsiOS = rsiAligned.map(v => v !== null ? Math.min(v, 30) : null);
 const ref70 = new Array(priceDates.length).fill(70);
 const ref30 = new Array(priceDates.length).fill(30);
 
-Plotly.newPlot('panel-rsi', [
+const plotRSI = Plotly.newPlot('panel-rsi', [
   // Overbought fill: tonexty fills from ref70 up to rsiOB
   { x:priceDates, y:ref70, mode:'lines', type:'scatter', showlegend:false,
     line:{color:'transparent',width:0}, hoverinfo:'skip' },
@@ -417,7 +417,7 @@ Plotly.newPlot('panel-rsi', [
 }, configNoBar);
 
 // ── Plot: MACD ───────────────────────────────────────────────────────────────
-Plotly.newPlot('panel-macd', [
+const plotMACD = Plotly.newPlot('panel-macd', [
   { x:priceDates, y:histVals, type:'bar', name:'Histogram',
     marker:{color:histColors, line:{width:0}}, showlegend:false },
   { x:priceDates, y:align(report.macd),        mode:'lines', type:'scatter', name:'MACD',
@@ -435,6 +435,17 @@ Plotly.newPlot('panel-macd', [
   hoverlabel: hoverLabel, hovermode:'x',
   dragmode: 'pan',
 }, configNoBar);
+
+// ── Initial x-axis alignment ──────────────────────────────────────────────────
+// Each chart auto-ranges independently on first render. Sync RSI and MACD to
+// the price panel's computed range once all three plots have finished.
+Promise.all([plotPrice, plotRSI, plotMACD]).then(() => {
+  const range = document.getElementById('panel-price')._fullLayout.xaxis.range;
+  if (range) {
+    Plotly.relayout('panel-rsi',  {'xaxis.range': range});
+    Plotly.relayout('panel-macd', {'xaxis.range': range});
+  }
+});
 
 // ── X-axis sync across all three panels ──────────────────────────────────────
 // Sync is batched to one animation frame so rapid pan/zoom events don't stack

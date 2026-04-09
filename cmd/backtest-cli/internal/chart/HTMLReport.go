@@ -185,8 +185,8 @@ const htmlReportTemplate = `<!DOCTYPE html>
   #chart-wrap { background: #fff; user-select: none; }
   .panel { width: 100%; overflow: hidden; }
   #panel-price { height: 480px; }
-  #panel-rsi   { height: 160px; }
-  #panel-macd  { height: 180px; }
+  #panel-rsi   { height: 480px; }
+  #panel-macd  { height: 480px; }
 
   .drag-handle {
     width: 100%; height: 6px; cursor: ns-resize;
@@ -339,6 +339,7 @@ const config = {
   responsive: true, displayModeBar: true,
   modeBarButtonsToRemove: ['select2d','lasso2d','autoScale2d'],
 };
+const configNoBar = { responsive: true, displayModeBar: false };
 const hoverLabel = { bgcolor:'#1a1a2e', bordercolor:'#555', font:{color:'#fff', size:13} };
 
 function panelH(id) { return document.getElementById(id).offsetHeight; }
@@ -370,11 +371,33 @@ Plotly.newPlot('panel-price', [
   legend:{x:0, y:1.01, xanchor:'left', yanchor:'bottom', orientation:'h',
           bgcolor:'rgba(255,255,255,0.8)', bordercolor:'#ddd', borderwidth:1},
   hoverlabel: hoverLabel, hovermode:'closest',
+  dragmode: 'pan',
 }, config);
 
 // ── Plot: RSI ────────────────────────────────────────────────────────────────
+const rsiAligned = align(report.rsi);
+// Clamp RSI to above 70 (so fill between the 70 line and RSI only where overbought)
+const rsiOB = rsiAligned.map(v => v !== null ? Math.max(v, 70) : null);
+// Clamp RSI to below 30 (so fill between RSI and the 30 line only where oversold)
+const rsiOS = rsiAligned.map(v => v !== null ? Math.min(v, 30) : null);
+const ref70 = new Array(priceDates.length).fill(70);
+const ref30 = new Array(priceDates.length).fill(30);
+
 Plotly.newPlot('panel-rsi', [
-  { x:priceDates, y:align(report.rsi), mode:'lines', type:'scatter', name:'RSI',
+  // Overbought fill: tonexty fills from ref70 up to rsiOB
+  { x:priceDates, y:ref70, mode:'lines', type:'scatter', showlegend:false,
+    line:{color:'transparent',width:0}, hoverinfo:'skip' },
+  { x:priceDates, y:rsiOB, mode:'lines', type:'scatter', showlegend:false,
+    fill:'tonexty', fillcolor:'rgba(34,160,60,0.22)',
+    line:{color:'transparent',width:0}, hoverinfo:'skip' },
+  // Oversold fill: tonexty fills from rsiOS up to ref30
+  { x:priceDates, y:rsiOS, mode:'lines', type:'scatter', showlegend:false,
+    line:{color:'transparent',width:0}, hoverinfo:'skip' },
+  { x:priceDates, y:ref30, mode:'lines', type:'scatter', showlegend:false,
+    fill:'tonexty', fillcolor:'rgba(210,50,50,0.22)',
+    line:{color:'transparent',width:0}, hoverinfo:'skip' },
+  // RSI line on top
+  { x:priceDates, y:rsiAligned, mode:'lines', type:'scatter', name:'RSI',
     line:{color:'#a0461e',width:1.5}, showlegend:false },
 ], {
   paper_bgcolor:'#fff', plot_bgcolor:'#fff',
@@ -390,7 +413,8 @@ Plotly.newPlot('panel-rsi', [
     {type:'line', xref:'paper', yref:'y', x0:0,x1:1, y0:70,y1:70, line:{color:'rgba(200,50,50,0.4)',width:1,dash:'dot'}},
   ],
   hoverlabel: hoverLabel, hovermode:'x',
-}, config);
+  dragmode: 'pan',
+}, configNoBar);
 
 // ── Plot: MACD ───────────────────────────────────────────────────────────────
 Plotly.newPlot('panel-macd', [
@@ -409,7 +433,8 @@ Plotly.newPlot('panel-macd', [
   yaxis: {showgrid:true, gridcolor:'#e8e8e8', zeroline:true, zerolinecolor:'#bbb',
           title:{text:'MACD',standoff:8}},
   hoverlabel: hoverLabel, hovermode:'x',
-}, config);
+  dragmode: 'pan',
+}, configNoBar);
 
 // ── X-axis sync across all three panels ──────────────────────────────────────
 // Sync is batched to one animation frame so rapid pan/zoom events don't stack
@@ -423,6 +448,15 @@ let syncRange = null;  // latest range, or null for autorange
 PANEL_IDS.forEach(srcId => {
   document.getElementById(srcId).on('plotly_relayout', ev => {
     if (syncing) return;
+
+    // Sync dragmode from the price panel (which has the modebar) to the others.
+    if (srcId === 'panel-price' && ev['dragmode'] !== undefined) {
+      syncing = true;
+      PANEL_IDS.filter(id => id !== 'panel-price').forEach(id =>
+        Plotly.relayout(id, { dragmode: ev['dragmode'] })
+      );
+      syncing = false;
+    }
 
     let range = null;
     if (ev['xaxis.range[0]'] !== undefined) {

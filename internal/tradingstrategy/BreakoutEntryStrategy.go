@@ -9,16 +9,19 @@ package tradingstrategy
 // the prior N bars (excluding the current bar). When it is zero or the position
 // is already open, the strategy abstains.
 type BreakoutEntryStrategy struct {
-	lookbackBars int
+	lookbackBars  int
+	overboughtRSI float64
 }
 
 type NewBreakoutEntryStrategyInput struct {
-	LookbackBars int // number of prior bars for the high; must be >= 2 to enable
+	LookbackBars  int     // number of prior bars for the high; must be >= 2 to enable
+	OverboughtRSI float64 // RSI threshold above which entry is blocked; 0 disables
 }
 
 func NewBreakoutEntryStrategy(input NewBreakoutEntryStrategyInput) *BreakoutEntryStrategy {
 	return &BreakoutEntryStrategy{
-		lookbackBars: input.LookbackBars,
+		lookbackBars:  input.LookbackBars,
+		overboughtRSI: input.OverboughtRSI,
 	}
 }
 
@@ -35,5 +38,16 @@ func (strategy *BreakoutEntryStrategy) Evaluate(input EvaluateInput) Decision {
 	if input.Price <= input.LookbackHighPrice {
 		return Decision{Action: ActionNone, Reason: "price not above lookback high"}
 	}
+
+	// Reject if RSI is already overbought at the breakout point — buying into exhaustion.
+	if strategy.overboughtRSI > 0 {
+		if input.RSI == nil {
+			return Decision{Action: ActionNone, Reason: "rsi unavailable"}
+		}
+		if *input.RSI >= strategy.overboughtRSI {
+			return Decision{Action: ActionNone, Reason: "rsi overbought at breakout"}
+		}
+	}
+
 	return Decision{Action: ActionBuy, Reason: "breakout entry: price above lookback high"}
 }

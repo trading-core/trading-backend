@@ -83,5 +83,37 @@ func TestSessionGuardStrategy(t *testing.T) {
 				So(decision.Reason, ShouldEqual, "outside trading session window")
 			})
 		})
+
+		Convey("When the bar falls on a Saturday in ET with an open position", func() {
+			saturday := time.Date(2026, time.April, 4, 20, 0, 0, 0, tradingstrategy.USMarketLocation)
+			decision := strategy.Evaluate(tradingstrategy.EvaluateInput{Now: saturday, PositionQuantity: 5})
+			Convey("Then it vetoes rather than forcing an exit", func() {
+				So(decision.Action, ShouldEqual, tradingstrategy.ActionVeto)
+				So(decision.Reason, ShouldEqual, "outside trading session window")
+			})
+		})
+	})
+
+	Convey("Given a weekly session guard strategy", t, func() {
+		strategy := tradingstrategy.NewSessionGuardStrategy(tradingstrategy.NewSessionGuardStrategyInput{
+			Timeframe: "1w",
+		})
+
+		Convey("When the bar timestamp falls on a weekday", func() {
+			monday := nyTimeForTest(20, 0) // 2026-04-06 is a Monday
+			decision := strategy.Evaluate(tradingstrategy.EvaluateInput{Now: monday})
+			Convey("Then it abstains (weekday passes)", func() {
+				So(decision.Action, ShouldEqual, tradingstrategy.ActionNone)
+			})
+		})
+
+		Convey("When the bar timestamp falls on a Saturday", func() {
+			saturday := time.Date(2026, time.April, 4, 12, 0, 0, 0, tradingstrategy.USMarketLocation)
+			decision := strategy.Evaluate(tradingstrategy.EvaluateInput{Now: saturday})
+			Convey("Then it vetoes", func() {
+				So(decision.Action, ShouldEqual, tradingstrategy.ActionVeto)
+				So(decision.Reason, ShouldEqual, "outside trading session window")
+			})
+		})
 	})
 }

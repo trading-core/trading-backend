@@ -21,30 +21,27 @@ func NewSessionGuardStrategy(input NewSessionGuardStrategyInput) *SessionGuardSt
 		sessionStart:           input.SessionStart,
 		sessionEnd:             input.SessionEnd,
 		reentryCooldownMinutes: input.ReentryCooldownMinutes,
-		isDailyTimeframe:       input.Timeframe == "1d",
+		isDailyTimeframe:       input.Timeframe == "1d" || input.Timeframe == "1w",
 	}
 }
 
 func (strategy *SessionGuardStrategy) Evaluate(input EvaluateInput) Decision {
 	localTimezone := input.Now.In(USMarketLocation)
-	// Force-exit any open position at session end regardless of timeframe.
-	if strategy.sessionEnd > 0 && input.PositionQuantity > 0 {
-		if localTimezone.Hour() >= strategy.sessionEnd {
-			return Decision{Action: ActionSell, Reason: "forced end-of-day exit", Quantity: input.PositionQuantity}
-		}
-	}
 	if strategy.isDailyTimeframe {
 		// For daily/weekly bars the timestamp is not at market open.
 		// Only gate on weekday — Saturday/Sunday bars are not trading days.
 		day := localTimezone.Weekday()
-		isWeekend := day == time.Saturday || day == time.Sunday
-		if isWeekend {
+		if day == time.Saturday || day == time.Sunday {
 			return Decision{Action: ActionVeto, Reason: "outside trading session window"}
 		}
 	} else {
-		// For hourly bars, we check against session start/end hours.
+		// For hourly bars, check against session start/end hours.
+		// Force-exit any open position at session end; otherwise veto new entries.
 		hour := localTimezone.Hour()
 		if hour < strategy.sessionStart || hour >= strategy.sessionEnd {
+			if strategy.sessionEnd > 0 && input.PositionQuantity > 0 && hour >= strategy.sessionEnd {
+				return Decision{Action: ActionSell, Reason: "forced end-of-day exit", Quantity: input.PositionQuantity}
+			}
 			return Decision{Action: ActionVeto, Reason: "outside trading session window"}
 		}
 	}

@@ -79,4 +79,26 @@ func TestOversoldEntryStrategy(t *testing.T) {
 			So(decision.Reason, ShouldEqual, "rsi unavailable")
 		})
 	})
+
+	Convey("Given an oversold entry strategy with RSI check disabled", t, func() {
+		strategy := tradingstrategy.NewOversoldEntryStrategy(tradingstrategy.NewOversoldEntryStrategyInput{})
+
+		lower := 100.0
+		fullInput := tradingstrategy.EvaluateInput{
+			Price:            95,
+			PositionQuantity: 0,
+			BollLower:        &lower,
+		}
+
+		Convey("When price is at or below the lower bollinger, entry fires on bollinger alone", func() {
+			decision := strategy.Evaluate(fullInput)
+			So(decision.Action, ShouldEqual, tradingstrategy.ActionBuy)
+			So(decision.Reason, ShouldEqual, "oversold entry: lower bollinger")
+		})
+
+		Convey("When RSI data is missing, entry still fires", func() {
+			decision := strategy.Evaluate(fullInput)
+			So(decision.Action, ShouldEqual, tradingstrategy.ActionBuy)
+		})
+	})
 }

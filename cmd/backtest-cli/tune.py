@@ -39,7 +39,6 @@ def suggest_params(trial: optuna.Trial) -> dict:
     return {
         "timeframe": "1d",
         "max_position_fraction": trial.suggest_float("max_position_fraction", 0.05, 0.50),
-        "stop_loss_pct": trial.suggest_float("stop_loss_pct", 0.01, 0.08),
         # Sessions are disabled for daily candles (0 = disabled).
         "session_start": 0,
         "session_end": 0,
@@ -48,12 +47,13 @@ def suggest_params(trial: optuna.Trial) -> dict:
         "oversold_rsi": trial.suggest_float("oversold_rsi", 20.0, 40.0),
         # OverboughtExitStrategy threshold — RSI must be above this to trigger exit (also blocks trend entries).
         "overbought_rsi": trial.suggest_float("overbought_rsi", 60.0, 80.0),
-        # TrendEntryStrategy: Bollinger band width must be within [min, max].
-        # min filters low-volatility noise; max prevents entering during extreme expansion.
-        "bollinger_min_width_pct": trial.suggest_float("bollinger_min_width_pct", 0, 0.05),
-        "bollinger_max_width_pct": trial.suggest_float("bollinger_max_width_pct", 0.05, 0.35),
         # BreakoutEntryStrategy: N-bar high lookback window. 0 or 1 disables.
         "lookback_bars": trial.suggest_int("lookback_bars", 0, 50),
+        # ATRStopStrategy: ATR multiple for trailing stop (highSinceEntry - multiplier * ATR); 0 disables.
+        "atr_multiplier": trial.suggest_float("atr_multiplier", 0.0, 4.0),
+        # PositionSizingDecorator: fraction of buying power to risk per trade for ATR-based sizing.
+        # Only active when atr_multiplier > 0; 0 falls back to max_position_fraction.
+        "risk_per_trade_pct": trial.suggest_float("risk_per_trade_pct", 0.0, 0.03),
     }
 
 

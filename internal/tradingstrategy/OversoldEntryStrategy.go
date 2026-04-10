@@ -42,5 +42,8 @@ func (strategy *OversoldEntryStrategy) Evaluate(input EvaluateInput) Decision {
 		}
 	}
 
-	return Decision{Action: ActionBuy, Reason: "oversold entry: lower bollinger; rsi oversold"}
+	if strategy.oversoldRSI > 0 {
+		return Decision{Action: ActionBuy, Reason: "oversold entry: lower bollinger; rsi oversold"}
+	}
+	return Decision{Action: ActionBuy, Reason: "oversold entry: lower bollinger"}
 }

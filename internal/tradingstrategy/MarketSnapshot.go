@@ -28,6 +28,7 @@ type AccountSnapshot struct {
 	PositionQuantity float64
 	HasOpenOrder     bool
 	EntryPrice       float64
+	HighSinceEntry   float64 // highest price reached since the current position was opened; used by ATRStopStrategy for trailing stop
 }
 
 // NewEvaluateInput combines market and account snapshots into the single input
@@ -71,6 +72,7 @@ func NewEvaluateInput(snapshot MarketSnapshot, account AccountSnapshot) Evaluate
 		PositionQuantity: account.PositionQuantity,
 		HasOpenOrder:     account.HasOpenOrder,
 		EntryPrice:       account.EntryPrice,
+		HighSinceEntry:   account.HighSinceEntry,
 		Now:              snapshot.Now,
 	}
 }

@@ -64,6 +64,7 @@ type NewTradeActorInput struct {
 	MACDSignalPeriod       int
 	BollingerPeriod        int
 	BollingerStdDev        float64
+	ATRPeriod              int
 	IndicatorResetInterval string
 	BotID                  string
 	Log                    eventsource.Log
@@ -80,7 +81,7 @@ func NewTradeActor(input NewTradeActorInput) *TradeActor {
 		marketDataClient:       input.MarketDataClient,
 		tradingStrategy:        input.TradingStrategy,
 		marketState:            input.MarketState,
-		indicators:             newIndicatorState(input.RSIPeriod, input.MACDFastPeriod, input.MACDSlowPeriod, input.MACDSignalPeriod, input.BollingerPeriod, input.BollingerStdDev),
+		indicators:             newIndicatorState(input.RSIPeriod, input.MACDFastPeriod, input.MACDSlowPeriod, input.MACDSignalPeriod, input.BollingerPeriod, input.BollingerStdDev, input.ATRPeriod),
 		indicatorResetInterval: normalizeIndicatorResetInterval(input.IndicatorResetInterval),
 		botID:                  input.BotID,
 		log:                    input.Log,
@@ -140,9 +141,9 @@ func (actor *TradeActor) Run(ctx context.Context) {
 			}
 		}
 
-		var rsi, macd, macdSignal, bollUpper, bollMiddle, bollLower, bollWidthPct *float64
+		var rsi, macd, macdSignal, bollUpper, bollMiddle, bollLower, atrValue *float64
 		if isMarketHour(snapshot.Now) {
-			rsi, macd, macdSignal, bollUpper, bollMiddle, bollLower, bollWidthPct = actor.indicators.Update(input.Price)
+			rsi, macd, macdSignal, bollUpper, bollMiddle, bollLower, atrValue = actor.indicators.Update(input.Price)
 		}
 		input.RSI = rsi
 		input.MACD = macd
@@ -150,7 +151,7 @@ func (actor *TradeActor) Run(ctx context.Context) {
 		input.BollUpper = bollUpper
 		input.BollMiddle = bollMiddle
 		input.BollLower = bollLower
-		input.BollWidthPct = bollWidthPct
+		input.ATR = atrValue
 		// Track trailing high while in position.
 		if accountSnapshot.PositionQuantity > 0 && input.Price > actor.highSinceEntry {
 			actor.highSinceEntry = input.Price
@@ -191,7 +192,7 @@ func (actor *TradeActor) Run(ctx context.Context) {
 		} else if decision.Action == tradingstrategy.ActionSell {
 			actor.entryPrice = 0
 			actor.highSinceEntry = 0
-			if decision.Reason == "trailing stop triggered" {
+			if strings.HasPrefix(decision.Reason, "atr stop:") {
 				now := time.Now()
 				actor.lastStopLossAt = &now
 			}
@@ -221,6 +222,7 @@ type indicatorState struct {
 	macdSignal     int
 	bollPeriod     int
 	bollStdDev     float64
+	atrPeriod      int
 
 	priceSamples int
 	prevClose    *float64
@@ -242,9 +244,13 @@ type indicatorState struct {
 	bollWindow []float64
 	bollSum    float64
 	bollSqSum  float64
+
+	atrSeed  []float64
+	atrValue float64
+	atrReady bool
 }
 
-func newIndicatorState(rsiPeriod int, macdFastPeriod int, macdSlowPeriod int, macdSignal int, bollPeriod int, bollStdDev float64) *indicatorState {
+func newIndicatorState(rsiPeriod int, macdFastPeriod int, macdSlowPeriod int, macdSignal int, bollPeriod int, bollStdDev float64, atrPeriod int) *indicatorState {
 	if rsiPeriod < 2 {
 		rsiPeriod = 14
 	}
@@ -263,6 +269,9 @@ func newIndicatorState(rsiPeriod int, macdFastPeriod int, macdSlowPeriod int, ma
 	if bollStdDev <= 0 {
 		bollStdDev = 2.0
 	}
+	if atrPeriod < 2 {
+		atrPeriod = 14
+	}
 	return &indicatorState{
 		rsiPeriod:      rsiPeriod,
 		macdFastPeriod: macdFastPeriod,
@@ -270,6 +279,7 @@ func newIndicatorState(rsiPeriod int, macdFastPeriod int, macdSlowPeriod int, ma
 		macdSignal:     macdSignal,
 		bollPeriod:     bollPeriod,
 		bollStdDev:     bollStdDev,
+		atrPeriod:      atrPeriod,
 	}
 }
 
@@ -294,6 +304,10 @@ func (state *indicatorState) Reset() {
 	state.bollWindow = nil
 	state.bollSum = 0
 	state.bollSqSum = 0
+
+	state.atrSeed = nil
+	state.atrValue = 0
+	state.atrReady = false
 }
 
 func normalizeIndicatorResetInterval(value string) string {
@@ -347,7 +361,7 @@ func bucketByHour(ts time.Time, size int) string {
 	return bucket.Format(time.RFC3339)
 }
 
-func (state *indicatorState) Update(price float64) (rsi *float64, macd *float64, macdSignal *float64, bollUpper *float64, bollMiddle *float64, bollLower *float64, bollWidthPct *float64) {
+func (state *indicatorState) Update(price float64) (rsi *float64, macd *float64, macdSignal *float64, bollUpper *float64, bollMiddle *float64, bollLower *float64, atr *float64) {
 	if price <= 0 || math.IsNaN(price) || math.IsInf(price, 0) {
 		return nil, nil, nil, nil, nil, nil, nil
 	}
@@ -434,18 +448,34 @@ func (state *indicatorState) Update(price float64) (rsi *float64, macd *float64,
 		upper := mean + (state.bollStdDev * stddev)
 		lower := mean - (state.bollStdDev * stddev)
 		mid := mean
-		width := 0.0
-		if mid != 0 {
-			width = (upper - lower) / mid
-		}
 		bollUpper = &upper
 		bollMiddle = &mid
 		bollLower = &lower
-		bollWidthPct = &width
+	}
+	// ATR (close-only Wilder's smoothing): seed with N true ranges, then smooth.
+	if state.prevClose != nil {
+		trueRange := math.Abs(price - *state.prevClose)
+		if !state.atrReady {
+			state.atrSeed = append(state.atrSeed, trueRange)
+			if len(state.atrSeed) >= state.atrPeriod {
+				sum := 0.0
+				for _, value := range state.atrSeed {
+					sum += value
+				}
+				state.atrValue = sum / float64(state.atrPeriod)
+				state.atrReady = true
+			}
+		} else {
+			state.atrValue = ((state.atrValue * float64(state.atrPeriod-1)) + trueRange) / float64(state.atrPeriod)
+		}
+	}
+	if state.atrReady {
+		atrCopy := state.atrValue
+		atr = &atrCopy
 	}
 	closeCopy := price
 	state.prevClose = &closeCopy
-	return rsi, macd, macdSignal, bollUpper, bollMiddle, bollLower, bollWidthPct
+	return rsi, macd, macdSignal, bollUpper, bollMiddle, bollLower, atr
 }
 
 func rsiFromAverages(avgGain, avgLoss float64) float64 {

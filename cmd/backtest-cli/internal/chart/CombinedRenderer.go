@@ -24,10 +24,12 @@ type RenderCombinedInput struct {
 	RSI         []IndicatorPoint
 	MACD        []IndicatorPoint
 	MACDSignal  []IndicatorPoint
+	ATR         []IndicatorPoint
 	RSIPeriod   int
 	MACDFast    int
 	MACDSlow    int
 	MACDSignalN int
+	ATRPeriod   int
 	Timezone    *time.Location
 	Timeframe   string // e.g. "1h", "1d"; controls x-axis label format and separator granularity
 }
@@ -43,7 +45,7 @@ func RenderCombined(input RenderCombinedInput, outputPath string) error {
 
 	const (
 		width     = 1400
-		height    = 980
+		height    = 1144
 		leftPad   = 82
 		rightPad  = 30
 		topPad    = 46
@@ -52,6 +54,7 @@ func RenderCombined(input RenderCombinedInput, outputPath string) error {
 		priceH    = 420
 		rsiH      = 180
 		macdH     = 180
+		atrH      = 140
 	)
 
 	img := image.NewRGBA(image.Rect(0, 0, width, height))
@@ -70,6 +73,8 @@ func RenderCombined(input RenderCombinedInput, outputPath string) error {
 	rsiBottom := rsiTop + rsiH
 	macdTop := rsiBottom + panelGap
 	macdBottom := macdTop + macdH
+	atrTop := macdBottom + panelGap
+	atrBottom := atrTop + atrH
 	axisBottom := height - bottomPad
 
 	daily := input.Timeframe == "1d" || input.Timeframe == "1w"
@@ -136,6 +141,7 @@ func RenderCombined(input RenderCombinedInput, outputPath string) error {
 		signalColor  = color.RGBA{R: 220, G: 40, B: 40, A: 255}
 		neutralColor = color.RGBA{R: 130, G: 130, B: 130, A: 255}
 		smaColor     = color.RGBA{R: 130, G: 60, B: 200, A: 255}
+		atrColor     = color.RGBA{R: 20, G: 160, B: 160, A: 255}
 	)
 
 	firstDate := prices[0].At.In(tz).Format("2006-01-02")
@@ -144,8 +150,8 @@ func RenderCombined(input RenderCombinedInput, outputPath string) error {
 	if lastDate != firstDate {
 		dateStr = firstDate + " to " + lastDate
 	}
-	title := fmt.Sprintf("%s  |  %s  |  Return: %+.2f%%  |  RSI(%d) MACD(%d,%d,%d) SMA(%d)",
-		input.Symbol, dateStr, input.TotalReturn*100, input.RSIPeriod, input.MACDFast, input.MACDSlow, input.MACDSignalN, input.SMAPeriod)
+	title := fmt.Sprintf("%s  |  %s  |  Return: %+.2f%%  |  RSI(%d) MACD(%d,%d,%d) SMA(%d) ATR(%d)",
+		input.Symbol, dateStr, input.TotalReturn*100, input.RSIPeriod, input.MACDFast, input.MACDSlow, input.MACDSignalN, input.SMAPeriod, input.ATRPeriod)
 	drawText(img, title, plotLeft, 16, titleColor)
 
 	// Price panel.
@@ -244,6 +250,31 @@ func RenderCombined(input RenderCombinedInput, outputPath string) error {
 	drawIndicatorLine(img, input.MACD, closestIndex, xToPixel, macdY, macdColor)
 	drawIndicatorLine(img, input.MACDSignal, closestIndex, xToPixel, macdY, signalColor)
 
+	// ATR panel.
+	atrMin, atrMax := rangeForSeries(input.ATR, []IndicatorPoint{})
+	if atrMin == atrMax {
+		atrMax = atrMin + 1
+	}
+	atrMargin := (atrMax - atrMin) * 0.15
+	atrMin -= atrMargin
+	if atrMin < 0 {
+		atrMin = 0
+	}
+	atrMax += atrMargin
+	atrY := func(v float64) int {
+		fraction := (v - atrMin) / (atrMax - atrMin)
+		return atrBottom - int(fraction*float64(atrBottom-atrTop))
+	}
+	for _, tick := range niceTickValues(atrMin, atrMax, 4) {
+		py := atrY(tick)
+		drawLine(img, plotLeft, py, plotRight, py, gridColor)
+		drawText(img, fmt.Sprintf("%.2f", tick), plotLeft-46, py-5, labelColor)
+	}
+	drawLine(img, plotLeft, atrTop, plotLeft, atrBottom, axisColor)
+	drawLine(img, plotLeft, atrBottom, plotRight, atrBottom, axisColor)
+	drawText(img, fmt.Sprintf("ATR(%d)", input.ATRPeriod), plotLeft, atrTop-18, labelColor)
+	drawIndicatorLine(img, input.ATR, closestIndex, xToPixel, atrY, atrColor)
+
 	// Shared x-axis: monthly separators for daily bars, daily separators for intraday.
 	tickStep := len(prices) / 10
 	if tickStep < 1 {
@@ -264,7 +295,7 @@ func RenderCombined(input RenderCombinedInput, outputPath string) error {
 		}
 		if period != prevPeriod && prevPeriod != "" {
 			px := xToPixel(i)
-			drawLine(img, px, priceTop, px, macdBottom, sepColor)
+			drawLine(img, px, priceTop, px, atrBottom, sepColor)
 			labelX := px + 4
 			labelRight := labelX + len(sepLabel)*7
 			if labelX > lastSepLabelRight+sepLabelMinGap {
@@ -278,7 +309,7 @@ func RenderCombined(input RenderCombinedInput, outputPath string) error {
 			continue
 		}
 		px := xToPixel(i)
-		drawLine(img, px, macdBottom, px, axisBottom, gridColor)
+		drawLine(img, px, atrBottom, px, axisBottom, gridColor)
 		drawLine(img, px, axisBottom, px, axisBottom+5, axisColor)
 		var label string
 		if daily {

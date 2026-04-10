@@ -1,12 +1,9 @@
 {
     "timeframe": "1d",
     "max_position_fraction": 1,
-    "take_profit_pct": 0.1,
-    "stop_loss_pct": 0,
-    "reentry_cooldown_minutes": 7200,
+    "atr_multiplier": 3,
+    "reentry_cooldown_minutes": 1440,
     "oversold_rsi": 30,
     "overbought_rsi": 70,
-    "volatility_tp_multiplier": 1.0,
-    "bollinger_min_width_pct": 0.015,
-    "bollinger_max_width_pct": 0
+    "lookback_bars": 20
 }

@@ -45,7 +45,7 @@ type EvaluateInput struct {
 	BollUpper         *float64
 	BollMiddle        *float64
 	BollLower         *float64
-	BollWidthPct      *float64
+	ATR               *float64
 	LastTradePrice    *float64
 	BidPrice          *float64
 	AskPrice          *float64
@@ -67,7 +67,6 @@ type EvaluateInput struct {
 	HighSinceEntry    float64
 	LastStopLossAt       *time.Time
 	LastOverboughtExitAt *time.Time
-	MACDAboveSinceEntry  bool
 	Now                  time.Time
 }
 

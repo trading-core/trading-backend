@@ -1,12 +1,16 @@
 package tradingstrategy
 
-// OverboughtExitStrategy exits when RSI signals the position is overbought,
-// unless price is simultaneously making a new N-bar high — which indicates a
-// genuine breakout rather than exhaustion. When LookbackHighPrice is zero
-// (lookback disabled), the breakout guard is inactive and RSI alone triggers the exit.
+// OverboughtExitStrategy exits when RSI signals the position is overbought AND
+// price is at or above the upper Bollinger Band — both conditions must hold.
+// The Bollinger Band acts as a confirmation that price has reached a structural
+// extreme, not merely a high RSI reading.
+//
+// An optional lookback guard suppresses the exit when price is simultaneously
+// making a new N-bar high, indicating a genuine breakout rather than exhaustion.
+// When LookbackHighPrice is zero (lookback disabled), the breakout guard is inactive.
 //
 // When overboughtRSI is zero the strategy is disabled. Missing indicator data
-// returns ActionNone rather than silently passing.
+// (RSI or BollUpper) returns ActionNone with a reason rather than silently passing.
 type OverboughtExitStrategy struct {
 	overboughtRSI float64
 }
@@ -34,8 +38,11 @@ func (strategy *OverboughtExitStrategy) Evaluate(input EvaluateInput) Decision {
 	if input.LookbackHighPrice > 0 && input.Price > input.LookbackHighPrice {
 		return Decision{Action: ActionNone, Reason: "rsi overbought but price breaking out above lookback high"}
 	}
-	if input.BollUpper != nil && input.Price >= *input.BollUpper {
-		return Decision{Action: ActionSell, Reason: "overbought exit: price at upper bollinger", Quantity: input.PositionQuantity}
+	if input.BollUpper == nil {
+		return Decision{Action: ActionNone, Reason: "boll_upper unavailable"}
 	}
-	return Decision{Action: ActionNone}
+	if input.Price < *input.BollUpper {
+		return Decision{Action: ActionNone, Reason: "rsi overbought but price below upper bollinger"}
+	}
+	return Decision{Action: ActionSell, Reason: "overbought exit: rsi overbought and price at upper bollinger", Quantity: input.PositionQuantity}
 }

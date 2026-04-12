@@ -8,11 +8,11 @@ import (
 	"os"
 	"time"
 
-	"github.com/kduong/trading-backend/cmd/backtest-cli/internal/backtest"
-	"github.com/kduong/trading-backend/cmd/backtest-cli/internal/backtestconfig"
-	"github.com/kduong/trading-backend/cmd/backtest-cli/internal/chart"
-	"github.com/kduong/trading-backend/cmd/backtest-cli/internal/indicator"
-	"github.com/kduong/trading-backend/cmd/backtest-cli/internal/replay"
+	"github.com/kduong/trading-backend/internal/backtest/backtest"
+	"github.com/kduong/trading-backend/internal/backtest/backtestconfig"
+	"github.com/kduong/trading-backend/internal/backtest/chart"
+	"github.com/kduong/trading-backend/internal/backtest/indicator"
+	"github.com/kduong/trading-backend/internal/backtest/replay"
 	"github.com/kduong/trading-backend/internal/fatal"
 	"github.com/kduong/trading-backend/internal/tradingstrategy"
 )

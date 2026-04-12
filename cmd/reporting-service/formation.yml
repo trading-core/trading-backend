@@ -1,0 +1,16 @@
+---
+- name: Render reporting-service .env
+  vars:
+    service_environment:
+      TOKEN_SECRET: "{{ token_secret }}"
+      ALPACA_API_SCHEME: https
+      ALPACA_API_HOST: data.alpaca.markets
+      ALPACA_API_PORT: 443
+      ALPACA_API_KEY: "{{ alpaca_api_key }}"
+      ALPACA_API_SECRET: "{{ alpaca_api_secret }}"
+      TRADING_REPORT_EVENT_LOG_FACTORY: "REDIS"
+      TRADING_REPORT_EVENT_LOG_REDIS_ADDRESS: "redis:6379"
+  template:
+    src: "{{ playbook_dir }}/templates/service.env.j2"
+    dest: backend/reporting-service/.env
+    mode: '0600'

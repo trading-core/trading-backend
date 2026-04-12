@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kduong/trading-backend/cmd/backtest-cli/internal/replay"
+	"github.com/kduong/trading-backend/internal/backtest/replay"
 	"github.com/kduong/trading-backend/internal/config"
 	"github.com/kduong/trading-backend/internal/tradingstrategy"
 )

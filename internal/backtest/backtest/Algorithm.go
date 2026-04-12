@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kduong/trading-backend/cmd/backtest-cli/internal/backtestconfig"
-	"github.com/kduong/trading-backend/cmd/backtest-cli/internal/indicator"
-	"github.com/kduong/trading-backend/cmd/backtest-cli/internal/replay"
+	"github.com/kduong/trading-backend/internal/backtest/backtestconfig"
+	"github.com/kduong/trading-backend/internal/backtest/indicator"
+	"github.com/kduong/trading-backend/internal/backtest/replay"
 	"github.com/kduong/trading-backend/internal/tradingstrategy"
 )
 
@@ -20,7 +20,7 @@ type pendingOrder struct {
 	FillAt   time.Time
 }
 
-type result struct {
+type Result struct {
 	Symbol        string
 	StartingCash  float64
 	EndingCash    float64
@@ -37,7 +37,7 @@ type result struct {
 // Run simulates a backtest over the given prices and events.
 // indicatorPrices should include warmup bars before the backtest range so that
 // EMAs and other indicators are fully converged by the time the simulation begins.
-func Run(cfg backtestconfig.Config, prices []replay.PricePoint, indicatorPrices []replay.PricePoint, events []replay.Event) result {
+func Run(cfg backtestconfig.Config, prices []replay.PricePoint, indicatorPrices []replay.PricePoint, events []replay.Event) Result {
 	if len(indicatorPrices) == 0 {
 		indicatorPrices = prices
 	}
@@ -261,7 +261,7 @@ func Run(cfg backtestconfig.Config, prices []replay.PricePoint, indicatorPrices 
 	endingValue := account.CashBalance + (account.PositionQuantity * lastPrice)
 	startingCash := cfg.StartingCash()
 	returns := computeTradeReturns(decisions)
-	return result{
+	return Result{
 		Symbol:        cfg.Symbol,
 		StartingCash:  startingCash,
 		EndingCash:    account.CashBalance,

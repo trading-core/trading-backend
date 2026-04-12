@@ -26,24 +26,6 @@ func (decorator *CommandHandlerThreadSafeDecorator) Enqueue(ctx context.Context,
 	return decorator.decorated.Enqueue(ctx, report)
 }
 
-func (decorator *CommandHandlerThreadSafeDecorator) MarkStarted(ctx context.Context, reportID string, updatedAt string) error {
-	decorator.mutex.Lock()
-	defer decorator.mutex.Unlock()
-	return decorator.decorated.MarkStarted(ctx, reportID, updatedAt)
-}
-
-func (decorator *CommandHandlerThreadSafeDecorator) MarkCompleted(ctx context.Context, reportID string, downloadURL string, updatedAt string) error {
-	decorator.mutex.Lock()
-	defer decorator.mutex.Unlock()
-	return decorator.decorated.MarkCompleted(ctx, reportID, downloadURL, updatedAt)
-}
-
-func (decorator *CommandHandlerThreadSafeDecorator) MarkFailed(ctx context.Context, reportID string, failReason string, updatedAt string) error {
-	decorator.mutex.Lock()
-	defer decorator.mutex.Unlock()
-	return decorator.decorated.MarkFailed(ctx, reportID, failReason, updatedAt)
-}
-
 func (decorator *CommandHandlerThreadSafeDecorator) MarkStartedSystem(ctx context.Context, reportID string, updatedAt string) error {
 	decorator.mutex.Lock()
 	defer decorator.mutex.Unlock()
@@ -60,4 +42,10 @@ func (decorator *CommandHandlerThreadSafeDecorator) MarkFailedSystem(ctx context
 	decorator.mutex.Lock()
 	defer decorator.mutex.Unlock()
 	return decorator.decorated.MarkFailedSystem(ctx, reportID, failReason, updatedAt)
+}
+
+func (decorator *CommandHandlerThreadSafeDecorator) IncrementRetrySystem(ctx context.Context, reportID string, updatedAt string) error {
+	decorator.mutex.Lock()
+	defer decorator.mutex.Unlock()
+	return decorator.decorated.IncrementRetrySystem(ctx, reportID, updatedAt)
 }

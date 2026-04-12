@@ -123,7 +123,20 @@ func (store *EventSourcedQueryHandler) apply(ctx context.Context, event *eventso
 		return store.applyCompleted(frame.ReportCompletedEvent)
 	case EventTypeReportFailed:
 		return store.applyFailed(frame.ReportFailedEvent)
+	case EventTypeReportRetried:
+		return store.applyRetried(frame.ReportRetriedEvent)
 	}
+	return nil
+}
+
+func (store *EventSourcedQueryHandler) applyRetried(event *ReportRetriedEvent) error {
+	report, ok := store.reportByID[event.ReportID]
+	if !ok {
+		return nil
+	}
+	report.RetryCount = event.RetryCount
+	report.Status = ReportStatusPending
+	report.UpdatedAt = event.UpdatedAt
 	return nil
 }
 
@@ -131,6 +144,7 @@ func (store *EventSourcedQueryHandler) applyEnqueued(event *ReportEnqueuedEvent)
 	store.reportByID[event.ReportID] = &Report{
 		ID:         event.ReportID,
 		UserID:     event.UserID,
+		Name:       event.Name,
 		Kind:       event.Kind,
 		Parameters: event.Parameters,
 		Status:     ReportStatusPending,

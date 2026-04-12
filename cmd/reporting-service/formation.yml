@@ -10,6 +10,10 @@
       ALPACA_API_SECRET: "{{ alpaca_api_secret }}"
       TRADING_REPORT_EVENT_LOG_FACTORY: "REDIS"
       TRADING_REPORT_EVENT_LOG_REDIS_ADDRESS: "redis:6379"
+      STORAGE_SERVICE_CLIENT_IMPLEMENTATION: "HTTP"
+      STORAGE_SERVICE_SCHEME: "http"
+      STORAGE_SERVICE_HOST: "storage-service"
+      STORAGE_SERVICE_PORT: "8083"
   template:
     src: "{{ playbook_dir }}/templates/service.env.j2"
     dest: backend/reporting-service/.env

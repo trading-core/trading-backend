@@ -1,23 +1,27 @@
 // Package backtestworker processes report jobs of kind "backtest".
 // It watches a channel for pending report IDs, runs the backtest using the
-// same logic as backtest-cli, writes the HTML report to disk, and updates
-// the report status via the command handler.
+// same logic as backtest-cli, uploads the HTML report to storage-service, and
+// updates the report status via the command handler.
 package backtestworker
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"time"
 
+	"github.com/kduong/trading-backend/cmd/reporting-service/internal/reportstore"
+	"github.com/kduong/trading-backend/cmd/storage-service/pkg/storageservice"
+	"github.com/kduong/trading-backend/internal/auth"
 	"github.com/kduong/trading-backend/internal/backtest/backtest"
 	"github.com/kduong/trading-backend/internal/backtest/backtestconfig"
 	"github.com/kduong/trading-backend/internal/backtest/chart"
 	"github.com/kduong/trading-backend/internal/backtest/indicator"
 	"github.com/kduong/trading-backend/internal/backtest/replay"
-	"github.com/kduong/trading-backend/cmd/reporting-service/internal/reportstore"
+	"github.com/kduong/trading-backend/internal/contextx"
 	"github.com/kduong/trading-backend/internal/logger"
 	"github.com/kduong/trading-backend/internal/tradingstrategy"
 )
@@ -27,19 +31,21 @@ const ReportKind = "backtest"
 // BacktestParameters are the user-supplied inputs for a backtest report,
 // stored as the report's parameters map.
 type BacktestParameters struct {
-	Symbol     string                    `json:"symbol"`
-	Start      string                    `json:"start"`
-	End        string                    `json:"end"`
-	Source     string                    `json:"source"`
-	Cash       int                       `json:"cash"`
-	Trading    tradingstrategy.Parameters `json:"trading_params"`
+	Symbol     string                         `json:"symbol"`
+	Start      string                         `json:"start"`
+	End        string                         `json:"end"`
+	Source     string                         `json:"source"`
+	Cash       int                            `json:"cash"`
+	Trading    tradingstrategy.Parameters     `json:"trading_params"`
 	Indicators backtestconfig.IndicatorConfig `json:"indicators"`
 }
 
 // WorkerInput holds the dependencies injected into the worker.
 type WorkerInput struct {
-	CommandHandler reportstore.CommandHandler
-	QueryHandler   reportstore.QueryHandler
+	CommandHandler     reportstore.CommandHandler
+	QueryHandler       reportstore.QueryHandler
+	StorageClient      storageservice.Client
+	ServiceTokenMinter *auth.ServiceTokenMinter
 	// Jobs receives report IDs to process.
 	Jobs       <-chan string
 	OutputsDir string
@@ -47,18 +53,22 @@ type WorkerInput struct {
 
 // Worker processes backtest report jobs from Jobs.
 type Worker struct {
-	commandHandler reportstore.CommandHandler
-	queryHandler   reportstore.QueryHandler
-	jobs           <-chan string
-	outputsDir     string
+	commandHandler     reportstore.CommandHandler
+	queryHandler       reportstore.QueryHandler
+	storageClient      storageservice.Client
+	serviceTokenMinter *auth.ServiceTokenMinter
+	jobs               <-chan string
+	outputsDir         string
 }
 
 func New(input WorkerInput) *Worker {
 	return &Worker{
-		commandHandler: input.CommandHandler,
-		queryHandler:   input.QueryHandler,
-		jobs:           input.Jobs,
-		outputsDir:     input.OutputsDir,
+		commandHandler:     input.CommandHandler,
+		queryHandler:       input.QueryHandler,
+		storageClient:      input.StorageClient,
+		serviceTokenMinter: input.ServiceTokenMinter,
+		jobs:               input.Jobs,
+		outputsDir:         input.OutputsDir,
 	}
 }
 
@@ -84,21 +94,19 @@ func (worker *Worker) process(ctx context.Context, reportID string) {
 		logger.Warnpf("backtestworker: could not mark report %s started: %v", reportID, err)
 		return
 	}
-
-	downloadURL, runErr := worker.run(ctx, reportID)
+	downloadURL, err := worker.run(ctx, reportID)
 	now = time.Now().UTC().Format(time.RFC3339)
-	if runErr != nil {
-		logger.Warnpf("backtestworker: report %s failed: %v", reportID, runErr)
-		failErr := worker.commandHandler.MarkFailedSystem(ctx, reportID, runErr.Error(), now)
-		if failErr != nil {
-			logger.Warnpf("backtestworker: could not mark report %s failed: %v", reportID, failErr)
+	if err != nil {
+		logger.Warnpf("backtestworker: report %s failed: %v", reportID, err)
+		err := worker.commandHandler.MarkFailedSystem(ctx, reportID, err.Error(), now)
+		if err != nil {
+			logger.Warnpf("backtestworker: could not mark report %s failed: %v", reportID, err)
 		}
 		return
 	}
-
-	completeErr := worker.commandHandler.MarkCompletedSystem(ctx, reportID, downloadURL, now)
-	if completeErr != nil {
-		logger.Warnpf("backtestworker: could not mark report %s completed: %v", reportID, completeErr)
+	err = worker.commandHandler.MarkCompletedSystem(ctx, reportID, downloadURL, now)
+	if err != nil {
+		logger.Warnpf("backtestworker: could not mark report %s completed: %v", reportID, err)
 	}
 }
 
@@ -108,15 +116,12 @@ func (worker *Worker) run(ctx context.Context, reportID string) (downloadURL str
 		err = fmt.Errorf("loading report: %w", err)
 		return
 	}
-
 	params, err := parseParameters(report.Parameters)
 	if err != nil {
 		err = fmt.Errorf("parsing backtest parameters: %w", err)
 		return
 	}
-
 	cfg := buildConfig(params)
-
 	replayInput := cfg.ReplayInput()
 	strategy, err := replayInput.SelectStrategy()
 	if err != nil {
@@ -128,23 +133,43 @@ func (worker *Worker) run(ctx context.Context, reportID string) (downloadURL str
 		err = fmt.Errorf("loading price data: %w", err)
 		return
 	}
-
 	result := backtest.Run(cfg, loaded.Prices, loaded.IndicatorPrices, loaded.Events)
-
 	outputDir := fmt.Sprintf("%s/%s", worker.outputsDir, reportID)
 	err = os.MkdirAll(outputDir, 0o755)
 	if err != nil {
 		err = fmt.Errorf("creating output directory: %w", err)
 		return
 	}
-
 	err = writeOutputs(cfg, result, loaded, outputDir)
 	if err != nil {
 		return
 	}
-
-	downloadURL = fmt.Sprintf("/reports/v1/reports/%s/download", reportID)
+	file, err := worker.uploadReport(ctx, reportID, outputDir)
+	if err != nil {
+		err = fmt.Errorf("uploading report to storage: %w", err)
+		return
+	}
+	downloadURL = fmt.Sprintf("/storage/v1/files/%s", file.ID)
 	return
+}
+
+func (worker *Worker) uploadReport(ctx context.Context, reportID string, outputDir string) (*storageservice.File, error) {
+	token, err := worker.serviceTokenMinter.MintToken()
+	if err != nil {
+		return nil, fmt.Errorf("minting service token: %w", err)
+	}
+	ctx = contextx.WithAccessToken(ctx, token)
+	htmlPath := fmt.Sprintf("%s/report.html", outputDir)
+	htmlData, err := os.ReadFile(htmlPath)
+	if err != nil {
+		return nil, fmt.Errorf("reading report HTML: %w", err)
+	}
+	filename := fmt.Sprintf("report-%s.html", reportID)
+	return storageservice.UploadFile(ctx, worker.storageClient, storageservice.UploadFileInput{
+		Filename:    filename,
+		ContentType: "text/html; charset=utf-8",
+		Body:        bytes.NewReader(htmlData),
+	})
 }
 
 func writeOutputs(cfg backtestconfig.Config, result backtest.Result, loaded *replay.LoadOutput, outputDir string) error {

@@ -6,12 +6,15 @@ import (
 	"github.com/ansel1/merry"
 	"github.com/gorilla/mux"
 	"github.com/kduong/trading-backend/cmd/reporting-service/internal/reportstore"
+	"github.com/kduong/trading-backend/cmd/storage-service/pkg/storageservice"
 	"github.com/kduong/trading-backend/internal/auth"
 )
 
 type Handler struct {
 	reportCommandHandler reportstore.CommandHandler
 	reportQueryHandler   reportstore.QueryHandler
+	storageClient        storageservice.Client
+	serviceTokenMinter   *auth.ServiceTokenMinter
 	outputsDir           string
 	jobs                 chan<- string
 }
@@ -20,6 +23,8 @@ type NewRouterInput struct {
 	AuthMiddleware       *auth.Middleware
 	ReportCommandHandler reportstore.CommandHandler
 	ReportQueryHandler   reportstore.QueryHandler
+	StorageClient        storageservice.Client
+	ServiceTokenMinter   *auth.ServiceTokenMinter
 	OutputsDir           string
 	Jobs                 chan<- string
 }
@@ -28,6 +33,8 @@ func NewRouter(input NewRouterInput) *mux.Router {
 	handler := &Handler{
 		reportCommandHandler: input.ReportCommandHandler,
 		reportQueryHandler:   input.ReportQueryHandler,
+		storageClient:        input.StorageClient,
+		serviceTokenMinter:   input.ServiceTokenMinter,
 		outputsDir:           input.OutputsDir,
 		jobs:                 input.Jobs,
 	}

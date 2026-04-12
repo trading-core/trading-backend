@@ -2,12 +2,15 @@ package httpapi
 
 import (
 	"fmt"
+	"io"
 	"net/http"
-	"os"
+	"strings"
 
 	"github.com/ansel1/merry"
 	"github.com/gorilla/mux"
 	"github.com/kduong/trading-backend/cmd/reporting-service/internal/reportstore"
+	"github.com/kduong/trading-backend/internal/contextx"
+	"github.com/kduong/trading-backend/internal/fatal"
 	"github.com/kduong/trading-backend/internal/httputil"
 )
 
@@ -30,11 +33,36 @@ func (handler *Handler) DownloadReport(responseWriter http.ResponseWriter, reque
 		err = merry.New("report is not yet available for download").WithHTTPCode(http.StatusConflict)
 		return
 	}
-	htmlPath := fmt.Sprintf("%s/%s/report.html", handler.outputsDir, reportID)
-	if _, statErr := os.Stat(htmlPath); os.IsNotExist(statErr) {
-		err = merry.New("report file not found on disk").WithHTTPCode(http.StatusNotFound)
+	fileID := extractFileID(report.DownloadURL)
+	if fileID == "" {
+		err = merry.New("report has no file attached").WithHTTPCode(http.StatusNotFound)
 		return
 	}
-	responseWriter.Header().Set("Content-Type", "text/html; charset=utf-8")
-	http.ServeFile(responseWriter, request, htmlPath)
+	token, err := handler.serviceTokenMinter.MintToken()
+	if err != nil {
+		err = fmt.Errorf("minting service token: %w", err)
+		return
+	}
+	ctx = contextx.WithAccessToken(ctx, token)
+	download, err := handler.storageClient.DownloadFile(ctx, fileID)
+	if err != nil {
+		return
+	}
+	defer download.Body.Close()
+	responseWriter.Header().Set("Content-Type", download.ContentType)
+	if download.ContentDisposition != "" {
+		responseWriter.Header().Set("Content-Disposition", download.ContentDisposition)
+	}
+	_, err = io.Copy(responseWriter, download.Body)
+	fatal.OnErrorUnlessDone(ctx, err)
+}
+
+// extractFileID parses the file ID from a storage-service path of the form
+// /storage/v1/files/<id>.
+func extractFileID(downloadURL string) string {
+	const prefix = "/storage/v1/files/"
+	if !strings.HasPrefix(downloadURL, prefix) {
+		return ""
+	}
+	return strings.TrimPrefix(downloadURL, prefix)
 }

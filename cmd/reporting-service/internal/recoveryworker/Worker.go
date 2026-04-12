@@ -3,18 +3,22 @@
 // were left in a non-terminal state (pending or running) due to a previous
 // crash, and requeues them so the backtest worker can pick them up again.
 //
-// Reports that were "running" when the service died are first marked failed
-// (they may have produced partial output), then re-enqueued as fresh pending
-// jobs so the worker retries them cleanly.
+// Each interrupted report is given up to maxRetries attempts. On each recovery
+// its retry count is incremented and it is requeued as pending. Once the retry
+// count reaches maxRetries the report is permanently failed with a dead-letter
+// message instead of being requeued.
 package recoveryworker
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/kduong/trading-backend/cmd/reporting-service/internal/reportstore"
 	"github.com/kduong/trading-backend/internal/logger"
 )
+
+const maxRetries = 3
 
 type WorkerInput struct {
 	CommandHandler reportstore.CommandHandler
@@ -49,20 +53,25 @@ func (worker *Worker) Recover(ctx context.Context) {
 	}
 
 	recovered := 0
+	deadLettered := 0
 	for _, report := range reports {
 		switch report.Status {
-		case reportstore.ReportStatusRunning:
-			// The service crashed mid-run. Mark it failed then requeue.
+		case reportstore.ReportStatusRunning, reportstore.ReportStatusPending:
 			now := time.Now().UTC().Format(time.RFC3339)
-			if err := worker.commandHandler.MarkFailedSystem(ctx, report.ID, "service restarted during execution", now); err != nil {
-				logger.Warnpf("recoveryworker: could not mark report %s failed: %v", report.ID, err)
+			nextRetry := report.RetryCount + 1
+			if nextRetry > maxRetries {
+				reason := fmt.Sprintf("dead letter: job failed to complete after %d attempts", maxRetries)
+				if err := worker.commandHandler.MarkFailedSystem(ctx, report.ID, reason, now); err != nil {
+					logger.Warnpf("recoveryworker: could not dead-letter report %s: %v", report.ID, err)
+				} else {
+					deadLettered++
+				}
 				continue
 			}
-			worker.requeue(ctx, report.ID)
-			recovered++
-
-		case reportstore.ReportStatusPending:
-			// Enqueued but never picked up (e.g. service crashed before worker read it).
+			if err := worker.commandHandler.IncrementRetrySystem(ctx, report.ID, now); err != nil {
+				logger.Warnpf("recoveryworker: could not increment retry for report %s: %v", report.ID, err)
+				continue
+			}
 			worker.requeue(ctx, report.ID)
 			recovered++
 		}
@@ -70,6 +79,9 @@ func (worker *Worker) Recover(ctx context.Context) {
 
 	if recovered > 0 {
 		logger.Warnpf("recoveryworker: requeued %d interrupted report(s)", recovered)
+	}
+	if deadLettered > 0 {
+		logger.Warnpf("recoveryworker: dead-lettered %d report(s) that exceeded %d retries", deadLettered, maxRetries)
 	}
 }
 

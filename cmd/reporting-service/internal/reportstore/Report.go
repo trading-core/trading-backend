@@ -18,6 +18,7 @@ type Report struct {
 	Status      ReportStatus      `json:"status"`
 	FailReason  string            `json:"fail_reason,omitempty"`
 	DownloadURL string            `json:"download_url,omitempty"`
+	RetryCount  int               `json:"retry_count,omitempty"`
 	CreatedAt   string            `json:"created_at"`
 	UpdatedAt   string            `json:"updated_at"`
 }

@@ -48,6 +48,9 @@ func Run(cfg backtestconfig.Config, prices []replay.PricePoint, indicatorPrices 
 	bollUpperSeries, bollMiddleSeries, bollLowerSeries := indicator.ComputeBollingerBands(indicatorPrices, cfg.Indicators.BollingerPeriod, cfg.Indicators.BollingerStdDev)
 	smaSeries := indicator.ComputeSMA(indicatorPrices, cfg.Indicators.SMAPeriod)
 	atrSeries := indicator.ComputeATR(indicatorPrices, cfg.Indicators.ATRPeriod)
+	fastEMASeries := indicator.ComputeEMA(indicatorPrices, cfg.Indicators.FastEMAPeriod)
+	slowEMASeries := indicator.ComputeEMA(indicatorPrices, cfg.Indicators.SlowEMAPeriod)
+	adxSeries := indicator.ComputeADX(indicatorPrices, cfg.Indicators.ADXPeriod)
 	rsiByTs := make(map[int64]float64, len(rsiSeries))
 	for _, p := range rsiSeries {
 		rsiByTs[p.At.Unix()] = p.Value
@@ -79,6 +82,18 @@ func Run(cfg backtestconfig.Config, prices []replay.PricePoint, indicatorPrices 
 	atrByTs := make(map[int64]float64, len(atrSeries))
 	for _, p := range atrSeries {
 		atrByTs[p.At.Unix()] = p.Value
+	}
+	fastEMAByTs := make(map[int64]float64, len(fastEMASeries))
+	for _, p := range fastEMASeries {
+		fastEMAByTs[p.At.Unix()] = p.Value
+	}
+	slowEMAByTs := make(map[int64]float64, len(slowEMASeries))
+	for _, p := range slowEMASeries {
+		slowEMAByTs[p.At.Unix()] = p.Value
+	}
+	adxByTs := make(map[int64]float64, len(adxSeries))
+	for _, p := range adxSeries {
+		adxByTs[p.At.Unix()] = p.Value
 	}
 	account := tradingstrategy.AccountSnapshot{
 		CashBalance:      cfg.StartingCash(),
@@ -198,6 +213,18 @@ func Run(cfg backtestconfig.Config, prices []replay.PricePoint, indicatorPrices 
 			value := v
 			input.ATR = &value
 		}
+		if v, ok := fastEMAByTs[event.At.Unix()]; ok {
+			value := v
+			input.FastEMA = &value
+		}
+		if v, ok := slowEMAByTs[event.At.Unix()]; ok {
+			value := v
+			input.SlowEMA = &value
+		}
+		if v, ok := adxByTs[event.At.Unix()]; ok {
+			value := v
+			input.ADX = &value
+		}
 		decision := strategy.Evaluate(input)
 		if decision.Action == tradingstrategy.ActionNone {
 			continue
@@ -290,6 +317,24 @@ func warnIfInsufficientWarmup(indicatorBars int, cfg backtestconfig.Config) {
 		{fmt.Sprintf("MACD(%d,%d,%d)", ind.MACDFastPeriod, ind.MACDSlowPeriod, ind.MACDSignalPeriod), ind.MACDSlowPeriod + ind.MACDSignalPeriod},
 		{"Bollinger(" + fmt.Sprintf("%d", ind.BollingerPeriod) + ")", ind.BollingerPeriod},
 		{"SMA(" + fmt.Sprintf("%d", ind.SMAPeriod) + ")", ind.SMAPeriod},
+	}
+	if ind.FastEMAPeriod > 0 {
+		checks = append(checks, struct {
+			name    string
+			minBars int
+		}{"FastEMA(" + fmt.Sprintf("%d", ind.FastEMAPeriod) + ")", ind.FastEMAPeriod})
+	}
+	if ind.SlowEMAPeriod > 0 {
+		checks = append(checks, struct {
+			name    string
+			minBars int
+		}{"SlowEMA(" + fmt.Sprintf("%d", ind.SlowEMAPeriod) + ")", ind.SlowEMAPeriod})
+	}
+	if ind.ADXPeriod > 0 {
+		checks = append(checks, struct {
+			name    string
+			minBars int
+		}{"ADX(" + fmt.Sprintf("%d", ind.ADXPeriod) + ")", 2*ind.ADXPeriod + 1})
 	}
 	for _, c := range checks {
 		if indicatorBars < c.minBars {

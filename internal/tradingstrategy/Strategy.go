@@ -46,6 +46,9 @@ type EvaluateInput struct {
 	BollMiddle        *float64
 	BollLower         *float64
 	ATR               *float64
+	FastEMA           *float64
+	SlowEMA           *float64
+	ADX               *float64
 	LastTradePrice    *float64
 	BidPrice          *float64
 	AskPrice          *float64

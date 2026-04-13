@@ -55,6 +55,9 @@ type IndicatorConfig struct {
 	BollingerStdDev  float64
 	SMAPeriod        int
 	ATRPeriod        int
+	FastEMAPeriod    int // period for fast EMA used by regime detector; 0 disables EMA/ADX computation
+	SlowEMAPeriod    int // period for slow EMA used by regime detector; must be > FastEMAPeriod when non-zero
+	ADXPeriod        int // period for ADX used by regime detector; 0 disables ADX computation
 }
 
 // LoadFromEnv reads all backtest configuration from environment variables and
@@ -92,6 +95,9 @@ func LoadFromEnv() Config {
 			BollingerStdDev:  config.EnvFloat64("BACKTEST_BOLLINGER_STDDEV", 2.0),
 			SMAPeriod:        config.EnvInt("BACKTEST_SMA_PERIOD", 50),
 			ATRPeriod:        config.EnvInt("BACKTEST_ATR_PERIOD", 14),
+			FastEMAPeriod:    config.EnvInt("BACKTEST_FAST_EMA_PERIOD", 9),
+			SlowEMAPeriod:    config.EnvInt("BACKTEST_SLOW_EMA_PERIOD", 21),
+			ADXPeriod:        config.EnvInt("BACKTEST_ADX_PERIOD", 14),
 		},
 	}
 	if raw := os.Getenv("BACKTEST_PARAMS_JSON"); raw != "" {
@@ -146,6 +152,18 @@ func (config Config) validate() error {
 	}
 	if config.Indicators.ATRPeriod < 2 {
 		return fmt.Errorf("BACKTEST_ATR_PERIOD must be at least 2")
+	}
+	if fastEMA := config.Indicators.FastEMAPeriod; fastEMA != 0 && fastEMA < 2 {
+		return fmt.Errorf("BACKTEST_FAST_EMA_PERIOD must be at least 2 when set")
+	}
+	if slowEMA := config.Indicators.SlowEMAPeriod; slowEMA != 0 && slowEMA < 2 {
+		return fmt.Errorf("BACKTEST_SLOW_EMA_PERIOD must be at least 2 when set")
+	}
+	if config.Indicators.FastEMAPeriod > 0 && config.Indicators.SlowEMAPeriod <= config.Indicators.FastEMAPeriod {
+		return fmt.Errorf("BACKTEST_SLOW_EMA_PERIOD must be greater than BACKTEST_FAST_EMA_PERIOD")
+	}
+	if adx := config.Indicators.ADXPeriod; adx != 0 && adx < 2 {
+		return fmt.Errorf("BACKTEST_ADX_PERIOD must be at least 2 when set")
 	}
 
 	// Trading parameters constraints.

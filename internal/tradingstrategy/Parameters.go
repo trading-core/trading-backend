@@ -11,6 +11,7 @@ type Parameters struct {
 	OverboughtRSI          float64 `json:"overbought_rsi,omitempty"`           // RSI threshold for overbought exit (e.g. 70); 0 disables
 	LookbackBars           int     `json:"lookback_bars,omitempty"`            // N-bar high used by BreakoutEntryStrategy; 0 disables breakout entry
 	RiskPerTradePct        float64 `json:"risk_per_trade_pct,omitempty"`       // fraction of buying power to risk per trade for ATR-based position sizing (e.g. 0.01 = 1%); 0 uses max_position_fraction instead
+	ADXThreshold           float64 `json:"adx_threshold,omitempty"`            // ADX value at or above which a trend regime is confirmed (e.g. 20); 0 disables ADX filtering
 }
 
 // FromParameters builds a Strategy from Parameters using a priority pipeline:
@@ -19,26 +20,35 @@ type Parameters struct {
 //	└── FirstMatch:
 //	      SessionGuard            — veto outside session window (intraday only; disable with zero values)
 //	      OverboughtExitStrategy  — exit when RSI overbought + price at upper Bollinger
-//	      ATRStopStrategy    — last-resort exit; disabled when atr_multiplier=0
+//	      ATRStopStrategy         — last-resort exit; disabled when atr_multiplier=0
 //	      PositionSizingDecorator
-//	        └── FirstMatch (entry signals, evaluated when flat):
-//	              BreakoutEntryStrategy — N-bar high breakout; disabled when lookback_bars=0
-//	              TrendEntryStrategy    — MACD + SMA momentum entry
-//	              OversoldEntryStrategy — RSI + lower Bollinger mean-reversion entry
+//	        └── RegimeSwitchStrategy (EMABasedRegimeDetector):
+//	              Uptrend   → FirstMatch(TrendEntry, BreakoutEntry)
+//	              Range     → OversoldEntry
+//	              Downtrend → NoopStrategy
+//	            Regime detection requires FastEMA and SlowEMA in EvaluateInput (computed from
+//	            BACKTEST_FAST_EMA_PERIOD / BACKTEST_SLOW_EMA_PERIOD). When either EMA is absent,
+//	            the detector defaults to RegimeRange (OversoldEntry only).
 func FromParameters(parameters *Parameters) Strategy {
 	var strategy Strategy
-	strategy = NewCompositeStrategy(
-		NewBreakoutEntryStrategy(NewBreakoutEntryStrategyInput{
-			LookbackBars:  parameters.LookbackBars,
-			OverboughtRSI: parameters.OverboughtRSI,
+	strategy = NewRegimeSwitchStrategy(NewRegimeSwitchStrategyInput{
+		Detector: NewEMABasedRegimeDetector(NewEMABasedRegimeDetectorInput{
+			ADXThreshold: parameters.ADXThreshold,
 		}),
-		NewTrendEntryStrategy(NewTrendEntryStrategyInput{
-			OverboughtRSI: parameters.OverboughtRSI,
-		}),
-		NewOversoldEntryStrategy(NewOversoldEntryStrategyInput{
+		Uptrend: NewCompositeStrategy(
+			NewTrendEntryStrategy(NewTrendEntryStrategyInput{
+				OverboughtRSI: parameters.OverboughtRSI,
+			}),
+			NewBreakoutEntryStrategy(NewBreakoutEntryStrategyInput{
+				LookbackBars:  parameters.LookbackBars,
+				OverboughtRSI: parameters.OverboughtRSI,
+			}),
+		),
+		Range: NewOversoldEntryStrategy(NewOversoldEntryStrategyInput{
 			OversoldRSI: parameters.OverSoldRSI,
 		}),
-	)
+		Downtrend: NewNoopStrategy(),
+	})
 	strategy = NewPositionSizingDecorator(NewPositionSizingDecoratorInput{
 		Decorated:           strategy,
 		MaxPositionFraction: parameters.MaxPositionFraction,

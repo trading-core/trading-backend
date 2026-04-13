@@ -182,6 +182,10 @@ func writeOutputs(cfg backtestconfig.Config, result backtest.Result, loaded *rep
 	bollUpperSeries, bollMiddleSeries, bollLowerSeries := indicator.ComputeBollingerBands(loaded.IndicatorPrices, cfg.Indicators.BollingerPeriod, cfg.Indicators.BollingerStdDev)
 	smaSeries := indicator.ComputeSMA(loaded.IndicatorPrices, cfg.Indicators.SMAPeriod)
 	atrSeries := indicator.ComputeATR(loaded.IndicatorPrices, cfg.Indicators.ATRPeriod)
+	fastEMASeries := indicator.ComputeEMA(loaded.IndicatorPrices, cfg.Indicators.FastEMAPeriod)
+	slowEMASeries := indicator.ComputeEMA(loaded.IndicatorPrices, cfg.Indicators.SlowEMAPeriod)
+	adxSeries := indicator.ComputeADX(loaded.IndicatorPrices, cfg.Indicators.ADXPeriod)
+	regimeSeries := indicator.ComputeRegime(fastEMASeries, slowEMASeries, adxSeries, cfg.TradingParameters.ADXThreshold)
 
 	tf := cfg.TradingParameters.Timeframe
 	rsiPlot := filterToMarketHours(filterToRange(rsiSeries, plotStart, plotEnd), tz, tf)
@@ -192,35 +196,43 @@ func writeOutputs(cfg backtestconfig.Config, result backtest.Result, loaded *rep
 	bollLowerPlot := filterToMarketHours(filterToRange(bollLowerSeries, plotStart, plotEnd), tz, tf)
 	smaPlot := filterToMarketHours(filterToRange(smaSeries, plotStart, plotEnd), tz, tf)
 	atrPlot := filterToMarketHours(filterToRange(atrSeries, plotStart, plotEnd), tz, tf)
+	fastEMAPlot := filterToMarketHours(filterToRange(fastEMASeries, plotStart, plotEnd), tz, tf)
+	slowEMAPlot := filterToMarketHours(filterToRange(slowEMASeries, plotStart, plotEnd), tz, tf)
+	regimePlot := filterToMarketHours(filterToRange(regimeSeries, plotStart, plotEnd), tz, tf)
 
 	htmlPath := fmt.Sprintf("%s/report.html", outputDir)
 	err := chart.RenderHTMLReport(chart.RenderHTMLReportInput{
-		Symbol:       result.Symbol,
-		TotalReturn:  result.TotalReturn,
-		StartingCash: result.StartingCash,
-		EndingCash:   result.EndingCash,
-		EndingValue:  result.EndingValue,
-		TradeCount:   result.TradeCount,
-		WinRate:      result.WinRate,
-		SharpeRatio:  result.SharpeRatio,
-		Prices:       toChartPrices(result.Prices),
-		Decisions:    toChartDecisions(result.Decisions),
-		BollUpper:    toChartIndicator(bollUpperPlot),
-		BollMiddle:   toChartIndicator(bollMiddlePlot),
-		BollLower:    toChartIndicator(bollLowerPlot),
-		SMA:          toChartIndicator(smaPlot),
-		RSI:          toChartIndicator(rsiPlot),
-		MACD:         toChartIndicator(macdPlot),
-		MACDSignal:   toChartIndicator(macdSignalPlot),
-		ATR:          toChartIndicator(atrPlot),
-		SMAPeriod:    cfg.Indicators.SMAPeriod,
-		RSIPeriod:    cfg.Indicators.RSIPeriod,
-		MACDFast:     cfg.Indicators.MACDFastPeriod,
-		MACDSlow:     cfg.Indicators.MACDSlowPeriod,
-		MACDSignalN:  cfg.Indicators.MACDSignalPeriod,
-		ATRPeriod:    cfg.Indicators.ATRPeriod,
-		Timezone:     tz,
-		Timeframe:    tf,
+		Symbol:        result.Symbol,
+		TotalReturn:   result.TotalReturn,
+		StartingCash:  result.StartingCash,
+		EndingCash:    result.EndingCash,
+		EndingValue:   result.EndingValue,
+		TradeCount:    result.TradeCount,
+		WinRate:       result.WinRate,
+		SharpeRatio:   result.SharpeRatio,
+		Prices:        toChartPrices(result.Prices),
+		Decisions:     toChartDecisions(result.Decisions),
+		BollUpper:     toChartIndicator(bollUpperPlot),
+		BollMiddle:    toChartIndicator(bollMiddlePlot),
+		BollLower:     toChartIndicator(bollLowerPlot),
+		SMA:           toChartIndicator(smaPlot),
+		FastEMA:       toChartIndicator(fastEMAPlot),
+		SlowEMA:       toChartIndicator(slowEMAPlot),
+		RSI:           toChartIndicator(rsiPlot),
+		MACD:          toChartIndicator(macdPlot),
+		MACDSignal:    toChartIndicator(macdSignalPlot),
+		ATR:           toChartIndicator(atrPlot),
+		Regimes:       toChartRegimes(regimePlot),
+		SMAPeriod:     cfg.Indicators.SMAPeriod,
+		RSIPeriod:     cfg.Indicators.RSIPeriod,
+		MACDFast:      cfg.Indicators.MACDFastPeriod,
+		MACDSlow:      cfg.Indicators.MACDSlowPeriod,
+		MACDSignalN:   cfg.Indicators.MACDSignalPeriod,
+		ATRPeriod:     cfg.Indicators.ATRPeriod,
+		FastEMAPeriod: cfg.Indicators.FastEMAPeriod,
+		SlowEMAPeriod: cfg.Indicators.SlowEMAPeriod,
+		Timezone:      tz,
+		Timeframe:     tf,
 	}, htmlPath)
 	if err != nil {
 		return fmt.Errorf("rendering HTML report: %w", err)
@@ -369,6 +381,14 @@ func toChartIndicator(points []indicator.Point) []chart.IndicatorPoint {
 	out := make([]chart.IndicatorPoint, len(points))
 	for i, point := range points {
 		out[i] = chart.IndicatorPoint{At: point.At, Value: point.Value}
+	}
+	return out
+}
+
+func toChartRegimes(points []indicator.Point) []chart.RegimePoint {
+	out := make([]chart.RegimePoint, len(points))
+	for i, point := range points {
+		out[i] = chart.RegimePoint{At: point.At, Regime: int(point.Value)}
 	}
 	return out
 }

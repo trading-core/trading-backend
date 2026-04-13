@@ -9,34 +9,46 @@ import (
 	"time"
 )
 
+// RegimePoint holds a regime classification for a single bar.
+// Regime values: 0=Uptrend, 1=Range, 2=Downtrend.
+type RegimePoint struct {
+	At     time.Time
+	Regime int
+}
+
 // RenderHTMLReportInput extends the combined chart input with backtest summary stats.
 type RenderHTMLReportInput struct {
-	Symbol       string
-	TotalReturn  float64
-	StartingCash float64
-	EndingCash   float64
-	EndingValue  float64
-	TradeCount   int
-	WinRate      float64
-	SharpeRatio  float64
-	Prices       []PricePoint
-	Decisions    []DecisionMarker
-	BollUpper    []IndicatorPoint
-	BollMiddle   []IndicatorPoint
-	BollLower    []IndicatorPoint
-	SMA          []IndicatorPoint
-	RSI          []IndicatorPoint
-	MACD         []IndicatorPoint
-	MACDSignal   []IndicatorPoint
-	ATR          []IndicatorPoint
-	SMAPeriod    int
-	RSIPeriod    int
-	MACDFast     int
-	MACDSlow     int
-	MACDSignalN  int
-	ATRPeriod    int
-	Timezone     *time.Location
-	Timeframe    string
+	Symbol        string
+	TotalReturn   float64
+	StartingCash  float64
+	EndingCash    float64
+	EndingValue   float64
+	TradeCount    int
+	WinRate       float64
+	SharpeRatio   float64
+	Prices        []PricePoint
+	Decisions     []DecisionMarker
+	BollUpper     []IndicatorPoint
+	BollMiddle    []IndicatorPoint
+	BollLower     []IndicatorPoint
+	SMA           []IndicatorPoint
+	FastEMA       []IndicatorPoint
+	SlowEMA       []IndicatorPoint
+	RSI           []IndicatorPoint
+	MACD          []IndicatorPoint
+	MACDSignal    []IndicatorPoint
+	ATR           []IndicatorPoint
+	Regimes       []RegimePoint
+	SMAPeriod     int
+	RSIPeriod     int
+	MACDFast      int
+	MACDSlow      int
+	MACDSignalN   int
+	ATRPeriod     int
+	FastEMAPeriod int
+	SlowEMAPeriod int
+	Timezone      *time.Location
+	Timeframe     string
 }
 
 type htmlPoint struct {
@@ -52,31 +64,41 @@ type htmlDecision struct {
 	Reason string  `json:"reason"`
 }
 
+type htmlRegimePoint struct {
+	T string `json:"t"`
+	V int    `json:"v"`
+}
+
 type htmlReportData struct {
-	Symbol       string         `json:"symbol"`
-	TotalReturn  float64        `json:"total_return"`
-	StartingCash float64        `json:"starting_cash"`
-	EndingCash   float64        `json:"ending_cash"`
-	EndingValue  float64        `json:"ending_value"`
-	TradeCount   int            `json:"trade_count"`
-	WinRate      float64        `json:"win_rate"`
-	SharpeRatio  float64        `json:"sharpe_ratio"`
-	Prices       []htmlPoint    `json:"prices"`
-	BollUpper    []htmlPoint    `json:"boll_upper"`
-	BollMiddle   []htmlPoint    `json:"boll_middle"`
-	BollLower    []htmlPoint    `json:"boll_lower"`
-	SMA          []htmlPoint    `json:"sma"`
-	RSI          []htmlPoint    `json:"rsi"`
-	MACD         []htmlPoint    `json:"macd"`
-	MACDSignal   []htmlPoint    `json:"macd_signal"`
-	ATR          []htmlPoint    `json:"atr"`
-	Decisions    []htmlDecision `json:"decisions"`
-	SMAPeriod    int            `json:"sma_period"`
-	RSIPeriod    int            `json:"rsi_period"`
-	MACDFast     int            `json:"macd_fast"`
-	MACDSlow     int            `json:"macd_slow"`
-	MACDSignalN  int            `json:"macd_signal_n"`
-	ATRPeriod    int            `json:"atr_period"`
+	Symbol        string            `json:"symbol"`
+	TotalReturn   float64           `json:"total_return"`
+	StartingCash  float64           `json:"starting_cash"`
+	EndingCash    float64           `json:"ending_cash"`
+	EndingValue   float64           `json:"ending_value"`
+	TradeCount    int               `json:"trade_count"`
+	WinRate       float64           `json:"win_rate"`
+	SharpeRatio   float64           `json:"sharpe_ratio"`
+	Prices        []htmlPoint       `json:"prices"`
+	BollUpper     []htmlPoint       `json:"boll_upper"`
+	BollMiddle    []htmlPoint       `json:"boll_middle"`
+	BollLower     []htmlPoint       `json:"boll_lower"`
+	SMA           []htmlPoint       `json:"sma"`
+	FastEMA       []htmlPoint       `json:"fast_ema"`
+	SlowEMA       []htmlPoint       `json:"slow_ema"`
+	RSI           []htmlPoint       `json:"rsi"`
+	MACD          []htmlPoint       `json:"macd"`
+	MACDSignal    []htmlPoint       `json:"macd_signal"`
+	ATR           []htmlPoint       `json:"atr"`
+	Regimes       []htmlRegimePoint `json:"regimes"`
+	Decisions     []htmlDecision    `json:"decisions"`
+	SMAPeriod     int               `json:"sma_period"`
+	RSIPeriod     int               `json:"rsi_period"`
+	MACDFast      int               `json:"macd_fast"`
+	MACDSlow      int               `json:"macd_slow"`
+	MACDSignalN   int               `json:"macd_signal_n"`
+	ATRPeriod     int               `json:"atr_period"`
+	FastEMAPeriod int               `json:"fast_ema_period"`
+	SlowEMAPeriod int               `json:"slow_ema_period"`
 }
 
 func toHTMLPoints(pts []IndicatorPoint, tz *time.Location) []htmlPoint {
@@ -113,31 +135,41 @@ func RenderHTMLReport(input RenderHTMLReportInput, outputPath string) error {
 		prices[i] = htmlPoint{T: p.At.In(tz).Format("2006-01-02"), V: p.Close}
 	}
 
+	regimes := make([]htmlRegimePoint, len(input.Regimes))
+	for i, r := range input.Regimes {
+		regimes[i] = htmlRegimePoint{T: r.At.In(tz).Format("2006-01-02"), V: r.Regime}
+	}
+
 	data := htmlReportData{
-		Symbol:       input.Symbol,
-		TotalReturn:  input.TotalReturn,
-		StartingCash: input.StartingCash,
-		EndingCash:   input.EndingCash,
-		EndingValue:  input.EndingValue,
-		TradeCount:   input.TradeCount,
-		WinRate:      input.WinRate,
-		SharpeRatio:  input.SharpeRatio,
-		Prices:       prices,
-		BollUpper:    toHTMLPoints(input.BollUpper, tz),
-		BollMiddle:   toHTMLPoints(input.BollMiddle, tz),
-		BollLower:    toHTMLPoints(input.BollLower, tz),
-		SMA:          toHTMLPoints(input.SMA, tz),
-		RSI:          toHTMLPoints(input.RSI, tz),
-		MACD:         toHTMLPoints(input.MACD, tz),
-		MACDSignal:   toHTMLPoints(input.MACDSignal, tz),
-		ATR:          toHTMLPoints(input.ATR, tz),
-		Decisions:    decisions,
-		SMAPeriod:    input.SMAPeriod,
-		RSIPeriod:    input.RSIPeriod,
-		MACDFast:     input.MACDFast,
-		MACDSlow:     input.MACDSlow,
-		MACDSignalN:  input.MACDSignalN,
-		ATRPeriod:    input.ATRPeriod,
+		Symbol:        input.Symbol,
+		TotalReturn:   input.TotalReturn,
+		StartingCash:  input.StartingCash,
+		EndingCash:    input.EndingCash,
+		EndingValue:   input.EndingValue,
+		TradeCount:    input.TradeCount,
+		WinRate:       input.WinRate,
+		SharpeRatio:   input.SharpeRatio,
+		Prices:        prices,
+		BollUpper:     toHTMLPoints(input.BollUpper, tz),
+		BollMiddle:    toHTMLPoints(input.BollMiddle, tz),
+		BollLower:     toHTMLPoints(input.BollLower, tz),
+		SMA:           toHTMLPoints(input.SMA, tz),
+		FastEMA:       toHTMLPoints(input.FastEMA, tz),
+		SlowEMA:       toHTMLPoints(input.SlowEMA, tz),
+		RSI:           toHTMLPoints(input.RSI, tz),
+		MACD:          toHTMLPoints(input.MACD, tz),
+		MACDSignal:    toHTMLPoints(input.MACDSignal, tz),
+		ATR:           toHTMLPoints(input.ATR, tz),
+		Regimes:       regimes,
+		Decisions:     decisions,
+		SMAPeriod:     input.SMAPeriod,
+		RSIPeriod:     input.RSIPeriod,
+		MACDFast:      input.MACDFast,
+		MACDSlow:      input.MACDSlow,
+		MACDSignalN:   input.MACDSignalN,
+		ATRPeriod:     input.ATRPeriod,
+		FastEMAPeriod: input.FastEMAPeriod,
+		SlowEMAPeriod: input.SlowEMAPeriod,
 	}
 
 	dataJSON, err := json.Marshal(data)
@@ -221,6 +253,11 @@ const htmlReportTemplate = `<!DOCTYPE html>
   .badge.buy  { background: #e6f7ee; color: #1a7a3a; }
   .badge.sell { background: #fdecea; color: #c0392b; }
   .reason { color: #555; font-style: italic; }
+  .regime-legend { display: flex; gap: 14px; padding: 8px 28px; background: #fff;
+                   border-bottom: 1px solid #e8e8e8; font-size: 0.78rem; align-items: center; }
+  .regime-legend .rl-label { color: #888; margin-right: 6px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+  .regime-swatch { display: inline-flex; align-items: center; gap: 6px; }
+  .regime-swatch span { display: inline-block; width: 14px; height: 14px; border-radius: 3px; }
 </style>
 </head>
 <body>
@@ -236,6 +273,13 @@ const htmlReportTemplate = `<!DOCTYPE html>
   <div class="stat"><div class="label">Trades</div><div class="value" id="stat-trades"></div></div>
   <div class="stat"><div class="label">Win Rate</div><div class="value" id="stat-winrate"></div></div>
   <div class="stat"><div class="label">Sharpe Ratio</div><div class="value" id="stat-sharpe"></div></div>
+</div>
+
+<div class="regime-legend" id="regime-legend" style="display:none">
+  <span class="rl-label">Regime</span>
+  <span class="regime-swatch"><span style="background:rgba(34,160,70,0.35)"></span>Uptrend</span>
+  <span class="regime-swatch"><span style="background:rgba(160,160,160,0.35)"></span>Range</span>
+  <span class="regime-swatch"><span style="background:rgba(220,50,50,0.35)"></span>Downtrend</span>
 </div>
 
 <div id="chart-wrap">
@@ -262,10 +306,12 @@ const report = {{.DataJSON}};
 
 // ── Header & stats ───────────────────────────────────────────────────────────
 document.getElementById('hdr-symbol').textContent = report.symbol;
+const emaSub = report.fast_ema_period > 0
+  ? '  FastEMA(' + report.fast_ema_period + ')  SlowEMA(' + report.slow_ema_period + ')' : '';
 document.getElementById('hdr-sub').textContent =
   'RSI(' + report.rsi_period + ')  MACD(' + report.macd_fast + ',' +
   report.macd_slow + ',' + report.macd_signal_n + ')  SMA(' + report.sma_period + ')' +
-  '  ATR(' + report.atr_period + ')';
+  '  ATR(' + report.atr_period + ')' + emaSub;
 
 function fmt$(v)  { return '$' + v.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:4}); }
 function fmtPct(v){ return (v >= 0 ? '+' : '') + (v * 100).toFixed(2) + '%'; }
@@ -354,8 +400,44 @@ const hoverLabel = { bgcolor:'#1a1a2e', bordercolor:'#555', font:{color:'#fff', 
 
 function panelH(id) { return document.getElementById(id).offsetHeight; }
 
+// ── Regime legend visibility ──────────────────────────────────────────────────
+if (report.regimes && report.regimes.length > 0) {
+  document.getElementById('regime-legend').style.display = 'flex';
+}
+
+// ── Regime background shapes ──────────────────────────────────────────────────
+// Build coloured vertical bands for each contiguous regime segment.
+// Plotly category-axis shapes use integer indices for x0/x1.
+const regimeColors = [
+  'rgba(34,160,70,0.13)',    // 0 = Uptrend  → green
+  'rgba(160,160,160,0.08)', // 1 = Range    → gray
+  'rgba(220,50,50,0.13)',   // 2 = Downtrend → red
+];
+const regimeShapes = [];
+if (report.regimes && report.regimes.length > 0) {
+  let segStart = 0;
+  for (let i = 1; i <= report.regimes.length; i++) {
+    const regime = report.regimes[segStart].v;
+    if (i === report.regimes.length || report.regimes[i].v !== regime) {
+      const x0 = priceIdx[report.regimes[segStart].t];
+      const x1 = priceIdx[report.regimes[i - 1].t];
+      if (x0 !== undefined && x1 !== undefined) {
+        regimeShapes.push({
+          type: 'rect', xref: 'x', yref: 'paper',
+          x0: x0 - 0.5, x1: x1 + 0.5,
+          y0: 0, y1: 1,
+          fillcolor: regimeColors[regime] ?? 'transparent',
+          line: { width: 0 },
+          layer: 'below',
+        });
+      }
+      segStart = i;
+    }
+  }
+}
+
 // ── Plot: Price ───────────────────────────────────────────────────────────────
-const plotPrice = Plotly.newPlot('panel-price', [
+const priceTraces = [
   { x:priceDates, y:report.prices.map(p=>p.v), mode:'lines', type:'scatter', name:'Price',
     line:{color:'#2378e6',width:1.5} },
   { x:priceDates, y:align(report.boll_upper),  mode:'lines', type:'scatter', name:'BB Upper',
@@ -372,12 +454,22 @@ const plotPrice = Plotly.newPlot('panel-price', [
   { x:sells.map(d=>d.t), y:sells.map(d=>d.price), mode:'markers', type:'scatter', name:'Sell',
     marker:{symbol:'circle-open', color:'#c0392b', size:11, line:{color:'#c0392b',width:2.5}},
     text:sells.map(hoverText), hoverinfo:'text' },
-], {
+];
+if (report.fast_ema_period > 0) {
+  priceTraces.push(
+    { x:priceDates, y:align(report.fast_ema), mode:'lines', type:'scatter',
+      name:'FastEMA('+report.fast_ema_period+')', line:{color:'#f59e0b',width:1.2} },
+    { x:priceDates, y:align(report.slow_ema), mode:'lines', type:'scatter',
+      name:'SlowEMA('+report.slow_ema_period+')', line:{color:'#ec4899',width:1.2} }
+  );
+}
+const plotPrice = Plotly.newPlot('panel-price', priceTraces, {
   paper_bgcolor:'#fff', plot_bgcolor:'#fff',
   margin:{l:ML, r:MR, t:20, b:0},
   height: panelH('panel-price'),
   xaxis: Object.assign({}, xAxisBase, {showticklabels:false}),
   yaxis: {showgrid:true, gridcolor:'#e8e8e8', zeroline:false, tickprefix:'$', title:{text:'Price',standoff:8}},
+  shapes: regimeShapes,
   legend:{x:0, y:1.01, xanchor:'left', yanchor:'bottom', orientation:'h',
           bgcolor:'rgba(255,255,255,0.8)', bordercolor:'#ddd', borderwidth:1},
   hoverlabel: hoverLabel, hovermode:'closest',

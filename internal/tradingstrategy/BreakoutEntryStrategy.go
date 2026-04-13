@@ -8,6 +8,10 @@ package tradingstrategy
 // LookbackHighPrice must be populated by the caller with the highest price over
 // the prior N bars (excluding the current bar). When it is zero or the position
 // is already open, the strategy abstains.
+//
+// A Bollinger upper-band guard prevents entries when price is already above the
+// upper band — a breakout that has run into overextended territory offers a
+// poor risk:reward entry. This mirrors the same guard in TrendEntryStrategy.
 type BreakoutEntryStrategy struct {
 	lookbackBars  int
 	overboughtRSI float64
@@ -37,6 +41,12 @@ func (strategy *BreakoutEntryStrategy) Evaluate(input EvaluateInput) Decision {
 	}
 	if input.Price <= input.LookbackHighPrice {
 		return Decision{Action: ActionNone, Reason: "price not above lookback high"}
+	}
+
+	// Reject entries when price is already above the upper Bollinger Band —
+	// the breakout has run into overextended territory and the risk:reward is poor.
+	if input.BollUpper != nil && input.Price >= *input.BollUpper {
+		return Decision{Action: ActionNone, Reason: "breakout entry: price at or above upper bollinger"}
 	}
 
 	// Reject if RSI is already overbought at the breakout point — buying into exhaustion.

@@ -28,6 +28,39 @@ func TestBreakoutEntryStrategy(t *testing.T) {
 			So(decision.Reason, ShouldEqual, "breakout entry: price above lookback high")
 		})
 
+		Convey("When price is at the upper Bollinger Band, entry is rejected (overextended)", func() {
+			input := fullInput
+			bollUpper := 105.0 // price == BollUpper
+			input.BollUpper = &bollUpper
+			decision := strategy.Evaluate(input)
+			So(decision.Action, ShouldEqual, tradingstrategy.ActionNone)
+			So(decision.Reason, ShouldEqual, "breakout entry: price at or above upper bollinger")
+		})
+
+		Convey("When price is above the upper Bollinger Band, entry is rejected (overextended)", func() {
+			input := fullInput
+			bollUpper := 100.0 // price 105 > BollUpper 100
+			input.BollUpper = &bollUpper
+			decision := strategy.Evaluate(input)
+			So(decision.Action, ShouldEqual, tradingstrategy.ActionNone)
+			So(decision.Reason, ShouldEqual, "breakout entry: price at or above upper bollinger")
+		})
+
+		Convey("When price is below the upper Bollinger Band, the band guard does not block entry", func() {
+			input := fullInput
+			bollUpper := 110.0 // price 105 < BollUpper 110
+			input.BollUpper = &bollUpper
+			decision := strategy.Evaluate(input)
+			So(decision.Action, ShouldEqual, tradingstrategy.ActionBuy)
+		})
+
+		Convey("When BollUpper is unavailable, the guard is inactive and entry is allowed", func() {
+			input := fullInput
+			input.BollUpper = nil
+			decision := strategy.Evaluate(input)
+			So(decision.Action, ShouldEqual, tradingstrategy.ActionBuy)
+		})
+
 		Convey("When RSI is above the overbought threshold, entry is rejected", func() {
 			input := fullInput
 			overbought := 75.0

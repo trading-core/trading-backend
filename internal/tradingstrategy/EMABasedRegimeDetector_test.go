@@ -104,4 +104,45 @@ func TestEMABasedRegimeDetector(t *testing.T) {
 			So(detector.Detect(input), ShouldEqual, tradingstrategy.RegimeRange)
 		})
 	})
+
+	Convey("Given an EMA-based regime detector with EMA separation hysteresis", t, func() {
+		// FastEMA=110, SlowEMA=100 → separation = (110-100)/100 = 10%
+		// FastEMA=101, SlowEMA=100 → separation = (101-100)/100 = 1%
+		narrowFastEMA := 101.0
+		detector := tradingstrategy.NewEMABasedRegimeDetector(tradingstrategy.NewEMABasedRegimeDetectorInput{
+			EMASeparationThreshold: 0.05, // 5% required
+		})
+
+		Convey("When EMA separation exceeds the threshold, uptrend is confirmed", func() {
+			input := tradingstrategy.EvaluateInput{
+				FastEMA: &fastEMA, // 110 vs 100 = 10% separation
+				SlowEMA: &slowEMA,
+			}
+			So(detector.Detect(input), ShouldEqual, tradingstrategy.RegimeUptrend)
+		})
+
+		Convey("When EMA separation is below the threshold, range is returned (hysteresis)", func() {
+			input := tradingstrategy.EvaluateInput{
+				FastEMA: &narrowFastEMA, // 101 vs 100 = 1% separation
+				SlowEMA: &slowEMA,
+			}
+			So(detector.Detect(input), ShouldEqual, tradingstrategy.RegimeRange)
+		})
+
+		Convey("When FastEMA < SlowEMA and separation exceeds threshold, downtrend is confirmed", func() {
+			input := tradingstrategy.EvaluateInput{
+				FastEMA: &slowEMA,   // 100 vs 110 = −9.1% separation
+				SlowEMA: &fastEMA,
+			}
+			So(detector.Detect(input), ShouldEqual, tradingstrategy.RegimeDowntrend)
+		})
+
+		Convey("When FastEMA < SlowEMA but separation is below threshold, range is returned", func() {
+			input := tradingstrategy.EvaluateInput{
+				FastEMA: &slowEMA,       // 100 vs 101 = −1% separation
+				SlowEMA: &narrowFastEMA,
+			}
+			So(detector.Detect(input), ShouldEqual, tradingstrategy.RegimeRange)
+		})
+	})
 }

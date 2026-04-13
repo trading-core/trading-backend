@@ -34,6 +34,43 @@ func TestTrendEntryStrategy(t *testing.T) {
 			So(decision.Action, ShouldEqual, tradingstrategy.ActionBuy)
 		})
 
+		Convey("When MACD histogram minimum threshold is configured", func() {
+			thresholdStrategy := tradingstrategy.NewTrendEntryStrategy(tradingstrategy.NewTrendEntryStrategyInput{
+				OverboughtRSI:    70,
+				MinMACDHistogram: 1.5,
+			})
+
+			Convey("And the histogram meets the threshold, entry is allowed", func() {
+				// MACD=2.0, Signal=1.0 → histogram=1.0... wait need histogram >= 1.5
+				// Use macd=2.5, signal=1.0 → histogram=1.5 exactly
+				bigMACD := 2.5
+				input := fullInput
+				input.MACD = &bigMACD
+				decision := thresholdStrategy.Evaluate(input)
+				So(decision.Action, ShouldEqual, tradingstrategy.ActionBuy)
+			})
+
+			Convey("And the histogram is below the threshold, entry is rejected", func() {
+				// MACD=2.0, Signal=1.0 → histogram=1.0 < threshold 1.5
+				decision := thresholdStrategy.Evaluate(fullInput)
+				So(decision.Action, ShouldEqual, tradingstrategy.ActionNone)
+				So(decision.Reason, ShouldEqual, "macd histogram below minimum threshold")
+			})
+		})
+
+		Convey("When MinMACDHistogram is zero (disabled), thin crossovers are allowed", func() {
+			noThresholdStrategy := tradingstrategy.NewTrendEntryStrategy(tradingstrategy.NewTrendEntryStrategyInput{
+				OverboughtRSI: 70,
+			})
+			thinMACD := 1.01
+			thinSignal := 1.0
+			input := fullInput
+			input.MACD = &thinMACD
+			input.MACDSignal = &thinSignal
+			decision := noThresholdStrategy.Evaluate(input)
+			So(decision.Action, ShouldEqual, tradingstrategy.ActionBuy)
+		})
+
 		Convey("When MACD is not above signal", func() {
 			input := fullInput
 			low := 0.5

@@ -10,7 +10,7 @@ import (
 	"github.com/ansel1/merry"
 	"github.com/kduong/trading-backend/cmd/authentication-service/internal/userstore"
 	"github.com/kduong/trading-backend/internal/fatal"
-	"github.com/kduong/trading-backend/internal/httputil"
+	"github.com/kduong/trading-backend/internal/httpx"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -31,7 +31,7 @@ func (handler *Handler) CreateSession(responseWriter http.ResponseWriter, reques
 	var err error
 	defer func() {
 		if err != nil {
-			httputil.SendErrorResponse(responseWriter, err)
+			httpx.SendErrorResponse(responseWriter, err)
 		}
 	}()
 	ctx := request.Context()

@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kduong/trading-backend/internal/httputil"
+	"github.com/kduong/trading-backend/internal/httpx"
 )
 
 var _ Client = (*HTTPClient)(nil)
@@ -61,9 +61,9 @@ func (client *HTTPClient) GetActiveStocks(ctx context.Context, input GetActiveSt
 	if err != nil {
 		return
 	}
-	defer httputil.DrainAndClose(response.Body)
+	defer httpx.DrainAndClose(response.Body)
 	if response.StatusCode != http.StatusOK {
-		err = httputil.ExtractResponseError(response)
+		err = httpx.ExtractResponseError(response)
 		return
 	}
 	err = json.NewDecoder(response.Body).Decode(&output)
@@ -88,9 +88,9 @@ func (client *HTTPClient) GetTopStockMovers(ctx context.Context, input GetTopSto
 	if err != nil {
 		return
 	}
-	defer httputil.DrainAndClose(response.Body)
+	defer httpx.DrainAndClose(response.Body)
 	if response.StatusCode != http.StatusOK {
-		err = httputil.ExtractResponseError(response)
+		err = httpx.ExtractResponseError(response)
 		return
 	}
 	err = json.NewDecoder(response.Body).Decode(&output)
@@ -112,9 +112,9 @@ func (client *HTTPClient) GetStockSnapshot(ctx context.Context, input GetStockSn
 	if err != nil {
 		return
 	}
-	defer httputil.DrainAndClose(response.Body)
+	defer httpx.DrainAndClose(response.Body)
 	if response.StatusCode != http.StatusOK {
-		err = httputil.ExtractResponseError(response)
+		err = httpx.ExtractResponseError(response)
 		return
 	}
 	err = json.NewDecoder(response.Body).Decode(&output)
@@ -199,9 +199,9 @@ func (client *HTTPClient) fetchStockBarsPage(ctx context.Context, target url.URL
 	if err != nil {
 		return
 	}
-	defer httputil.DrainAndClose(response.Body)
+	defer httpx.DrainAndClose(response.Body)
 	if response.StatusCode != http.StatusOK {
-		err = httputil.ExtractResponseError(response)
+		err = httpx.ExtractResponseError(response)
 		return
 	}
 	var responseBody GetStockBarsResponseBody
@@ -242,9 +242,9 @@ func (client *HTTPClient) GetStockNews(ctx context.Context, input GetStockNewsIn
 	if err != nil {
 		return
 	}
-	defer httputil.DrainAndClose(response.Body)
+	defer httpx.DrainAndClose(response.Body)
 	if response.StatusCode != http.StatusOK {
-		err = httputil.ExtractResponseError(response)
+		err = httpx.ExtractResponseError(response)
 		return
 	}
 	err = json.NewDecoder(response.Body).Decode(&output)

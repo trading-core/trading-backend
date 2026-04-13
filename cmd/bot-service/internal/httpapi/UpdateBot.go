@@ -9,7 +9,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/kduong/trading-backend/cmd/bot-service/internal/botstore"
 	"github.com/kduong/trading-backend/internal/fatal"
-	"github.com/kduong/trading-backend/internal/httputil"
+	"github.com/kduong/trading-backend/internal/httpx"
 )
 
 type UpdateBotInput struct {
@@ -20,7 +20,7 @@ func (handler *Handler) UpdateBot(responseWriter http.ResponseWriter, request *h
 	var err error
 	defer func() {
 		if err != nil {
-			httputil.SendErrorResponse(responseWriter, err)
+			httpx.SendErrorResponse(responseWriter, err)
 		}
 	}()
 	ctx := request.Context()

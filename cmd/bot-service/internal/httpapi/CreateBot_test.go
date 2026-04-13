@@ -13,7 +13,7 @@ import (
 	"github.com/kduong/trading-backend/cmd/bot-service/internal/botstore"
 	"github.com/kduong/trading-backend/cmd/bot-service/internal/symbolvalidator"
 	"github.com/kduong/trading-backend/internal/contextx"
-	"github.com/kduong/trading-backend/internal/httputil"
+	"github.com/kduong/trading-backend/internal/httpx"
 	. "github.com/smartystreets/goconvey/convey"
 )
 
@@ -112,7 +112,7 @@ func TestCreateBot_RejectsSymbolNotTradableForBroker(t *testing.T) {
 			Convey("Then request is rejected and bot is not created", func() {
 				So(recorder.Code, ShouldEqual, http.StatusBadRequest)
 				So(commandHandler.created, ShouldBeFalse)
-				var message httputil.Message
+				var message httpx.Message
 				err := json.Unmarshal(recorder.Body.Bytes(), &message)
 				So(err, ShouldBeNil)
 				So(message.Message, ShouldNotBeBlank)

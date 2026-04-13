@@ -12,7 +12,7 @@ import (
 	"github.com/kduong/trading-backend/cmd/bot-service/internal/botstore"
 	"github.com/kduong/trading-backend/cmd/bot-service/internal/symbolvalidator"
 	"github.com/kduong/trading-backend/internal/contextx"
-	"github.com/kduong/trading-backend/internal/httputil"
+	"github.com/kduong/trading-backend/internal/httpx"
 	"github.com/kduong/trading-backend/internal/tradingstrategy"
 	uuid "github.com/satori/go.uuid"
 )
@@ -50,7 +50,7 @@ func (handler *Handler) CreateBot(responseWriter http.ResponseWriter, request *h
 	var err error
 	defer func() {
 		if err != nil {
-			httputil.SendErrorResponse(responseWriter, err)
+			httpx.SendErrorResponse(responseWriter, err)
 		}
 	}()
 	ctx := request.Context()

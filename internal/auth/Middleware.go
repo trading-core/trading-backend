@@ -10,7 +10,7 @@ import (
 
 	"github.com/kduong/trading-backend/internal/config"
 	"github.com/kduong/trading-backend/internal/contextx"
-	"github.com/kduong/trading-backend/internal/httputil"
+	"github.com/kduong/trading-backend/internal/httpx"
 )
 
 type Middleware struct {
@@ -28,7 +28,7 @@ func (middleware *Middleware) Handle(next http.Handler) http.Handler {
 		var err error
 		defer func() {
 			if err != nil {
-				httputil.SendErrorResponse(responseWriter, err)
+				httpx.SendErrorResponse(responseWriter, err)
 			}
 		}()
 		authorization := request.Header.Get("Authorization")

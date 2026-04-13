@@ -5,14 +5,14 @@ import (
 	"net/http"
 
 	"github.com/kduong/trading-backend/internal/fatal"
-	"github.com/kduong/trading-backend/internal/httputil"
+	"github.com/kduong/trading-backend/internal/httpx"
 )
 
 func (handler *Handler) GetFearGreedIndex(responseWriter http.ResponseWriter, request *http.Request) {
 	var err error
 	defer func() {
 		if err != nil {
-			httputil.SendErrorResponse(responseWriter, err)
+			httpx.SendErrorResponse(responseWriter, err)
 		}
 	}()
 	ctx := request.Context()

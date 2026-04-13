@@ -12,7 +12,7 @@ import (
 	"github.com/kduong/trading-backend/internal/broker"
 	"github.com/kduong/trading-backend/internal/contextx"
 	"github.com/kduong/trading-backend/internal/fatal"
-	"github.com/kduong/trading-backend/internal/httputil"
+	"github.com/kduong/trading-backend/internal/httpx"
 )
 
 type StartBrokerSelectionInput struct {
@@ -27,7 +27,7 @@ func (handler *Handler) StartBrokerSelection(responseWriter http.ResponseWriter,
 	var err error
 	defer func() {
 		if err != nil {
-			httputil.SendErrorResponse(responseWriter, err)
+			httpx.SendErrorResponse(responseWriter, err)
 		}
 	}()
 	ctx := request.Context()

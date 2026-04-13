@@ -13,7 +13,7 @@ import (
 
 	"github.com/kduong/trading-backend/cmd/authentication-service/internal/userstore"
 	"github.com/kduong/trading-backend/internal/fatal"
-	"github.com/kduong/trading-backend/internal/httputil"
+	"github.com/kduong/trading-backend/internal/httpx"
 )
 
 type CreateUserInput struct {
@@ -25,7 +25,7 @@ func (handler *Handler) CreateUser(responseWriter http.ResponseWriter, request *
 	var err error
 	defer func() {
 		if err != nil {
-			httputil.SendErrorResponse(responseWriter, err)
+			httpx.SendErrorResponse(responseWriter, err)
 		}
 	}()
 	ctx := request.Context()

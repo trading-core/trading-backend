@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/kduong/trading-backend/internal/fatal"
-	"github.com/kduong/trading-backend/internal/httputil"
+	"github.com/kduong/trading-backend/internal/httpx"
 )
 
 const userAgent = "trading-backend/1.0"
@@ -99,9 +99,9 @@ func (tokenManager *TastyTradeTokenManager) RequestAccessToken(ctx context.Conte
 	if err != nil {
 		return
 	}
-	defer httputil.DrainAndClose(response.Body)
+	defer httpx.DrainAndClose(response.Body)
 	if response.StatusCode != http.StatusOK {
-		err = httputil.ExtractResponseError(response)
+		err = httpx.ExtractResponseError(response)
 		return
 	}
 	err = json.NewDecoder(response.Body).Decode(&output)

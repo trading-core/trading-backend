@@ -12,7 +12,7 @@ A mono repo which houses microservices and scripts in the cmd.
 	var err error
 	defer func() {
 		if err != nil {
-			httputil.SendErrorResponse(responseWriter, err)
+			httpx.SendErrorResponse(responseWriter, err)
 		}
 	}()
 ```

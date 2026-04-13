@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/kduong/trading-backend/internal/httputil"
+	"github.com/kduong/trading-backend/internal/httpx"
 )
 
 type CNNMarketStrategy struct {
@@ -84,7 +84,7 @@ func (strategy *CNNMarketStrategy) getGraphData(ctx context.Context) (output *gr
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
-		err = httputil.ExtractResponseError(response)
+		err = httpx.ExtractResponseError(response)
 		return
 	}
 	err = json.NewDecoder(response.Body).Decode(&output)

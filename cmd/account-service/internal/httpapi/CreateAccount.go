@@ -8,7 +8,7 @@ import (
 
 	"github.com/kduong/trading-backend/cmd/account-service/internal/accountstore"
 	"github.com/kduong/trading-backend/internal/fatal"
-	"github.com/kduong/trading-backend/internal/httputil"
+	"github.com/kduong/trading-backend/internal/httpx"
 	uuid "github.com/satori/go.uuid"
 )
 
@@ -25,7 +25,7 @@ func (handler *Handler) CreateAccount(responseWriter http.ResponseWriter, reques
 	var err error
 	defer func() {
 		if err != nil {
-			httputil.SendErrorResponse(responseWriter, err)
+			httpx.SendErrorResponse(responseWriter, err)
 		}
 	}()
 	ctx := request.Context()

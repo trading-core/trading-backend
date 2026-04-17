@@ -38,10 +38,10 @@ func NewRouter(input NewRouterInput) *mux.Router {
 	router := mux.NewRouter().StrictSlash(true)
 	reportV1Router := router.PathPrefix("/reports/v1").Subrouter()
 	reportV1Router.Use(input.AuthMiddleware.Handle)
-	reportV1Router.HandleFunc("/reports", handler.CreateJob).Methods(http.MethodPost).Name("CreateJob")
-	reportV1Router.HandleFunc("/reports", handler.ListJobs).Methods(http.MethodGet).Name("ListJobs")
-	reportV1Router.HandleFunc("/reports/{job_id}", handler.GetJob).Methods(http.MethodGet).Name("GetJob")
-	reportV1Router.HandleFunc("/reports/{job_id}/download", handler.DownloadJob).Methods(http.MethodGet).Name("DownloadJob")
+	reportV1Router.HandleFunc("/jobs", handler.CreateJob).Methods(http.MethodPost).Name("CreateJob")
+	reportV1Router.HandleFunc("/jobs", handler.ListJobs).Methods(http.MethodGet).Name("ListJobs")
+	reportV1Router.HandleFunc("/jobs/{job_id}", handler.GetJob).Methods(http.MethodGet).Name("GetJob")
+	reportV1Router.HandleFunc("/jobs/{job_id}/download", handler.DownloadJob).Methods(http.MethodGet).Name("DownloadJob")
 	return router
 }
 

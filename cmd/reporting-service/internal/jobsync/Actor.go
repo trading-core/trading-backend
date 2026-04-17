@@ -23,7 +23,7 @@ type Actor struct {
 	outputsDirectory       string
 	jobs                   chan *jobstore.Job
 	log                    eventsource.Log
-	jobByID                map[string]*jobstore.Job
+	incompleteJobsByID     map[string]*jobstore.Job
 }
 
 type NewActorInput struct {
@@ -42,7 +42,7 @@ func NewActor(input NewActorInput) *Actor {
 		outputsDirectory:       input.OutputsDirectory,
 		jobs:                   make(chan *jobstore.Job, 64),
 		log:                    input.Log,
-		jobByID:                make(map[string]*jobstore.Job),
+		incompleteJobsByID:     make(map[string]*jobstore.Job),
 	}
 }
 
@@ -72,10 +72,6 @@ func (actor *Actor) apply(ctx context.Context, event *eventsource.Event) error {
 		return actor.applyEnqueued(frame.JobEnqueuedEvent)
 	case jobstore.EventTypeJobStarted:
 		return actor.applyStarted(frame.JobStartedEvent)
-	case jobstore.EventTypeJobCompleted:
-		return actor.applyCompleted(frame.JobCompletedEvent)
-	case jobstore.EventTypeJobFailed:
-		return actor.applyFailed(frame.JobFailedEvent)
 	case jobstore.EventTypeJobRetried:
 		return actor.applyRetried(frame.JobRetriedEvent)
 	}
@@ -83,7 +79,7 @@ func (actor *Actor) apply(ctx context.Context, event *eventsource.Event) error {
 }
 
 func (actor *Actor) applyEnqueued(event *jobstore.JobEnqueuedEvent) error {
-	actor.jobByID[event.JobID] = &jobstore.Job{
+	actor.incompleteJobsByID[event.JobID] = &jobstore.Job{
 		ID:         event.JobID,
 		UserID:     event.UserID,
 		Name:       event.Name,
@@ -97,7 +93,7 @@ func (actor *Actor) applyEnqueued(event *jobstore.JobEnqueuedEvent) error {
 }
 
 func (actor *Actor) applyStarted(event *jobstore.JobStartedEvent) error {
-	job, ok := actor.jobByID[event.JobID]
+	job, ok := actor.incompleteJobsByID[event.JobID]
 	if !ok {
 		return nil
 	}
@@ -106,30 +102,8 @@ func (actor *Actor) applyStarted(event *jobstore.JobStartedEvent) error {
 	return nil
 }
 
-func (actor *Actor) applyCompleted(event *jobstore.JobCompletedEvent) error {
-	job, ok := actor.jobByID[event.JobID]
-	if !ok {
-		return nil
-	}
-	job.Status = jobstore.JobStatusCompleted
-	job.DownloadURL = event.DownloadURL
-	job.UpdatedAt = event.UpdatedAt
-	return nil
-}
-
-func (actor *Actor) applyFailed(event *jobstore.JobFailedEvent) error {
-	job, ok := actor.jobByID[event.JobID]
-	if !ok {
-		return nil
-	}
-	job.Status = jobstore.JobStatusFailed
-	job.FailReason = event.FailReason
-	job.UpdatedAt = event.UpdatedAt
-	return nil
-}
-
 func (actor *Actor) applyRetried(event *jobstore.JobRetriedEvent) error {
-	job, ok := actor.jobByID[event.JobID]
+	job, ok := actor.incompleteJobsByID[event.JobID]
 	if !ok {
 		return nil
 	}
@@ -142,10 +116,7 @@ func (actor *Actor) applyRetried(event *jobstore.JobRetriedEvent) error {
 func (actor *Actor) CompleteCatchup(ctx context.Context) {
 	recovered := 0
 	deadLettered := 0
-	for _, job := range actor.jobByID {
-		if job.IsFinished() {
-			continue
-		}
+	for _, job := range actor.incompleteJobsByID {
 		now := time.Now().UTC().Format(time.RFC3339)
 		nextRetry := job.RetryCount + 1
 		if nextRetry > MaxRetries {
@@ -172,15 +143,10 @@ func (actor *Actor) CompleteCatchup(ctx context.Context) {
 			logger.Warnpf("reportsync: recover: could not increment retry for job %s: %v", job.ID, err)
 			continue
 		}
-		select {
-		case actor.jobs <- job:
-		case <-ctx.Done():
-			actor.jobByID = nil
-			return
-		}
+		actor.jobs <- job
 		recovered++
 	}
-	actor.jobByID = nil
+	actor.incompleteJobsByID = nil
 	if recovered > 0 {
 		logger.Warnpf("reportsync: recover: requeued %d interrupted job(s)", recovered)
 	}

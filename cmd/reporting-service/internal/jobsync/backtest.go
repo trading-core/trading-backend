@@ -1,4 +1,4 @@
-package reportsync
+package jobsync
 
 import (
 	"bufio"
@@ -20,7 +20,7 @@ import (
 	"github.com/kduong/trading-backend/internal/tradingstrategy"
 )
 
-const JobKind = "backtest"
+const JobKindBacktest = "backtest"
 
 // BacktestParameters are the user-supplied inputs for a backtest job,
 // stored as the job's parameters map.
@@ -34,7 +34,7 @@ type BacktestParameters struct {
 	Indicators backtestconfig.IndicatorConfig `json:"indicators"`
 }
 
-func (actor *Actor) run(ctx context.Context, job *jobstore.Job) (downloadURL string, err error) {
+func (actor *Actor) runBacktest(ctx context.Context, job *jobstore.Job) (downloadURL string, err error) {
 	params, err := parseParameters(job.Parameters)
 	if err != nil {
 		err = fmt.Errorf("parsing backtest parameters: %w", err)

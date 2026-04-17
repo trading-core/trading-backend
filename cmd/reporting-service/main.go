@@ -7,7 +7,7 @@ import (
 
 	"github.com/kduong/trading-backend/cmd/reporting-service/internal/httpapi"
 	"github.com/kduong/trading-backend/cmd/reporting-service/internal/jobstore"
-	"github.com/kduong/trading-backend/cmd/reporting-service/internal/reportsync"
+	"github.com/kduong/trading-backend/cmd/reporting-service/internal/jobsync"
 	"github.com/kduong/trading-backend/cmd/storage-service/pkg/storageservice"
 	"github.com/kduong/trading-backend/internal/auth"
 	"github.com/kduong/trading-backend/internal/config"
@@ -37,7 +37,7 @@ func main() {
 	})
 	storageClient := storageservice.ClientFromEnv()
 	serviceTokenMinter := auth.ServiceTokenMinterFromEnv()
-	actor := reportsync.NewActor(reportsync.NewActorInput{
+	actor := jobsync.NewActor(jobsync.NewActorInput{
 		CommandHandler:     commandHandler,
 		StorageClient:      storageClient,
 		ServiceTokenMinter: serviceTokenMinter,

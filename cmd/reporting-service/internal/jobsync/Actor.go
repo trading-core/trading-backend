@@ -1,8 +1,4 @@
-// Package reportsync is the central actor for the reporting service. On startup
-// it catches up on the event log to rebuild in-memory state, recovers any jobs
-// that were left in a non-terminal state by a previous crash, and then processes
-// incoming job events until the context is cancelled.
-package reportsync
+package jobsync
 
 import (
 	"context"
@@ -193,12 +189,6 @@ func (actor *Actor) CompleteCatchup(ctx context.Context) {
 	}
 }
 
-// JobsLen returns the number of jobs currently waiting in the job queue.
-// Primarily useful for observability and testing.
-func (actor *Actor) JobsLen() int {
-	return len(actor.jobs)
-}
-
 func (actor *Actor) Run(ctx context.Context) {
 	for {
 		select {
@@ -247,5 +237,14 @@ func (actor *Actor) process(ctx context.Context, job *jobstore.Job) {
 	})
 	if err != nil {
 		logger.Warnpf("reportsync: process: could not mark job %s completed: %v", job.ID, err)
+	}
+}
+
+func (actor *Actor) run(ctx context.Context, job *jobstore.Job) (downloadURL string, err error) {
+	switch job.Kind {
+	case JobKindBacktest:
+		return actor.runBacktest(ctx, job)
+	default:
+		return "", fmt.Errorf("unsupported job kind: %s", job.Kind)
 	}
 }

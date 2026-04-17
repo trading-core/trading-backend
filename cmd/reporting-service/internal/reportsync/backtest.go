@@ -1,8 +1,4 @@
-// Package backtestworker processes report jobs of kind "backtest".
-// It watches a channel for pending report IDs, runs the backtest using the
-// same logic as backtest-cli, uploads the HTML report to storage-service, and
-// updates the report status via the command handler.
-package backtestworker
+package reportsync
 
 import (
 	"bufio"
@@ -13,23 +9,21 @@ import (
 	"os"
 	"time"
 
-	"github.com/kduong/trading-backend/cmd/reporting-service/internal/reportstore"
+	"github.com/kduong/trading-backend/cmd/reporting-service/internal/jobstore"
 	"github.com/kduong/trading-backend/cmd/storage-service/pkg/storageservice"
-	"github.com/kduong/trading-backend/internal/auth"
 	"github.com/kduong/trading-backend/internal/backtest/backtest"
 	"github.com/kduong/trading-backend/internal/backtest/backtestconfig"
 	"github.com/kduong/trading-backend/internal/backtest/chart"
 	"github.com/kduong/trading-backend/internal/backtest/indicator"
 	"github.com/kduong/trading-backend/internal/backtest/replay"
 	"github.com/kduong/trading-backend/internal/contextx"
-	"github.com/kduong/trading-backend/internal/logger"
 	"github.com/kduong/trading-backend/internal/tradingstrategy"
 )
 
-const ReportKind = "backtest"
+const JobKind = "backtest"
 
-// BacktestParameters are the user-supplied inputs for a backtest report,
-// stored as the report's parameters map.
+// BacktestParameters are the user-supplied inputs for a backtest job,
+// stored as the job's parameters map.
 type BacktestParameters struct {
 	Symbol     string                         `json:"symbol"`
 	Start      string                         `json:"start"`
@@ -40,83 +34,8 @@ type BacktestParameters struct {
 	Indicators backtestconfig.IndicatorConfig `json:"indicators"`
 }
 
-// WorkerInput holds the dependencies injected into the worker.
-type WorkerInput struct {
-	CommandHandler     reportstore.CommandHandler
-	QueryHandler       reportstore.QueryHandler
-	StorageClient      storageservice.Client
-	ServiceTokenMinter *auth.ServiceTokenMinter
-	// Jobs receives report IDs to process.
-	Jobs       <-chan string
-	OutputsDir string
-}
-
-// Worker processes backtest report jobs from Jobs.
-type Worker struct {
-	commandHandler     reportstore.CommandHandler
-	queryHandler       reportstore.QueryHandler
-	storageClient      storageservice.Client
-	serviceTokenMinter *auth.ServiceTokenMinter
-	jobs               <-chan string
-	outputsDir         string
-}
-
-func New(input WorkerInput) *Worker {
-	return &Worker{
-		commandHandler:     input.CommandHandler,
-		queryHandler:       input.QueryHandler,
-		storageClient:      input.StorageClient,
-		serviceTokenMinter: input.ServiceTokenMinter,
-		jobs:               input.Jobs,
-		outputsDir:         input.OutputsDir,
-	}
-}
-
-// Run blocks, processing jobs until ctx is cancelled.
-func (worker *Worker) Run(ctx context.Context) {
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case reportID, ok := <-worker.jobs:
-			if !ok {
-				return
-			}
-			worker.process(ctx, reportID)
-		}
-	}
-}
-
-func (worker *Worker) process(ctx context.Context, reportID string) {
-	now := time.Now().UTC().Format(time.RFC3339)
-	err := worker.commandHandler.MarkStartedSystem(ctx, reportID, now)
-	if err != nil {
-		logger.Warnpf("backtestworker: could not mark report %s started: %v", reportID, err)
-		return
-	}
-	downloadURL, err := worker.run(ctx, reportID)
-	now = time.Now().UTC().Format(time.RFC3339)
-	if err != nil {
-		logger.Warnpf("backtestworker: report %s failed: %v", reportID, err)
-		err := worker.commandHandler.MarkFailedSystem(ctx, reportID, err.Error(), now)
-		if err != nil {
-			logger.Warnpf("backtestworker: could not mark report %s failed: %v", reportID, err)
-		}
-		return
-	}
-	err = worker.commandHandler.MarkCompletedSystem(ctx, reportID, downloadURL, now)
-	if err != nil {
-		logger.Warnpf("backtestworker: could not mark report %s completed: %v", reportID, err)
-	}
-}
-
-func (worker *Worker) run(ctx context.Context, reportID string) (downloadURL string, err error) {
-	report, err := worker.queryHandler.GetSystem(ctx, reportID)
-	if err != nil {
-		err = fmt.Errorf("loading report: %w", err)
-		return
-	}
-	params, err := parseParameters(report.Parameters)
+func (actor *Actor) run(ctx context.Context, job *jobstore.Job) (downloadURL string, err error) {
+	params, err := parseParameters(job.Parameters)
 	if err != nil {
 		err = fmt.Errorf("parsing backtest parameters: %w", err)
 		return
@@ -134,17 +53,15 @@ func (worker *Worker) run(ctx context.Context, reportID string) (downloadURL str
 		return
 	}
 	result := backtest.Run(cfg, loaded.Prices, loaded.IndicatorPrices, loaded.Events)
-	outputDir := fmt.Sprintf("%s/%s", worker.outputsDir, reportID)
-	err = os.MkdirAll(outputDir, 0o755)
-	if err != nil {
+	outputDir := fmt.Sprintf("%s/%s", actor.outputsDirectory, job.ID)
+	if err = os.MkdirAll(outputDir, 0o755); err != nil {
 		err = fmt.Errorf("creating output directory: %w", err)
 		return
 	}
-	err = writeOutputs(cfg, result, loaded, outputDir)
-	if err != nil {
+	if err = writeOutputs(cfg, result, loaded, outputDir); err != nil {
 		return
 	}
-	file, err := worker.uploadReport(ctx, reportID, outputDir)
+	file, err := actor.uploadReport(ctx, job.ID, outputDir)
 	if err != nil {
 		err = fmt.Errorf("uploading report to storage: %w", err)
 		return
@@ -153,8 +70,8 @@ func (worker *Worker) run(ctx context.Context, reportID string) (downloadURL str
 	return
 }
 
-func (worker *Worker) uploadReport(ctx context.Context, reportID string, outputDir string) (*storageservice.File, error) {
-	token, err := worker.serviceTokenMinter.MintToken()
+func (actor *Actor) uploadReport(ctx context.Context, jobID string, outputDir string) (*storageservice.File, error) {
+	token, err := actor.serviceTokenMinter.MintToken()
 	if err != nil {
 		return nil, fmt.Errorf("minting service token: %w", err)
 	}
@@ -164,8 +81,8 @@ func (worker *Worker) uploadReport(ctx context.Context, reportID string, outputD
 	if err != nil {
 		return nil, fmt.Errorf("reading report HTML: %w", err)
 	}
-	filename := fmt.Sprintf("report-%s.html", reportID)
-	return storageservice.UploadFile(ctx, worker.storageClient, storageservice.UploadFileInput{
+	filename := fmt.Sprintf("report-%s.html", jobID)
+	return storageservice.UploadFile(ctx, actor.storageClient, storageservice.UploadFileInput{
 		Filename:    filename,
 		ContentType: "text/html; charset=utf-8",
 		Body:        bytes.NewReader(htmlData),
@@ -273,7 +190,6 @@ func parseParameters(raw map[string]string) (BacktestParameters, error) {
 
 func buildConfig(params BacktestParameters) backtestconfig.Config {
 	indicators := params.Indicators
-	// Apply defaults for zero values.
 	if indicators.RSIPeriod < 2 {
 		indicators.RSIPeriod = 14
 	}
@@ -315,7 +231,6 @@ func buildConfig(params BacktestParameters) backtestconfig.Config {
 	}
 }
 
-// filterToRange and filterToMarketHours mirror the helpers in backtest-cli main.go.
 func filterToRange(points []indicator.Point, start, end time.Time) []indicator.Point {
 	out := make([]indicator.Point, 0, len(points))
 	for _, point := range points {

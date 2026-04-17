@@ -8,13 +8,13 @@ import (
 
 	"github.com/ansel1/merry"
 	"github.com/gorilla/mux"
-	"github.com/kduong/trading-backend/cmd/reporting-service/internal/reportstore"
+	"github.com/kduong/trading-backend/cmd/reporting-service/internal/jobstore"
 	"github.com/kduong/trading-backend/internal/contextx"
 	"github.com/kduong/trading-backend/internal/fatal"
 	"github.com/kduong/trading-backend/internal/httpx"
 )
 
-func (handler *Handler) DownloadReport(responseWriter http.ResponseWriter, request *http.Request) {
+func (handler *Handler) DownloadJob(responseWriter http.ResponseWriter, request *http.Request) {
 	var err error
 	defer func() {
 		if err != nil {
@@ -23,19 +23,19 @@ func (handler *Handler) DownloadReport(responseWriter http.ResponseWriter, reque
 	}()
 	ctx := request.Context()
 	vars := mux.Vars(request)
-	reportID := vars["report_id"]
-	report, err := handler.reportQueryHandler.Get(ctx, reportID)
+	jobID := vars["job_id"]
+	job, err := handler.jobQueryHandler.Get(ctx, jobID)
 	if err != nil {
 		err = merrifyError[err]
 		return
 	}
-	if report.Status != reportstore.ReportStatusCompleted {
-		err = merry.New("report is not yet available for download").WithHTTPCode(http.StatusConflict)
+	if job.Status != jobstore.JobStatusCompleted {
+		err = merry.New("job is not yet available for download").WithHTTPCode(http.StatusConflict)
 		return
 	}
-	fileID := extractFileID(report.DownloadURL)
+	fileID := extractFileID(job.DownloadURL)
 	if fileID == "" {
-		err = merry.New("report has no file attached").WithHTTPCode(http.StatusNotFound)
+		err = merry.New("job has no file attached").WithHTTPCode(http.StatusNotFound)
 		return
 	}
 	token, err := handler.serviceTokenMinter.MintToken()

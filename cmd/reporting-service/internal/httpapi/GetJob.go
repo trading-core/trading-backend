@@ -8,7 +8,7 @@ import (
 	"github.com/kduong/trading-backend/internal/httpx"
 )
 
-func (handler *Handler) GetReport(responseWriter http.ResponseWriter, request *http.Request) {
+func (handler *Handler) GetJob(responseWriter http.ResponseWriter, request *http.Request) {
 	var err error
 	defer func() {
 		if err != nil {
@@ -17,12 +17,12 @@ func (handler *Handler) GetReport(responseWriter http.ResponseWriter, request *h
 	}()
 	ctx := request.Context()
 	vars := mux.Vars(request)
-	reportID := vars["report_id"]
-	report, err := handler.reportQueryHandler.Get(ctx, reportID)
+	jobID := vars["job_id"]
+	job, err := handler.jobQueryHandler.Get(ctx, jobID)
 	if err != nil {
 		err = merrifyError[err]
 		return
 	}
 	responseWriter.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(responseWriter).Encode(report)
+	json.NewEncoder(responseWriter).Encode(job)
 }

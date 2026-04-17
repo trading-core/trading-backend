@@ -6,26 +6,26 @@ import (
 	"time"
 
 	"github.com/ansel1/merry"
-	"github.com/kduong/trading-backend/cmd/reporting-service/internal/reportstore"
+	"github.com/kduong/trading-backend/cmd/reporting-service/internal/jobstore"
 	"github.com/kduong/trading-backend/internal/contextx"
 	"github.com/kduong/trading-backend/internal/httpx"
 	uuid "github.com/satori/go.uuid"
 )
 
-type EnqueueReportInput struct {
+type EnqueueJobInput struct {
 	Kind       string            `json:"kind"`
 	Name       string            `json:"name,omitempty"`
 	Parameters map[string]string `json:"parameters,omitempty"`
 }
 
-func (input *EnqueueReportInput) Validate() error {
+func (input *EnqueueJobInput) Validate() error {
 	if input.Kind == "" {
 		return merry.New("kind is required").WithHTTPCode(http.StatusBadRequest)
 	}
 	return nil
 }
 
-func (handler *Handler) EnqueueReport(responseWriter http.ResponseWriter, request *http.Request) {
+func (handler *Handler) CreateJob(responseWriter http.ResponseWriter, request *http.Request) {
 	var err error
 	defer func() {
 		if err != nil {
@@ -34,7 +34,7 @@ func (handler *Handler) EnqueueReport(responseWriter http.ResponseWriter, reques
 	}()
 	ctx := request.Context()
 	userID := contextx.GetUserID(ctx)
-	var input EnqueueReportInput
+	var input EnqueueJobInput
 	err = json.NewDecoder(request.Body).Decode(&input)
 	if err != nil {
 		err = merry.Wrap(err).WithHTTPCode(http.StatusBadRequest)
@@ -45,27 +45,24 @@ func (handler *Handler) EnqueueReport(responseWriter http.ResponseWriter, reques
 		return
 	}
 	now := time.Now().UTC().Format(time.RFC3339)
-	report := &reportstore.Report{
+	job := &jobstore.Job{
 		ID:         uuid.NewV4().String(),
 		UserID:     userID,
 		Name:       input.Name,
 		Kind:       input.Kind,
 		Parameters: input.Parameters,
-		Status:     reportstore.ReportStatusPending,
+		Status:     jobstore.JobStatusPending,
 		CreatedAt:  now,
 		UpdatedAt:  now,
 	}
-	err = handler.reportCommandHandler.Enqueue(ctx, report)
+	err = handler.jobCommandHandler.CreateJob(ctx, job)
 	if err != nil {
 		return
 	}
-	// Notify the worker non-blocking; the channel is buffered and the recovery
-	// worker handles any jobs that don't make it through on a restart.
-	select {
-	case handler.jobs <- report.ID:
-	default:
-	}
+	// Notify the actor non-blocking; the actor's channel is buffered and the
+	// recovery pass on restart handles any jobs that don't make it through.
+	handler.enqueueJob(job)
 	responseWriter.Header().Set("Content-Type", "application/json")
 	responseWriter.WriteHeader(http.StatusAccepted)
-	json.NewEncoder(responseWriter).Encode(report)
+	json.NewEncoder(responseWriter).Encode(job)
 }

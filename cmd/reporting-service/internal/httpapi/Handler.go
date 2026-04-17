@@ -5,50 +5,47 @@ import (
 
 	"github.com/ansel1/merry"
 	"github.com/gorilla/mux"
-	"github.com/kduong/trading-backend/cmd/reporting-service/internal/reportstore"
+	"github.com/kduong/trading-backend/cmd/reporting-service/internal/jobstore"
 	"github.com/kduong/trading-backend/cmd/storage-service/pkg/storageservice"
 	"github.com/kduong/trading-backend/internal/auth"
 )
 
 type Handler struct {
-	reportCommandHandler reportstore.CommandHandler
-	reportQueryHandler   reportstore.QueryHandler
-	storageClient        storageservice.Client
-	serviceTokenMinter   *auth.ServiceTokenMinter
-	outputsDir           string
-	jobs                 chan<- string
+	jobCommandHandler  jobstore.CommandHandler
+	jobQueryHandler    jobstore.QueryHandler
+	storageClient      storageservice.Client
+	serviceTokenMinter *auth.ServiceTokenMinter
+	enqueueJob         func(job *jobstore.Job)
 }
 
 type NewRouterInput struct {
-	AuthMiddleware       *auth.Middleware
-	ReportCommandHandler reportstore.CommandHandler
-	ReportQueryHandler   reportstore.QueryHandler
-	StorageClient        storageservice.Client
-	ServiceTokenMinter   *auth.ServiceTokenMinter
-	OutputsDir           string
-	Jobs                 chan<- string
+	AuthMiddleware     *auth.Middleware
+	JobCommandHandler  jobstore.CommandHandler
+	JobQueryHandler    jobstore.QueryHandler
+	StorageClient      storageservice.Client
+	ServiceTokenMinter *auth.ServiceTokenMinter
+	EnqueueJob         func(job *jobstore.Job)
 }
 
 func NewRouter(input NewRouterInput) *mux.Router {
 	handler := &Handler{
-		reportCommandHandler: input.ReportCommandHandler,
-		reportQueryHandler:   input.ReportQueryHandler,
-		storageClient:        input.StorageClient,
-		serviceTokenMinter:   input.ServiceTokenMinter,
-		outputsDir:           input.OutputsDir,
-		jobs:                 input.Jobs,
+		jobCommandHandler:  input.JobCommandHandler,
+		jobQueryHandler:    input.JobQueryHandler,
+		storageClient:      input.StorageClient,
+		serviceTokenMinter: input.ServiceTokenMinter,
+		enqueueJob:         input.EnqueueJob,
 	}
 	router := mux.NewRouter().StrictSlash(true)
 	reportV1Router := router.PathPrefix("/reports/v1").Subrouter()
 	reportV1Router.Use(input.AuthMiddleware.Handle)
-	reportV1Router.HandleFunc("/reports", handler.EnqueueReport).Methods(http.MethodPost).Name("EnqueueReport")
-	reportV1Router.HandleFunc("/reports", handler.ListReports).Methods(http.MethodGet).Name("ListReports")
-	reportV1Router.HandleFunc("/reports/{report_id}", handler.GetReport).Methods(http.MethodGet).Name("GetReport")
-	reportV1Router.HandleFunc("/reports/{report_id}/download", handler.DownloadReport).Methods(http.MethodGet).Name("DownloadReport")
+	reportV1Router.HandleFunc("/reports", handler.CreateJob).Methods(http.MethodPost).Name("CreateJob")
+	reportV1Router.HandleFunc("/reports", handler.ListJobs).Methods(http.MethodGet).Name("ListJobs")
+	reportV1Router.HandleFunc("/reports/{job_id}", handler.GetJob).Methods(http.MethodGet).Name("GetJob")
+	reportV1Router.HandleFunc("/reports/{job_id}/download", handler.DownloadJob).Methods(http.MethodGet).Name("DownloadJob")
 	return router
 }
 
 var merrifyError = map[error]error{
-	reportstore.ErrReportNotFound:  merry.New("report not found").WithHTTPCode(http.StatusNotFound),
-	reportstore.ErrReportForbidden: merry.New("forbidden").WithHTTPCode(http.StatusForbidden),
+	jobstore.ErrJobNotFound:  merry.New("job not found").WithHTTPCode(http.StatusNotFound),
+	jobstore.ErrJobForbidden: merry.New("forbidden").WithHTTPCode(http.StatusForbidden),
 }

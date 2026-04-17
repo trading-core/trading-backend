@@ -6,14 +6,14 @@ import (
 	"strconv"
 
 	"github.com/ansel1/merry"
-	"github.com/kduong/trading-backend/cmd/reporting-service/internal/reportstore"
+	"github.com/kduong/trading-backend/cmd/reporting-service/internal/jobstore"
 	"github.com/kduong/trading-backend/internal/httpx"
 )
 
 const defaultPageSize = 10
 const maxPageSize = 100
 
-func (handler *Handler) ListReports(responseWriter http.ResponseWriter, request *http.Request) {
+func (handler *Handler) ListJobs(responseWriter http.ResponseWriter, request *http.Request) {
 	var err error
 	defer func() {
 		if err != nil {
@@ -41,7 +41,7 @@ func (handler *Handler) ListReports(responseWriter http.ResponseWriter, request 
 		return
 	}
 
-	result, err := handler.reportQueryHandler.List(ctx, reportstore.ListInput{
+	result, err := handler.jobQueryHandler.List(ctx, jobstore.ListInput{
 		Page:     page,
 		PageSize: pageSize,
 	})

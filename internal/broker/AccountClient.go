@@ -9,6 +9,29 @@ type AccountClient interface {
 	GetEquityPosition(ctx context.Context, symbol string) (*GetEquityPositionOutput, error)
 	PlaceOrder(ctx context.Context, input PlaceOrderInput) (*PlaceOrderOutput, error)
 	HasPendingOrder(ctx context.Context, symbol string) (bool, error)
+	GetTransactions(ctx context.Context, input GetTransactionsInput) (*GetTransactionsOutput, error)
+}
+
+type GetTransactionsInput struct {
+	From string
+	To   string
+}
+
+type GetTransactionsOutput struct {
+	Transactions []Transaction
+}
+
+type Transaction struct {
+	ID          string
+	Symbol      string
+	Action      OrderAction
+	Quantity    float64
+	Price       float64
+	Value       float64
+	Fees        float64
+	RealizedPnL float64
+	ExecutedAt  string
+	Type        string
 }
 
 type GetEquityPositionOutput struct {

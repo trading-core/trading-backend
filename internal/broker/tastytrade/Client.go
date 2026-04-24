@@ -15,6 +15,61 @@ type Client interface {
 	GetAPIQuoteToken(ctx context.Context) (*GetAPIQuoteTokenOutput, error)
 	PlaceEquityOrder(ctx context.Context, input PlaceEquityOrderInput) (*PlaceEquityOrderOutput, error)
 	GetLiveOrders(ctx context.Context, accountID string) (*LiveOrdersOutput, error)
+	GetAccountTransactions(ctx context.Context, input GetAccountTransactionsInput) (*AccountTransactionsOutput, error)
+}
+
+type GetAccountTransactionsInput struct {
+	AccountID string
+	StartDate string
+	EndDate   string
+	PageOffset int
+	PerPage    int
+}
+
+type AccountTransactionsOutput struct {
+	Data       AccountTransactionsData `json:"data"`
+	Pagination AccountTransactionsPagination `json:"pagination"`
+}
+
+type AccountTransactionsData struct {
+	Items []AccountTransaction `json:"items"`
+}
+
+type AccountTransactionsPagination struct {
+	PerPage     int `json:"per-page"`
+	PageOffset  int `json:"page-offset"`
+	ItemOffset  int `json:"item-offset"`
+	TotalItems  int `json:"total-items"`
+	TotalPages  int `json:"total-pages"`
+	CurrentItemCount int `json:"current-item-count"`
+	PreviousLink string `json:"previous-link"`
+	NextLink    string `json:"next-link"`
+	PagingLinkTemplate string `json:"paging-link-template"`
+}
+
+type AccountTransaction struct {
+	ID                  int    `json:"id"`
+	AccountNumber       string `json:"account-number"`
+	Symbol              string `json:"symbol"`
+	InstrumentType      string `json:"instrument-type"`
+	TransactionType     string `json:"transaction-type"`
+	TransactionSubType  string `json:"transaction-sub-type"`
+	Action              string `json:"action"`
+	Quantity            string `json:"quantity"`
+	Price               string `json:"price"`
+	Value               string `json:"value"`
+	ValueEffect         string `json:"value-effect"`
+	RegulatoryFees      string `json:"regulatory-fees"`
+	RegulatoryFeesEffect string `json:"regulatory-fees-effect"`
+	ClearingFees        string `json:"clearing-fees"`
+	ClearingFeesEffect  string `json:"clearing-fees-effect"`
+	Commission          string `json:"commission"`
+	CommissionEffect    string `json:"commission-effect"`
+	NetValue            string `json:"net-value"`
+	NetValueEffect      string `json:"net-value-effect"`
+	ExecutedAt          string `json:"executed-at"`
+	TransactionDate     string `json:"transaction-date"`
+	Description         string `json:"description"`
 }
 
 type AccountPositionsOutput struct {

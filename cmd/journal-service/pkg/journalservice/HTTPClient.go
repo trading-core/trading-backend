@@ -1,4 +1,4 @@
-package accountservice
+package journalservice
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -32,11 +33,11 @@ func NewHTTPClient(input NewHTTPClientInput) *HTTPClient {
 	}
 }
 
-func (client *HTTPClient) GetAccount(ctx context.Context, accountID string) (output *Account, err error) {
+func (client *HTTPClient) GetEntry(ctx context.Context, date string) (output *Entry, err error) {
 	target := url.URL{
 		Scheme: client.baseURL.Scheme,
 		Host:   client.baseURL.Host,
-		Path:   fmt.Sprintf("/accounts/v1/accounts/%s", accountID),
+		Path:   fmt.Sprintf("/journal/v1/entries/%s", date),
 	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, target.String(), nil)
 	if err != nil {
@@ -57,39 +58,24 @@ func (client *HTTPClient) GetAccount(ctx context.Context, accountID string) (out
 	return
 }
 
-func (client *HTTPClient) GetAccountBalance(ctx context.Context, accountID string) (output *Balance, err error) {
-	target := url.URL{
-		Scheme: client.baseURL.Scheme,
-		Host:   client.baseURL.Host,
-		Path:   fmt.Sprintf("/accounts/v1/accounts/%s/balances", accountID),
-	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, target.String(), nil)
-	if err != nil {
-		panic(err)
-	}
-	accessToken := contextx.GetAccessToken(ctx)
-	request.Header.Set("Authorization", "Bearer "+accessToken)
-	response, err := client.httpClient.Do(request)
-	if err != nil {
-		return
-	}
-	defer response.Body.Close()
-	if response.StatusCode != http.StatusOK {
-		err = client.mapResponseError(response)
-		return
-	}
-	err = json.NewDecoder(response.Body).Decode(&output)
-	return
-}
-
-func (client *HTTPClient) GetDailyPnL(ctx context.Context, input GetDailyPnLInput) (output *DailyPnLResult, err error) {
+func (client *HTTPClient) ListEntries(ctx context.Context, input ListInput) (output *ListResult, err error) {
 	query := url.Values{}
-	query.Set("from", input.From)
-	query.Set("to", input.To)
+	if input.From != "" {
+		query.Set("from", input.From)
+	}
+	if input.To != "" {
+		query.Set("to", input.To)
+	}
+	if input.Page != 0 {
+		query.Set("page", strconv.Itoa(input.Page))
+	}
+	if input.PageSize != 0 {
+		query.Set("page_size", strconv.Itoa(input.PageSize))
+	}
 	target := url.URL{
 		Scheme:   client.baseURL.Scheme,
 		Host:     client.baseURL.Host,
-		Path:     fmt.Sprintf("/accounts/v1/accounts/%s/pnl/daily", input.AccountID),
+		Path:     "/journal/v1/entries",
 		RawQuery: query.Encode(),
 	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, target.String(), nil)
@@ -111,17 +97,17 @@ func (client *HTTPClient) GetDailyPnL(ctx context.Context, input GetDailyPnLInpu
 	return
 }
 
-func (client *HTTPClient) mapResponseError(response *http.Response) (err error) {
+func (client *HTTPClient) mapResponseError(response *http.Response) error {
 	body, err := io.ReadAll(response.Body)
 	if err != nil {
-		return
+		return err
 	}
 	message := strings.TrimSpace(string(body))
 	switch response.StatusCode {
 	case http.StatusForbidden:
-		return fmt.Errorf("%w: %s", ErrAccountForbidden, message)
+		return fmt.Errorf("%w: %s", ErrEntryForbidden, message)
 	case http.StatusNotFound:
-		return fmt.Errorf("%w: %s", ErrAccountNotFound, message)
+		return fmt.Errorf("%w: %s", ErrEntryNotFound, message)
 	default:
 		return fmt.Errorf("%w: %s", ErrServerError, message)
 	}

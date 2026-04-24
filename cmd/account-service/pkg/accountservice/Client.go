@@ -17,6 +17,25 @@ var (
 type Client interface {
 	GetAccount(ctx context.Context, accountID string) (*Account, error)
 	GetAccountBalance(ctx context.Context, accountID string) (*Balance, error)
+	GetDailyPnL(ctx context.Context, input GetDailyPnLInput) (*DailyPnLResult, error)
+}
+
+type GetDailyPnLInput struct {
+	AccountID string
+	From      string
+	To        string
+}
+
+type DailyPnLResult struct {
+	Currency string     `json:"currency"`
+	Days     []DailyPnL `json:"days"`
+}
+
+type DailyPnL struct {
+	Date        string  `json:"date"`
+	RealizedPnL float64 `json:"realized_pnl"`
+	TradeCount  int     `json:"trade_count"`
+	Fees        float64 `json:"fees"`
 }
 
 type Account struct {

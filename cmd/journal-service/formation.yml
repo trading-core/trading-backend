@@ -1,0 +1,11 @@
+---
+- name: Render journal-service .env
+  vars:
+    service_environment:
+      TOKEN_SECRET: "{{ token_secret }}"
+      TRADING_JOURNAL_EVENT_LOG_FACTORY: "REDIS"
+      TRADING_JOURNAL_EVENT_LOG_REDIS_ADDRESS: "redis:6379"
+  template:
+    src: "{{ playbook_dir }}/templates/service.env.j2"
+    dest: backend/journal-service/.env
+    mode: '0600'

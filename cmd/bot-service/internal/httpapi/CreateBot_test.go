@@ -30,6 +30,10 @@ func (client fakeAccountServiceClient) GetAccountBalance(ctx context.Context, ac
 	return nil, errors.New("not implemented")
 }
 
+func (client fakeAccountServiceClient) GetDailyPnL(ctx context.Context, input accountservice.GetDailyPnLInput) (*accountservice.DailyPnLResult, error) {
+	return nil, errors.New("not implemented")
+}
+
 type fakeSymbolValidator struct {
 	err error
 }

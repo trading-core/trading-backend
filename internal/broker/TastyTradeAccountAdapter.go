@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/kduong/trading-backend/internal/broker/tastytrade"
 )
@@ -117,6 +118,109 @@ func (adapter *TastyTradeAccountAdapter) PlaceOrder(ctx context.Context, input P
 		OrderID: result.OrderID,
 	}
 	return
+}
+
+func (adapter *TastyTradeAccountAdapter) GetTransactions(ctx context.Context, input GetTransactionsInput) (output *GetTransactionsOutput, err error) {
+	output = &GetTransactionsOutput{Transactions: make([]Transaction, 0)}
+	pageOffset := 0
+	for {
+		page, pageErr := adapter.client.GetAccountTransactions(ctx, tastytrade.GetAccountTransactionsInput{
+			AccountID:  adapter.accountID,
+			StartDate:  input.From,
+			EndDate:    input.To,
+			PageOffset: pageOffset,
+			PerPage:    250,
+		})
+		if pageErr != nil {
+			err = pageErr
+			return
+		}
+		for _, item := range page.Data.Items {
+			transaction, convertErr := convertTastyTradeTransaction(item)
+			if convertErr != nil {
+				continue
+			}
+			output.Transactions = append(output.Transactions, transaction)
+		}
+		if pageOffset+1 >= page.Pagination.TotalPages {
+			break
+		}
+		pageOffset++
+	}
+	return
+}
+
+func convertTastyTradeTransaction(item tastytrade.AccountTransaction) (Transaction, error) {
+	quantity, err := parseOptionalFloat(item.Quantity)
+	if err != nil {
+		return Transaction{}, err
+	}
+	price, err := parseOptionalFloat(item.Price)
+	if err != nil {
+		return Transaction{}, err
+	}
+	value, err := parseSignedFloat(item.Value, item.ValueEffect)
+	if err != nil {
+		return Transaction{}, err
+	}
+	regulatoryFees, err := parseSignedFloat(item.RegulatoryFees, item.RegulatoryFeesEffect)
+	if err != nil {
+		return Transaction{}, err
+	}
+	clearingFees, err := parseSignedFloat(item.ClearingFees, item.ClearingFeesEffect)
+	if err != nil {
+		return Transaction{}, err
+	}
+	commission, err := parseSignedFloat(item.Commission, item.CommissionEffect)
+	if err != nil {
+		return Transaction{}, err
+	}
+	fees := absoluteValue(regulatoryFees) + absoluteValue(clearingFees) + absoluteValue(commission)
+	realizedPnL := 0.0
+	if item.TransactionType == "Trade" && strings.Contains(strings.ToLower(item.Action), "close") {
+		realizedPnL = value
+	}
+	action := OrderActionBuy
+	if strings.Contains(strings.ToLower(item.Action), "sell") {
+		action = OrderActionSell
+	}
+	return Transaction{
+		ID:          fmt.Sprintf("%d", item.ID),
+		Symbol:      item.Symbol,
+		Action:      action,
+		Quantity:    quantity,
+		Price:       price,
+		Value:       value,
+		Fees:        fees,
+		RealizedPnL: realizedPnL,
+		ExecutedAt:  item.ExecutedAt,
+		Type:        item.TransactionType,
+	}, nil
+}
+
+func parseOptionalFloat(raw string) (float64, error) {
+	if raw == "" {
+		return 0, nil
+	}
+	return strconv.ParseFloat(raw, 64)
+}
+
+func parseSignedFloat(raw string, effect string) (float64, error) {
+	value, err := parseOptionalFloat(raw)
+	if err != nil {
+		return 0, err
+	}
+	if effect == "Debit" {
+		return -value, nil
+	}
+	return value, nil
+}
+
+func absoluteValue(value float64) float64 {
+	if value < 0 {
+		return -value
+	}
+	return value
 }
 
 func (adapter *TastyTradeAccountAdapter) HasPendingOrder(ctx context.Context, symbol string) (bool, error) {

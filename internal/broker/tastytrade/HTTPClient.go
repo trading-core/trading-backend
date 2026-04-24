@@ -296,6 +296,49 @@ func (client *HTTPClient) GetLiveOrders(ctx context.Context, accountID string) (
 	return
 }
 
+func (client *HTTPClient) GetAccountTransactions(ctx context.Context, input GetAccountTransactionsInput) (output *AccountTransactionsOutput, err error) {
+	query := url.Values{}
+	if input.StartDate != "" {
+		query.Set("start-date", input.StartDate)
+	}
+	if input.EndDate != "" {
+		query.Set("end-date", input.EndDate)
+	}
+	perPage := input.PerPage
+	if perPage == 0 {
+		perPage = 250
+	}
+	query.Set("per-page", fmt.Sprintf("%d", perPage))
+	query.Set("page-offset", fmt.Sprintf("%d", input.PageOffset))
+	target := url.URL{
+		Scheme:   client.apiURL.Scheme,
+		Host:     client.apiURL.Host,
+		Path:     fmt.Sprintf("/accounts/%s/transactions", input.AccountID),
+		RawQuery: query.Encode(),
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, target.String(), nil)
+	if err != nil {
+		panic(err)
+	}
+	accessToken, err := client.getAccessToken(ctx)
+	if err != nil {
+		return
+	}
+	request.Header.Set("Authorization", "Bearer "+accessToken)
+	request.Header.Set("Accept", "application/json")
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		return
+	}
+	defer httpx.DrainAndClose(response.Body)
+	if response.StatusCode != http.StatusOK {
+		err = httpx.ExtractResponseError(response)
+		return
+	}
+	err = json.NewDecoder(response.Body).Decode(&output)
+	return
+}
+
 type HTTPClientFactory struct {
 	APIURL         *url.URL
 	GetAccessToken func(ctx context.Context) (accessToken string, err error)

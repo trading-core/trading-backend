@@ -27,7 +27,7 @@ func main() {
 		}),
 	})
 	router := httpapi.NewRouter(httpapi.NewRouterInput{
-		AuthMiddleware:      auth.MiddlewareFromEnv(),
+		AuthMiddleware:      auth.MiddlewareFromEnv(auth.AudienceJournalService),
 		EntryCommandHandler: commandHandler,
 		EntryQueryHandler:   queryHandler,
 	})

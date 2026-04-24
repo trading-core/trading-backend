@@ -48,7 +48,7 @@ func main() {
 	actor.CompleteCatchup(ctx)
 	go actor.Run(ctx)
 	router := httpapi.NewRouter(httpapi.NewRouterInput{
-		AuthMiddleware:     auth.MiddlewareFromEnv(),
+		AuthMiddleware:     auth.MiddlewareFromEnv(auth.AudienceReportingService),
 		JobCommandHandler:  commandHandler,
 		JobQueryHandler:    queryHandler,
 		StorageClient:      storageClient,

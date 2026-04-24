@@ -13,7 +13,7 @@ import (
 func main() {
 	router := httpapi.NewRouter(httpapi.NewRouterInput{
 		AlpacaClient:           alpaca.ClientFromEnv(),
-		AuthMiddleware:         auth.MiddlewareFromEnv(),
+		AuthMiddleware:         auth.MiddlewareFromEnv(auth.AudienceStockScreenerService),
 		FetchSentimentStrategy: fetchsentiment.StrategyFromEnv(),
 	})
 	c := cors.New(cors.Options{

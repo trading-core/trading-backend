@@ -7,6 +7,7 @@ import (
 
 	"github.com/ansel1/merry"
 	"github.com/kduong/trading-backend/cmd/reporting-service/internal/jobstore"
+	"github.com/kduong/trading-backend/internal/authz"
 	"github.com/kduong/trading-backend/internal/contextx"
 	"github.com/kduong/trading-backend/internal/httpx"
 	uuid "github.com/satori/go.uuid"
@@ -33,6 +34,9 @@ func (handler *Handler) CreateJob(responseWriter http.ResponseWriter, request *h
 		}
 	}()
 	ctx := request.Context()
+	if err = authz.RequireScope(ctx, authz.ScopeJobsWrite); err != nil {
+		return
+	}
 	userID := contextx.GetUserID(ctx)
 	var input EnqueueJobInput
 	err = json.NewDecoder(request.Body).Decode(&input)

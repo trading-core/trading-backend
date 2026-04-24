@@ -7,6 +7,7 @@ import (
 
 	"github.com/ansel1/merry"
 	"github.com/kduong/trading-backend/cmd/reporting-service/internal/jobstore"
+	"github.com/kduong/trading-backend/internal/authz"
 	"github.com/kduong/trading-backend/internal/httpx"
 )
 
@@ -21,6 +22,9 @@ func (handler *Handler) ListJobs(responseWriter http.ResponseWriter, request *ht
 		}
 	}()
 	ctx := request.Context()
+	if err = authz.RequireScope(ctx, authz.ScopeJobsRead); err != nil {
+		return
+	}
 
 	page, err := parseQueryInt(request, "page", 0)
 	if err != nil {

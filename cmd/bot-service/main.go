@@ -72,7 +72,7 @@ func main() {
 		fatal.OnError(err)
 	}()
 	router := httpapi.NewRouter(httpapi.NewRouterInput{
-		AuthMiddleware:       auth.MiddlewareFromEnv(),
+		AuthMiddleware:       auth.MiddlewareFromEnv(auth.AudienceBotService),
 		AccountServiceClient: accountservice.ClientFromEnv(),
 		SymbolValidator:      symbolValidator,
 		BotEventLogFactory:   logFactory,

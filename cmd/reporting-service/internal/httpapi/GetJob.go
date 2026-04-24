@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
+	"github.com/kduong/trading-backend/internal/authz"
 	"github.com/kduong/trading-backend/internal/httpx"
 )
 
@@ -16,6 +17,9 @@ func (handler *Handler) GetJob(responseWriter http.ResponseWriter, request *http
 		}
 	}()
 	ctx := request.Context()
+	if err = authz.RequireScope(ctx, authz.ScopeJobsRead); err != nil {
+		return
+	}
 	vars := mux.Vars(request)
 	jobID := vars["job_id"]
 	job, err := handler.jobQueryHandler.Get(ctx, jobID)

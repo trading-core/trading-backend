@@ -4,6 +4,7 @@ import (
 	"context"
 	"sort"
 
+	"github.com/kduong/trading-backend/internal/authz"
 	"github.com/kduong/trading-backend/internal/contextx"
 	"github.com/kduong/trading-backend/internal/eventsource"
 	"github.com/kduong/trading-backend/internal/eventsource/subscription"
@@ -36,8 +37,7 @@ func (store *EventSourcedQueryHandler) Get(ctx context.Context, jobID string) (j
 		err = ErrJobNotFound
 		return
 	}
-	userID := contextx.GetUserID(ctx)
-	if job.UserID != userID {
+	if ownershipErr := authz.RequireOwner(ctx, job.UserID); ownershipErr != nil {
 		err = ErrJobForbidden
 		return
 	}

@@ -2,12 +2,15 @@ package httpapi
 
 import (
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/mux"
 
 	"github.com/kduong/trading-backend/cmd/authentication-service/internal/userstore"
+	"github.com/kduong/trading-backend/internal/auth"
+	"github.com/kduong/trading-backend/internal/authz"
 )
 
 type Handler struct {
@@ -39,10 +42,13 @@ func NewRouter(input NewRouterInput) *mux.Router {
 func (handler *Handler) GenerateToken(user *userstore.User) (string, time.Time, error) {
 	now := time.Now().UTC()
 	expiresAt := now.Add(handler.expiryTTL)
-	claims := jwt.RegisteredClaims{
-		IssuedAt:  jwt.NewNumericDate(now),
-		ExpiresAt: jwt.NewNumericDate(expiresAt),
-		Subject:   user.ID,
+	claims := auth.Claims{
+		Scope: strings.Join(authz.UserScopes, " "),
+		RegisteredClaims: jwt.RegisteredClaims{
+			IssuedAt:  jwt.NewNumericDate(now),
+			ExpiresAt: jwt.NewNumericDate(expiresAt),
+			Subject:   user.ID,
+		},
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	signed, err := token.SignedString(handler.tokenSecret)

@@ -9,6 +9,8 @@ import (
 	"github.com/ansel1/merry"
 	"github.com/gorilla/mux"
 	"github.com/kduong/trading-backend/cmd/reporting-service/internal/jobstore"
+	"github.com/kduong/trading-backend/internal/auth"
+	"github.com/kduong/trading-backend/internal/authz"
 	"github.com/kduong/trading-backend/internal/contextx"
 	"github.com/kduong/trading-backend/internal/fatal"
 	"github.com/kduong/trading-backend/internal/httpx"
@@ -22,6 +24,9 @@ func (handler *Handler) DownloadJob(responseWriter http.ResponseWriter, request 
 		}
 	}()
 	ctx := request.Context()
+	if err = authz.RequireScope(ctx, authz.ScopeJobsRead); err != nil {
+		return
+	}
 	vars := mux.Vars(request)
 	jobID := vars["job_id"]
 	job, err := handler.jobQueryHandler.Get(ctx, jobID)
@@ -38,7 +43,12 @@ func (handler *Handler) DownloadJob(responseWriter http.ResponseWriter, request 
 		err = merry.New("job has no file attached").WithHTTPCode(http.StatusNotFound)
 		return
 	}
-	token, err := handler.serviceTokenMinter.MintToken()
+	token, err := handler.serviceTokenMinter.MintToken(auth.MintTokenInput{
+		OnBehalfOfUserID: contextx.GetUserID(ctx),
+		Actor:            auth.ActorReportingService,
+		Scopes:           []string{authz.ScopeFilesRead},
+		Audience:         []string{auth.AudienceStorageService},
+	})
 	if err != nil {
 		err = fmt.Errorf("minting service token: %w", err)
 		return

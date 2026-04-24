@@ -63,7 +63,7 @@ func main() {
 			BackendRedirectURI: authorizationRedirectURI.String(),
 			CredentialsByType:  brokerAuthorizationCredentials,
 		},
-		AuthMiddleware:     auth.MiddlewareFromEnv(),
+		AuthMiddleware:     auth.MiddlewareFromEnv(auth.AudienceAccountService),
 		BackendRedirectURI: authorizationRedirectURI.String(),
 		FrontendBaseURL:    config.EnvStringOrFatal("FRONTEND_BASE_URL"),
 	})

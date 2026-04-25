@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strings"
 
@@ -62,13 +63,20 @@ func NewRouter(input NewRouterInput) *mux.Router {
 	return router
 }
 
-var merrifyError = map[error]error{
-	botstore.ErrBotNotFound:  merry.New("bot not found").WithHTTPCode(http.StatusNotFound),
-	botstore.ErrBotForbidden: merry.New("forbidden").WithHTTPCode(http.StatusForbidden),
-
-	accountservice.ErrAccountNotFound:  merry.New("account not found").WithHTTPCode(http.StatusNotFound),
-	accountservice.ErrAccountForbidden: merry.New("forbidden").WithHTTPCode(http.StatusForbidden),
-	accountservice.ErrServerError:      merry.New("account service error").WithHTTPCode(http.StatusInternalServerError),
+func merrifyError(err error) error {
+	switch {
+	case errors.Is(err, botstore.ErrBotNotFound):
+		return merry.Wrap(err).WithHTTPCode(http.StatusNotFound).WithUserMessage("bot not found")
+	case errors.Is(err, botstore.ErrBotForbidden):
+		return merry.Wrap(err).WithHTTPCode(http.StatusForbidden).WithUserMessage("forbidden")
+	case errors.Is(err, accountservice.ErrAccountNotFound):
+		return merry.Wrap(err).WithHTTPCode(http.StatusNotFound).WithUserMessage("account not found")
+	case errors.Is(err, accountservice.ErrAccountForbidden):
+		return merry.Wrap(err).WithHTTPCode(http.StatusForbidden).WithUserMessage("forbidden")
+	case errors.Is(err, accountservice.ErrServerError):
+		return merry.Wrap(err).WithHTTPCode(http.StatusInternalServerError).WithUserMessage("account service error")
+	}
+	return err
 }
 
 func ContextWithAccessTokenFromRequestHeader(ctx context.Context, request *http.Request) context.Context {

@@ -34,10 +34,8 @@ func (handler *Handler) StartBrokerSelection(responseWriter http.ResponseWriter,
 	userID := contextx.GetUserID(ctx)
 	vars := mux.Vars(request)
 	accountID := vars["account_id"]
-	var input StartBrokerSelectionInput
-	err = json.NewDecoder(request.Body).Decode(&input)
+	input, err := httpx.DecodeJSONBody[StartBrokerSelectionInput](request)
 	if err != nil {
-		err = merry.Wrap(err).WithHTTPCode(http.StatusBadRequest).WithUserMessage("invalid request body")
 		return
 	}
 	if input.Broker == "" {
@@ -48,7 +46,7 @@ func (handler *Handler) StartBrokerSelection(responseWriter http.ResponseWriter,
 		AccountID: accountID,
 	})
 	if err != nil {
-		err = merryErrorByAccountStoreError[err]
+		err = merrifyAccountStoreError(err)
 		return
 	}
 	stateToken, err := GenerateStateToken()

@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/ansel1/merry"
@@ -35,7 +36,12 @@ func NewRouter(input NewRouterInput) *mux.Router {
 	return router
 }
 
-var merrifyError = map[error]error{
-	entrystore.ErrEntryNotFound:  merry.New("entry not found").WithHTTPCode(http.StatusNotFound),
-	entrystore.ErrEntryForbidden: merry.New("forbidden").WithHTTPCode(http.StatusForbidden),
+func merrifyError(err error) error {
+	switch {
+	case errors.Is(err, entrystore.ErrEntryNotFound):
+		return merry.Wrap(err).WithHTTPCode(http.StatusNotFound).WithUserMessage("entry not found")
+	case errors.Is(err, entrystore.ErrEntryForbidden):
+		return merry.Wrap(err).WithHTTPCode(http.StatusForbidden).WithUserMessage("forbidden")
+	}
+	return err
 }

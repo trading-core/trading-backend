@@ -24,7 +24,7 @@ const dailyPnLMaxRangeDays = 366
 const dailyPnLMatchingLookbackDays = 365
 
 type GetDailyPnLResponse struct {
-	Currency string                 `json:"currency"`
+	Currency string                   `json:"currency"`
 	Days     []pnlaggregator.DailyPnL `json:"days"`
 }
 
@@ -68,14 +68,13 @@ func (handler *Handler) GetDailyPnL(responseWriter http.ResponseWriter, request 
 		AccountID: accountID,
 	})
 	if err != nil {
-		err = merryErrorByAccountStoreError[err]
+		err = merrifyAccountStoreError(err)
 		return
 	}
-	if !account.BrokerLinked {
-		err = merry.New("account is not linked to a broker").WithHTTPCode(http.StatusBadRequest)
+	err = checkBrokerLinked(account)
+	if err != nil {
 		return
 	}
-
 	accountClient := handler.brokerAccountClientFactory.Get(ctx, account.BrokerAccount)
 	matchingFrom := fromDate.AddDate(0, 0, -dailyPnLMatchingLookbackDays).Format(dailyPnLDateLayout)
 	transactionsOutput, err := accountClient.GetTransactions(ctx, broker.GetTransactionsInput{

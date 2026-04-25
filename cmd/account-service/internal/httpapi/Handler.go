@@ -3,6 +3,7 @@ package httpapi
 import (
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"net/http"
 
 	"github.com/ansel1/merry"
@@ -74,8 +75,21 @@ func GenerateStateToken() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
-var merryErrorByAccountStoreError = map[error]error{
-	accountstore.ErrAccountNotFound:            merry.New("account not found").WithHTTPCode(http.StatusNotFound),
-	accountstore.ErrAccountForbidden:           merry.New("forbidden").WithHTTPCode(http.StatusForbidden),
-	accountstore.ErrBrokerAccountAlreadyLinked: merry.New("broker already linked").WithHTTPCode(http.StatusConflict),
+func checkBrokerLinked(account *accountstore.Account) error {
+	if !account.BrokerLinked {
+		return merry.New("account is not linked to a broker").WithHTTPCode(http.StatusBadRequest)
+	}
+	return nil
+}
+
+func merrifyAccountStoreError(err error) error {
+	switch {
+	case errors.Is(err, accountstore.ErrAccountNotFound):
+		return merry.Wrap(err).WithHTTPCode(http.StatusNotFound).WithUserMessage("account not found")
+	case errors.Is(err, accountstore.ErrAccountForbidden):
+		return merry.Wrap(err).WithHTTPCode(http.StatusForbidden).WithUserMessage("forbidden")
+	case errors.Is(err, accountstore.ErrBrokerAccountAlreadyLinked):
+		return merry.Wrap(err).WithHTTPCode(http.StatusConflict).WithUserMessage("broker already linked")
+	}
+	return err
 }

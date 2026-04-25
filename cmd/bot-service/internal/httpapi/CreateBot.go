@@ -55,10 +55,8 @@ func (handler *Handler) CreateBot(responseWriter http.ResponseWriter, request *h
 	}()
 	ctx := request.Context()
 	userID := contextx.GetUserID(ctx)
-	var input CreateBotInput
-	err = json.NewDecoder(request.Body).Decode(&input)
+	input, err := httpx.DecodeJSONBody[CreateBotInput](request)
 	if err != nil {
-		err = merry.Wrap(err).WithHTTPCode(http.StatusBadRequest)
 		return
 	}
 	err = input.Validate()
@@ -68,7 +66,7 @@ func (handler *Handler) CreateBot(responseWriter http.ResponseWriter, request *h
 	ctx = ContextWithAccessTokenFromRequestHeader(ctx, request)
 	account, err := handler.accountServiceClient.GetAccount(ctx, input.AccountID)
 	if err != nil {
-		err = merrifyError[err]
+		err = merrifyError(err)
 		return
 	}
 	if !account.BrokerLinked {

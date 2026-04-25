@@ -35,10 +35,8 @@ func (handler *Handler) CreateSession(responseWriter http.ResponseWriter, reques
 		}
 	}()
 	ctx := request.Context()
-	var input CreateSessionInput
-	err = json.NewDecoder(request.Body).Decode(&input)
+	input, err := httpx.DecodeJSONBody[CreateSessionInput](request)
 	if err != nil {
-		err = merry.Wrap(err).WithHTTPCode(http.StatusBadRequest).WithUserMessage("invalid request body")
 		return
 	}
 	input.Email = strings.ToLower(strings.TrimSpace(input.Email))

@@ -29,10 +29,8 @@ func (handler *Handler) CreateUser(responseWriter http.ResponseWriter, request *
 		}
 	}()
 	ctx := request.Context()
-	var input CreateUserInput
-	err = json.NewDecoder(request.Body).Decode(&input)
+	input, err := httpx.DecodeJSONBody[CreateUserInput](request)
 	if err != nil {
-		err = merry.Wrap(err).WithHTTPCode(http.StatusBadRequest).WithUserMessage("invalid request body")
 		return
 	}
 	email := strings.ToLower(strings.TrimSpace(input.Email))

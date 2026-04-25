@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/ansel1/merry"
-
 	"github.com/kduong/trading-backend/cmd/account-service/internal/accountstore"
 	"github.com/kduong/trading-backend/internal/fatal"
 	"github.com/kduong/trading-backend/internal/httpx"
@@ -30,10 +28,8 @@ func (handler *Handler) CreateAccount(responseWriter http.ResponseWriter, reques
 	}()
 	ctx := request.Context()
 	// TODO: validate input
-	var input CreateAccountInput
-	err = json.NewDecoder(request.Body).Decode(&input)
+	input, err := httpx.DecodeJSONBody[CreateAccountInput](request)
 	if err != nil {
-		err = merry.Wrap(err).WithHTTPCode(http.StatusBadRequest).WithUserMessage("invalid request body")
 		return
 	}
 	accountID := uuid.NewV4().String()

@@ -24,7 +24,7 @@ func (handler *Handler) GetJob(responseWriter http.ResponseWriter, request *http
 	jobID := vars["job_id"]
 	job, err := handler.jobQueryHandler.Get(ctx, jobID)
 	if err != nil {
-		err = merrifyError[err]
+		err = merrifyError(err)
 		return
 	}
 	responseWriter.Header().Set("Content-Type", "application/json")

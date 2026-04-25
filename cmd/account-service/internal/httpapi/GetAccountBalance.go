@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/ansel1/merry"
 	"github.com/gorilla/mux"
 	"github.com/kduong/trading-backend/cmd/account-service/internal/accountstore"
 	"github.com/kduong/trading-backend/internal/fatal"
@@ -25,11 +24,11 @@ func (handler *Handler) GetAccountBalance(responseWriter http.ResponseWriter, re
 		AccountID: accountID,
 	})
 	if err != nil {
-		err = merryErrorByAccountStoreError[err]
+		err = merrifyAccountStoreError(err)
 		return
 	}
-	if !account.BrokerLinked {
-		err = merry.New("account is not linked to a broker").WithHTTPCode(http.StatusBadRequest)
+	err = checkBrokerLinked(account)
+	if err != nil {
 		return
 	}
 	accountClient := handler.brokerAccountClientFactory.Get(ctx, account.BrokerAccount)

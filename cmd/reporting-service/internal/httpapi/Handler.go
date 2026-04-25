@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/ansel1/merry"
@@ -45,7 +46,12 @@ func NewRouter(input NewRouterInput) *mux.Router {
 	return router
 }
 
-var merrifyError = map[error]error{
-	jobstore.ErrJobNotFound:  merry.New("job not found").WithHTTPCode(http.StatusNotFound),
-	jobstore.ErrJobForbidden: merry.New("forbidden").WithHTTPCode(http.StatusForbidden),
+func merrifyError(err error) error {
+	switch {
+	case errors.Is(err, jobstore.ErrJobNotFound):
+		return merry.Wrap(err).WithHTTPCode(http.StatusNotFound).WithUserMessage("job not found")
+	case errors.Is(err, jobstore.ErrJobForbidden):
+		return merry.Wrap(err).WithHTTPCode(http.StatusForbidden).WithUserMessage("forbidden")
+	}
+	return err
 }

@@ -2,7 +2,6 @@ package httpapi
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 
 	"github.com/ansel1/merry"
@@ -26,8 +25,7 @@ func (handler *Handler) UpdateBot(responseWriter http.ResponseWriter, request *h
 	ctx := request.Context()
 	vars := mux.Vars(request)
 	botID := vars["bot_id"]
-	var body UpdateBotInput
-	err = json.NewDecoder(request.Body).Decode(&body)
+	body, err := httpx.DecodeJSONBody[UpdateBotInput](request)
 	if err != nil {
 		return
 	}
@@ -45,7 +43,7 @@ func (handler *Handler) UpdateBot(responseWriter http.ResponseWriter, request *h
 	}
 	err = handler.botStoreCommandHandler.UpdateBotStatus(ctx, botID, status)
 	if err != nil {
-		err = merrifyError[err]
+		err = merrifyError(err)
 		return
 	}
 	responseWriter.Header().Set("Content-Type", "application/json")
@@ -55,13 +53,13 @@ func (handler *Handler) UpdateBot(responseWriter http.ResponseWriter, request *h
 func (handler *Handler) ensureAllocationPolicy(ctx context.Context, request *http.Request, botID string) (err error) {
 	bot, err := handler.botStoreQueryHandler.Get(ctx, botID)
 	if err != nil {
-		err = merrifyError[err]
+		err = merrifyError(err)
 		return
 	}
 	ctx = ContextWithAccessTokenFromRequestHeader(ctx, request)
 	balance, err := handler.accountServiceClient.GetAccountBalance(ctx, bot.AccountID)
 	if err != nil {
-		err = merrifyError[err]
+		err = merrifyError(err)
 		return
 	}
 	if balance.CashBalance <= 0 {

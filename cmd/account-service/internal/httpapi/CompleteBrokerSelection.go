@@ -32,10 +32,8 @@ func (handler *Handler) CompleteBrokerSelection(responseWriter http.ResponseWrit
 	}()
 	ctx := request.Context()
 	userID := contextx.GetUserID(ctx)
-	var input CompleteBrokerSelectionInput
-	err = json.NewDecoder(request.Body).Decode(&input)
+	input, err := httpx.DecodeJSONBody[CompleteBrokerSelectionInput](request)
 	if err != nil {
-		err = merry.Wrap(err).WithHTTPCode(http.StatusBadRequest).WithUserMessage("invalid request body")
 		return
 	}
 	if input.PendingToken == "" || input.BrokerAccountID == "" {
@@ -66,7 +64,7 @@ func (handler *Handler) CompleteBrokerSelection(responseWriter http.ResponseWrit
 		BrokerAccount: brokerAccount,
 	})
 	if err != nil {
-		err = merryErrorByAccountStoreError[err]
+		err = merrifyAccountStoreError(err)
 		return
 	}
 	handler.pendingSelectionStore.Delete(input.PendingToken)

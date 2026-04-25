@@ -30,7 +30,7 @@ func (handler *Handler) DeleteEntry(responseWriter http.ResponseWriter, request 
 		UpdatedAt: now,
 	})
 	if err != nil {
-		err = merrifyError[err]
+		err = merrifyError(err)
 		return
 	}
 	responseWriter.WriteHeader(http.StatusNoContent)

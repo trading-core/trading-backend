@@ -26,7 +26,7 @@ func (handler *Handler) GetEntry(responseWriter http.ResponseWriter, request *ht
 	}
 	entry, err := handler.entryQueryHandler.Get(ctx, date)
 	if err != nil {
-		err = merrifyError[err]
+		err = merrifyError(err)
 		return
 	}
 	responseWriter.Header().Set("Content-Type", "application/json")

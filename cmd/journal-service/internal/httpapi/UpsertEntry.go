@@ -42,10 +42,8 @@ func (handler *Handler) UpsertEntry(responseWriter http.ResponseWriter, request 
 		err = merry.New("date must be YYYY-MM-DD").WithHTTPCode(http.StatusBadRequest)
 		return
 	}
-	var input UpsertEntryInput
-	err = json.NewDecoder(request.Body).Decode(&input)
+	input, err := httpx.DecodeJSONBody[UpsertEntryInput](request)
 	if err != nil {
-		err = merry.Wrap(err).WithHTTPCode(http.StatusBadRequest)
 		return
 	}
 	err = input.Validate()

@@ -38,10 +38,8 @@ func (handler *Handler) CreateJob(responseWriter http.ResponseWriter, request *h
 		return
 	}
 	userID := contextx.GetUserID(ctx)
-	var input EnqueueJobInput
-	err = json.NewDecoder(request.Body).Decode(&input)
+	input, err := httpx.DecodeJSONBody[EnqueueJobInput](request)
 	if err != nil {
-		err = merry.Wrap(err).WithHTTPCode(http.StatusBadRequest)
 		return
 	}
 	err = input.Validate()

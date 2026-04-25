@@ -24,7 +24,7 @@ func (handler *Handler) GetAccount(responseWriter http.ResponseWriter, request *
 		AccountID: accountID,
 	})
 	if err != nil {
-		err = merryErrorByAccountStoreError[err]
+		err = merrifyAccountStoreError(err)
 		return
 	}
 	responseWriter.Header().Set("Content-Type", "application/json")

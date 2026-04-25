@@ -176,25 +176,29 @@ func convertTastyTradeTransaction(item tastytrade.AccountTransaction) (Transacti
 		return Transaction{}, err
 	}
 	fees := absoluteValue(regulatoryFees) + absoluteValue(clearingFees) + absoluteValue(commission)
-	realizedPnL := 0.0
-	if item.TransactionType == "Trade" && strings.Contains(strings.ToLower(item.Action), "close") {
-		realizedPnL = value
-	}
+	lowerAction := strings.ToLower(item.Action)
 	action := OrderActionBuy
-	if strings.Contains(strings.ToLower(item.Action), "sell") {
+	if strings.Contains(lowerAction, "sell") {
 		action = OrderActionSell
 	}
+	effect := OrderEffectNone
+	switch {
+	case strings.Contains(lowerAction, "open"):
+		effect = OrderEffectOpen
+	case strings.Contains(lowerAction, "close"):
+		effect = OrderEffectClose
+	}
 	return Transaction{
-		ID:          fmt.Sprintf("%d", item.ID),
-		Symbol:      item.Symbol,
-		Action:      action,
-		Quantity:    quantity,
-		Price:       price,
-		Value:       value,
-		Fees:        fees,
-		RealizedPnL: realizedPnL,
-		ExecutedAt:  item.ExecutedAt,
-		Type:        item.TransactionType,
+		ID:         fmt.Sprintf("%d", item.ID),
+		Symbol:     item.Symbol,
+		Action:     action,
+		Effect:     effect,
+		Quantity:   quantity,
+		Price:      price,
+		Value:      value,
+		Fees:       fees,
+		ExecutedAt: item.ExecutedAt,
+		Type:       item.TransactionType,
 	}, nil
 }
 

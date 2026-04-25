@@ -87,18 +87,20 @@ func TestTastyTradeAccountAdapterGetTransactions(t *testing.T) {
 				So(len(output.Transactions), ShouldEqual, 2)
 			})
 
-			Convey("And the buy has action=buy with signed debit value", func() {
+			Convey("And the buy-to-open has action=buy, effect=open, signed debit value", func() {
 				buy := output.Transactions[0]
 				So(buy.Action, ShouldEqual, broker.OrderActionBuy)
+				So(buy.Effect, ShouldEqual, broker.OrderEffectOpen)
 				So(buy.Value, ShouldEqual, -1500.00)
 				So(buy.RealizedPnL, ShouldEqual, 0)
 			})
 
-			Convey("And the sell-to-close has action=sell and realized PnL from value", func() {
+			Convey("And the sell-to-close has action=sell, effect=close; realized PnL is left for the aggregator", func() {
 				sell := output.Transactions[1]
 				So(sell.Action, ShouldEqual, broker.OrderActionSell)
+				So(sell.Effect, ShouldEqual, broker.OrderEffectClose)
 				So(sell.Value, ShouldEqual, 100.00)
-				So(sell.RealizedPnL, ShouldEqual, 100.00)
+				So(sell.RealizedPnL, ShouldEqual, 0)
 			})
 
 			Convey("And fees are summed in absolute terms", func() {

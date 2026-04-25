@@ -25,6 +25,7 @@ type Transaction struct {
 	ID          string
 	Symbol      string
 	Action      OrderAction
+	Effect      OrderEffect
 	Quantity    float64
 	Price       float64
 	Value       float64
@@ -50,6 +51,14 @@ type OrderAction string
 const (
 	OrderActionBuy  OrderAction = "buy"
 	OrderActionSell OrderAction = "sell"
+)
+
+type OrderEffect string
+
+const (
+	OrderEffectNone  OrderEffect = ""
+	OrderEffectOpen  OrderEffect = "open"
+	OrderEffectClose OrderEffect = "close"
 )
 
 type PlaceOrderInput struct {

@@ -17,6 +17,12 @@ import (
 const dailyPnLDateLayout = "2006-01-02"
 const dailyPnLMaxRangeDays = 366
 
+// dailyPnLMatchingLookbackDays widens the broker fetch backwards from the
+// requested `from` date so that closes within the requested window can be
+// FIFO-matched against opens that happened earlier. The extra rows are
+// discarded after matching and never appear in the response.
+const dailyPnLMatchingLookbackDays = 365
+
 type GetDailyPnLResponse struct {
 	Currency string                 `json:"currency"`
 	Days     []pnlaggregator.DailyPnL `json:"days"`
@@ -71,14 +77,17 @@ func (handler *Handler) GetDailyPnL(responseWriter http.ResponseWriter, request 
 	}
 
 	accountClient := handler.brokerAccountClientFactory.Get(ctx, account.BrokerAccount)
+	matchingFrom := fromDate.AddDate(0, 0, -dailyPnLMatchingLookbackDays).Format(dailyPnLDateLayout)
 	transactionsOutput, err := accountClient.GetTransactions(ctx, broker.GetTransactionsInput{
-		From: from,
+		From: matchingFrom,
 		To:   to,
 	})
 	if err != nil {
 		return
 	}
-	aggregated := pnlaggregator.Aggregate(transactionsOutput.Transactions)
+	pnlaggregator.MatchRealizedPnL(transactionsOutput.Transactions)
+	withinRequestedWindow := pnlaggregator.FilterByDateRange(transactionsOutput.Transactions, from, to)
+	aggregated := pnlaggregator.Aggregate(withinRequestedWindow)
 
 	balance, err := accountClient.GetBalance(ctx)
 	currency := "USD"

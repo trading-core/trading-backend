@@ -26,6 +26,7 @@ const dailyPnLMatchingLookbackDays = 365
 type GetDailyPnLResponse struct {
 	Currency string                   `json:"currency"`
 	Days     []pnlaggregator.DailyPnL `json:"days"`
+	Summary  pnlaggregator.Summary    `json:"summary"`
 }
 
 func (handler *Handler) GetDailyPnL(responseWriter http.ResponseWriter, request *http.Request) {
@@ -87,6 +88,7 @@ func (handler *Handler) GetDailyPnL(responseWriter http.ResponseWriter, request 
 	pnlaggregator.MatchRealizedPnL(transactionsOutput.Transactions)
 	withinRequestedWindow := pnlaggregator.FilterByDateRange(transactionsOutput.Transactions, from, to)
 	aggregated := pnlaggregator.Aggregate(withinRequestedWindow)
+	summary := pnlaggregator.Summarize(withinRequestedWindow)
 
 	balance, err := accountClient.GetBalance(ctx)
 	currency := "USD"
@@ -98,6 +100,7 @@ func (handler *Handler) GetDailyPnL(responseWriter http.ResponseWriter, request 
 	response := GetDailyPnLResponse{
 		Currency: currency,
 		Days:     aggregated.Days,
+		Summary:  summary,
 	}
 	responseWriter.Header().Set("Content-Type", "application/json")
 	err = json.NewEncoder(responseWriter).Encode(response)

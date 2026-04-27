@@ -1,7 +1,9 @@
 ---
-- name: Render stock-screener .env
-  include_tasks: "{{ playbook_dir }}/tasks/render-env.yml"
+- name: Render stock-screener
+  include_tasks: "{{ playbook_dir }}/tasks/render-service.yml"
   vars:
+    service_name: stock-screener
+    cmd_dir: cmd/stock-screener
     env_dest: backend/stock-screener/.env
     resources:
       secrets: [token, alpaca]

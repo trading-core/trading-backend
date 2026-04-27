@@ -1,7 +1,9 @@
 ---
-- name: Render journal-service .env
-  include_tasks: "{{ playbook_dir }}/tasks/render-env.yml"
+- name: Render journal-service
+  include_tasks: "{{ playbook_dir }}/tasks/render-service.yml"
   vars:
+    service_name: journal-service
+    cmd_dir: cmd/journal-service
     env_dest: backend/journal-service/.env
     resources:
       secrets: [token]

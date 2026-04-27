@@ -1,7 +1,9 @@
 ---
-- name: Render bot-service .env
-  include_tasks: "{{ playbook_dir }}/tasks/render-env.yml"
+- name: Render bot-service
+  include_tasks: "{{ playbook_dir }}/tasks/render-service.yml"
   vars:
+    service_name: bot-service
+    cmd_dir: cmd/bot-service
     env_dest: backend/bot-service/.env
     resources:
       secrets: [token, broker_credentials]

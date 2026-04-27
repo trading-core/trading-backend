@@ -1,11 +1,8 @@
 ---
 - name: Render journal-service .env
+  include_tasks: "{{ playbook_dir }}/tasks/render-env.yml"
   vars:
-    service_environment:
-      TOKEN_SECRET: "{{ token_secret }}"
-      TRADING_JOURNAL_EVENT_LOG_FACTORY: "REDIS"
-      TRADING_JOURNAL_EVENT_LOG_REDIS_ADDRESS: "redis:6379"
-  template:
-    src: "{{ playbook_dir }}/templates/service.env.j2"
-    dest: backend/journal-service/.env
-    mode: '0600'
+    env_dest: backend/journal-service/.env
+    resources:
+      secrets: [token]
+      logs:    [journal_event_log]

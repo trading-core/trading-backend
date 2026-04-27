@@ -1,15 +1,9 @@
 ---
 - name: Render account-service .env
+  include_tasks: "{{ playbook_dir }}/tasks/render-env.yml"
   vars:
-    service_environment:
-      BROKER_CREDENTIALS_B64_JSON: "{{ broker_credentials_b64_json }}"
-      TOKEN_SECRET: "{{ token_secret }}"
-      ACCOUNT_EVENT_LOG_FACTORY: "REDIS"
-      ACCOUNT_EVENT_LOG_REDIS_ADDRESS: "redis:6379"
-      TRADING_API_SCHEME: "http"
-      TRADING_API_HOST: "localhost:9000"
-      FRONTEND_BASE_URL: "http://localhost:3000"
-  template:
-    src: "{{ playbook_dir }}/templates/service.env.j2"
-    dest: backend/account-service/.env
-    mode: '0600'
+    env_dest: backend/account-service/.env
+    resources:
+      secrets: [token, broker_credentials]
+      logs:    [account_event_log]
+      apis:    [trading_api, frontend]

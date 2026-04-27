@@ -1,16 +1,9 @@
 ---
 - name: Render bot-service .env
+  include_tasks: "{{ playbook_dir }}/tasks/render-env.yml"
   vars:
-    service_environment:
-      BROKER_CREDENTIALS_B64_JSON: "{{ broker_credentials_b64_json }}"
-      TOKEN_SECRET: "{{ token_secret }}"
-      TRADING_BOT_EVENT_LOG_FACTORY: "REDIS"
-      TRADING_BOT_EVENT_LOG_REDIS_ADDRESS: "redis:6379"
-      ACCOUNT_SERVICE_CLIENT_IMPLEMENTATION: "HTTP"
-      ACCOUNT_SERVICE_SCHEME: "http"
-      ACCOUNT_SERVICE_HOST: "account-service"
-      ACCOUNT_SERVICE_PORT: "9000"
-  template:
-    src: "{{ playbook_dir }}/templates/service.env.j2"
-    dest: backend/bot-service/.env
-    mode: '0600'
+    env_dest: backend/bot-service/.env
+    resources:
+      secrets: [token, broker_credentials]
+      logs:    [bot_event_log]
+      clients: [account_service]

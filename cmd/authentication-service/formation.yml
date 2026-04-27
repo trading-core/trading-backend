@@ -1,11 +1,8 @@
 ---
 - name: Render authentication-service .env
+  include_tasks: "{{ playbook_dir }}/tasks/render-env.yml"
   vars:
-    service_environment:
-      USER_STORE_IMPLEMENTATION: POSTGRES
-      USER_STORE_POSTGRES_DATASOURCE_NAME: postgresql://postgres:postgres@postgres:5432/trading_auth?sslmode=disable
-      TOKEN_SECRET: "{{ token_secret }}"
-  template:
-    src: "{{ playbook_dir }}/templates/service.env.j2"
-    dest: backend/authentication-service/.env
-    mode: '0600'
+    env_dest: backend/authentication-service/.env
+    resources:
+      secrets: [token]
+      stores:  [user_postgres]

@@ -1,17 +1,8 @@
 ---
 - name: Render stock-screener .env
+  include_tasks: "{{ playbook_dir }}/tasks/render-env.yml"
   vars:
-    service_environment:
-      TOKEN_SECRET: "{{ token_secret }}"
-      ALPACA_API_SCHEME: https
-      ALPACA_API_HOST: data.alpaca.markets
-      ALPACA_API_PORT: 443
-      ALPACA_API_KEY: "{{ alpaca_api_key }}"
-      ALPACA_API_SECRET: "{{ alpaca_api_secret }}"
-      FETCH_SENTIMENT_STRATEGY_IMPLEMENTATION: "CNN_MARKET"
-      FETCH_SENTIMENT_STRATEGY_CNN_MARKET_ENDPOINT: "https://production.dataviz.cnn.io/index/fearandgreed/graphdata"
-
-  template:
-    src: "{{ playbook_dir }}/templates/service.env.j2"
-    dest: backend/stock-screener/.env
-    mode: '0600'
+    env_dest: backend/stock-screener/.env
+    resources:
+      secrets: [token, alpaca]
+      apis:    [alpaca, cnn_market_sentiment]

@@ -2,6 +2,7 @@ package accountstore
 
 import (
 	"context"
+	"sort"
 
 	"github.com/kduong/trading-backend/internal/contextx"
 	"github.com/kduong/trading-backend/internal/eventsource"
@@ -51,6 +52,9 @@ func (store *EventSourcedQueryHandler) List(ctx context.Context) ([]*Account, er
 		}
 		accounts = append(accounts, account)
 	}
+	sort.Slice(accounts, func(i, j int) bool {
+		return accounts[i].Name < accounts[j].Name
+	})
 	return accounts, nil
 }
 

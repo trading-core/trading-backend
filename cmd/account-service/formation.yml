@@ -8,4 +8,4 @@
     resources:
       secrets: [token, broker_credentials]
       logs:    [account_event_log]
-      apis:    [trading_api, frontend]
+      apis:    [trading_api]

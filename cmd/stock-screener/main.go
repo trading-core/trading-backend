@@ -21,7 +21,7 @@ func main() {
 		AllowedMethods:   []string{"GET", "HEAD", "OPTIONS", "POST", "PUT", "DELETE"},
 		AllowedHeaders:   []string{"Content-Type", "Content-Length", "Accept-Encoding", "X-CSRF-Token", "Authorization", "Accept", "Origin", "Range", "If-Range"},
 		ExposedHeaders:   []string{"Set-Cookie", "Allow", "Content-Length", "Accept-Ranges", "Content-Range", "Last-Modified"},
-		AllowCredentials: true,
+		AllowCredentials: false,
 	})
 	http.ListenAndServe(":8080", c.Handler(router))
 }

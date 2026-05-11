@@ -88,9 +88,8 @@ func (actor *Actor) uploadReport(ctx context.Context, userID string, jobID strin
 	if err != nil {
 		return nil, fmt.Errorf("reading report HTML: %w", err)
 	}
-	filename := fmt.Sprintf("report-%s.html", jobID)
 	return storageservice.UploadFile(ctx, actor.storageClient, storageservice.UploadFileInput{
-		Filename:    filename,
+		Key:         fmt.Sprintf("reports/%s/report.html", jobID),
 		ContentType: "text/html; charset=utf-8",
 		Body:        bytes.NewReader(htmlData),
 	})
